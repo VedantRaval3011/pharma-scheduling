@@ -32,11 +32,17 @@ const SubMenu: React.FC<SubMenuProps> = ({ items, onItemClick, level = 0 }) => {
     timeoutRef.current = setTimeout(() => setOpenIndex(null), 200);
   };
 
+  const handleContainerMouseEnter = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  };
+
   return (
     <div
       className={`absolute top-0 left-full min-w-48 z-50 ${
-        level > 0 ? "ml-1" : ""
+        level > 0 ? "-ml-1" : ""
       }`}
+      onMouseEnter={handleContainerMouseEnter}
+      onMouseLeave={handleMouseLeave}
       style={{
         background:
           "linear-gradient(180deg, #f8f9fa 0%, #e9ecef 50%, #dee2e6 100%)",
@@ -54,7 +60,6 @@ const SubMenu: React.FC<SubMenuProps> = ({ items, onItemClick, level = 0 }) => {
         <div
           key={index}
           onMouseEnter={() => handleMouseEnter(index)}
-          onMouseLeave={handleMouseLeave}
           className="relative px-4 py-2 text-sm text-black cursor-pointer whitespace-nowrap border-b border-gray-300 last:border-b-0 transition-all duration-150"
           onClick={() => onItemClick(item)}
           style={{
@@ -114,7 +119,25 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
   };
 
   const handleMouseLeave = () => {
-    timeoutRef.current = setTimeout(() => setActiveTab(null), 200);
+    timeoutRef.current = setTimeout(() => setActiveTab(null), 300);
+  };
+
+  const handleNavItemMouseEnter = (index: number) => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setActiveTab(index);
+  };
+
+  const handleNavItemMouseLeave = () => {
+    // Only set timeout if we're not hovering over a submenu
+    timeoutRef.current = setTimeout(() => setActiveTab(null), 300);
+  };
+
+  const handleSubMenuMouseEnter = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  };
+
+  const handleSubMenuMouseLeave = () => {
+    timeoutRef.current = setTimeout(() => setActiveTab(null), 300);
   };
 
   const handleLogout = () => {
@@ -138,8 +161,8 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
             <div
               key={index}
               className={`relative px-4 py-2 cursor-pointer transition-all duration-150 rounded-sm mx-1`}
-              onMouseEnter={() => handleMouseEnter(index)}
-              onMouseLeave={handleMouseLeave}
+              onMouseEnter={() => handleNavItemMouseEnter(index)}
+              onMouseLeave={handleNavItemMouseLeave}
               onClick={() => onItemClick(item)}
               style={{
                 background:
@@ -178,8 +201,8 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
               {activeTab === index && item.children && (
                 <div
                   className="absolute left-0 top-full z-50"
-                  onMouseEnter={() => handleMouseEnter(index)}
-                  onMouseLeave={handleMouseLeave}
+                  onMouseEnter={handleSubMenuMouseEnter}
+                  onMouseLeave={handleSubMenuMouseLeave}
                 >
                   <SubMenu items={item.children} onItemClick={onItemClick} />
                 </div>

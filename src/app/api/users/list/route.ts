@@ -1,42 +1,65 @@
 // app/api/users/list/route.ts
-import {  NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { User } from '@/models/user';
 import connectDB from '@/lib/db';
 
-export async function GET() {
+
+export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!session || !session.user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
     await connectDB();
 
+    const currentUser = session.user;
     let users;
-    
-    if (session.user.role === 'super_admin') {
+
+    // Role-based filtering
+    if (currentUser.role === 'super_admin') {
       // Super admin can see all users
-      users = await User.find({}, '-password').sort({ createdAt: -1 });
-    } else if (session.user.role === 'admin') {
-      // Admin can see employees in their company
-      users = await User.find({ 
-        companyId: session.user.companyId,
-        role: 'employee' 
-      }, '-password').sort({ createdAt: -1 });
+      users = await User.find({})
+        .select('-password')
+        .sort({ createdAt: -1 });
+    } else if (currentUser.role === 'admin') {
+      // Admin can only see employees in their company
+      users = await User.find({
+        companyId: currentUser.companyId,
+        role: 'employee'
+      })
+      .select('-password')
+      .sort({ createdAt: -1 });
     } else {
-      // Employees can only see their own data
-      users = await User.find({ 
-        userId: session.user.userId 
-      }, '-password');
+      // Employee can only see their own data
+      users = await User.find({
+        userId: currentUser.userId
+      })
+      .select('-password')
+      .sort({ createdAt: -1 });
     }
 
-    return NextResponse.json({ users });
-
+    return NextResponse.json({
+      users,
+      currentUser: {
+        id: currentUser.id,
+        userId: currentUser.userId,
+        role: currentUser.role,
+        companyId: currentUser.companyId,
+        company: currentUser.company
+      }
+    });
   } catch (error) {
-    console.error('List users error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Error fetching users:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
