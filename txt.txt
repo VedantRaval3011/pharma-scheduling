@@ -1,0 +1,22 @@
+finesihed products -->
+    ASSAY
+    RELATED SUBTANCES / ORGANIC IMPURITY
+
+
+bulk --> 
+    ASSAY
+
+
+stability  --> 
+    Accelerated stability
+    Real Time stability
+
+Raw Material -->
+    ASSAY
+    RELATED SUBTANCES / ORGANIC IMPURITY
+
+AMV(Analytical method Validation)
+
+PV(Process Validation)
+
+

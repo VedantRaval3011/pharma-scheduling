@@ -1,0 +1,112 @@
+.navigationContainer {
+  position: relative;
+  background: #f0f0f0;
+  border-bottom: 1px solid #ccc;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.topBar {
+  display: flex;
+  background: linear-gradient(to bottom, #f9f9f9, #e9e9e9);
+  border-bottom: 1px solid #bbb;
+}
+
+.tab {
+  padding: 8px 16px;
+  cursor: pointer;
+  border-right: 1px solid #ccc;
+  user-select: none;
+  font-size: 14px;
+  color: #333;
+  transition: background-color 0.2s;
+}
+
+.tab:hover {
+  background: linear-gradient(to bottom, #fff, #f0f0f0);
+}
+
+.activeTab {
+  background: linear-gradient(to bottom, #fff, #f0f0f0);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.dropdownContainer {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+  background: white;
+  border: 1px solid #ccc;
+  border-top: none;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.submenu {
+  min-width: 200px;
+  background: white;
+}
+
+.submenu[data-level="0"] {
+  border-right: 1px solid #ddd;
+}
+
+.submenuItem {
+  position: relative;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.submenuLabel {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #333;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background-color 0.2s;
+}
+
+.submenuLabel:hover {
+  background: #e8f4fd;
+  color: #0066cc;
+}
+
+.arrow {
+  font-size: 10px;
+  color: #666;
+}
+
+.description {
+  padding: 4px 16px 8px;
+  font-size: 11px;
+  color: #666;
+  font-style: italic;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.nestedSubmenu {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  z-index: 1001;
+  background: white;
+  border: 1px solid #ccc;
+  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.nestedSubmenu .submenu {
+  border-left: 1px solid #ddd;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .tab {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+  
+  .submenuLabel {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+}
