@@ -7,12 +7,6 @@ import { User } from '@/models/user';
 export async function GET(req: NextRequest, context: { params: Promise<{ userId: string }> }) {
   await connectDB();
 
-  const session = await getServerSession(authOptions);
-  if (!session || !session.user) {
-    console.error('GET /api/user/[userId]: Unauthorized - No session or user');
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   const { userId } = await context.params;
 
   if (!userId) {
@@ -21,32 +15,42 @@ export async function GET(req: NextRequest, context: { params: Promise<{ userId:
   }
 
   try {
-    const user = await User.findOne({ userId }).select('-password -__v');
+    // Check for session to determine if the request is authenticated
+    const session = await getServerSession(authOptions);
+
+    // Select fields based on authentication status
+    const selectFields = session && session.user ? '-password -__v' : 'userId companies';
+
+    const user = await User.findOne({ userId }).select(selectFields);
 
     if (!user) {
       console.error(`GET /api/user/${userId}: User not found for userId: ${userId}`);
       return NextResponse.json({ error: `User not found for userId: ${userId}` }, { status: 404 });
     }
 
-    // Verify that the requester has permission
-    const currentUser = await User.findById(session.user.id).select('role companyId');
-    if (!currentUser) {
-      console.error(`GET /api/user/${userId}: Current user not found for id: ${session.user.id}`);
-      return NextResponse.json({ error: 'Current user not found' }, { status: 404 });
-    }
-    if (currentUser.role === 'admin' && currentUser.companyId !== user.companyId) {
-      console.error(`GET /api/user/${userId}: Access denied - Admin ${session.user.id} cannot access user ${userId} from different company`);
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    // For authenticated requests, verify permissions
+    if (session && session.user) {
+      const currentUser = await User.findById(session.user.id).select('role companyId');
+      if (!currentUser) {
+        console.error(`GET /api/user/${userId}: Current user not found for id: ${session.user.id}`);
+        return NextResponse.json({ error: 'Current user not found' }, { status: 404 });
+      }
+      if (currentUser.role === 'admin' && currentUser.companyId !== user.companyId) {
+        console.error(`GET /api/user/${userId}: Access denied - Admin ${session.user.id} cannot access user ${userId} from different company`);
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      }
     }
 
-    return NextResponse.json({
+    // Prepare response based on authentication status
+    const responseUser = {
       user: {
         userId: user.userId,
-        role: user.role,
         companies: user.companies || [],
-        email: user.email,
-      }
-    }, { status: 200 });
+        ...(session && session.user ? { role: user.role, email: user.email } : {}),
+      },
+    };
+
+    return NextResponse.json(responseUser, { status: 200 });
   } catch (error) {
     console.error(`GET /api/user/${userId} error:`, error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
