@@ -87,7 +87,7 @@ export default function AdminDashboard() {
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
                 <p className="text-sm text-gray-500">
-                  {session?.user?.company} ({session?.user?.companyId})
+                  {session?.user?.companies?.[0]?.name} ({session?.user?.companies?.[0]?.companyId})
                 </p>
               </div>
               <button
@@ -162,8 +162,8 @@ export default function AdminDashboard() {
 
                   <div className="bg-gray-50 p-3 rounded-md">
                     <p className="text-sm text-gray-600">
-                      <strong>Company:</strong> {session?.user?.company}<br />
-                      <strong>Company ID:</strong> {session?.user?.companyId}
+                      <strong>Company:</strong> {session?.user?.companies?.[0]?.name}<br />
+                      <strong>Company ID:</strong> {session?.user?.companies?.[0]?.companyId}
                     </p>
                   </div>
 
@@ -238,9 +238,9 @@ export default function AdminDashboard() {
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold mb-4">Company Information</h3>
                 <div className="space-y-2">
-                  <p className="text-sm"><strong>Company:</strong> {session?.user?.company}</p>
-                  <p className="text-sm"><strong>Company ID:</strong> {session?.user?.companyId}</p>
-                  <p className="text-sm"><strong>User ID:</strong> {session?.user?.userId}</p>
+                  <p className="text-sm"><strong>Company:</strong> {session?.user?.companies?.[0]?.name}</p>
+                  <p className="text-sm"><strong>Company ID:</strong> {session?.user?.companies?.[0]?.companyId}</p>
+                  <p className="text-sm"><strong>User ID:</strong> {session?.user?.id}</p>
                   <p className="text-sm"><strong>Role:</strong> Admin</p>
                 </div>
               </div>

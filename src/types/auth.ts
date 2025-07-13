@@ -42,24 +42,26 @@ export interface CreateEmployeeData {
 export type UserRole = 'super_admin' | 'admin' | 'employee';
 
 // Session types
+
+
 export interface SessionUser {
-  id: string;
+  _id: string;
   userId: string;
+  password?: string;
   role: UserRole;
-  companyId?: string;
-  company?: string;
+  companies: { companyId: string; name: string; locations: { locationId: string; name: string }[] }[];
   email?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
+
 declare module "next-auth" {
-  interface Session {
-    user: SessionUser;
-  }
   
   interface User {
     id: string;
     userId: string;
-    role: UserRole;
+    role: string;
     companyId?: string;
     company?: string;
     email?: string;
@@ -70,7 +72,7 @@ declare module "next-auth/jwt" {
   interface JWT {
     id: string;
     userId: string;
-    role: UserRole;
+    role: string;
     companyId?: string;
     company?: string;
     email?: string;

@@ -1,21 +1,19 @@
-// types/user.ts
 export type UserRole = 'super_admin' | 'admin' | 'employee';
 export type UserStatus = 'active' | 'inactive';
 
-// Base User interface matching your Mongoose model
+// Base User interface matching Mongoose model
 export interface IUser {
   _id: string;
   userId: string;
-  password?: string; // Usually excluded from API responses for security
+  password?: string;
   role: UserRole;
-  companyId?: string;
-  company?: string;
+  companies: { companyId: string; name: string; locations: { locationId: string; name: string }[] }[];
   email?: string;
-  createdAt: string; // ISO date string from API
-  updatedAt: string; // ISO date string from API
+  createdAt: string;
+  updatedAt: string;
 }
 
-// Extended User interface for frontend with additional fields
+// Extended User interface for frontend
 export interface IUserWithDetails extends IUser {
   name?: string;
   department?: string;
@@ -29,12 +27,12 @@ export interface IUserWithDetails extends IUser {
 
 // Session user interface for authentication
 export interface SessionUser {
+  id: string;
   userId: string;
   role: UserRole;
-  companyId?: string;
+  companies: { companyId: string; name: string; locations: { locationId: string; name: string }[] }[];
   name?: string;
   email?: string;
-  company?: string;
 }
 
 // Complete session interface
@@ -66,8 +64,7 @@ export interface CreateUserRequest {
   userId: string;
   password: string;
   role: UserRole;
-  companyId?: string;
-  company?: string;
+  companies: { companyId: string; name: string; locations: { locationId: string; name: string }[] }[];
   email?: string;
   name?: string;
   department?: string;
@@ -76,8 +73,7 @@ export interface CreateUserRequest {
 export interface UpdateUserRequest {
   userId?: string;
   role?: UserRole;
-  companyId?: string;
-  company?: string;
+  companies?: { companyId: string; name: string; locations: { locationId: string; name: string }[] }[];
   email?: string;
   name?: string;
   department?: string;
@@ -87,6 +83,10 @@ export interface UpdateUserRequest {
 export interface LoginRequest {
   userId: string;
   password: string;
+  companyId?: string;
+  company?: string;
+  locationId?: string;
+  location?: string;
 }
 
 export interface LoginResponse {
@@ -126,13 +126,26 @@ export interface DashboardState {
   };
 }
 
-// Company interface if you have company management
+// Company interface
 export interface ICompany {
   _id: string;
   companyId: string;
   name: string;
+  locations: { locationId: string; name: string }[];
   description?: string;
   industry?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Location interface
+export interface ILocation {
+  _id: string;
+  locationId: string;
+  name: string;
+  companyId: string;
+  createdBy: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -141,7 +154,7 @@ export interface ICompany {
 export type PermissionCheck = (user: SessionUser, targetUser?: IUserWithDetails) => boolean;
 
 // Utility types for role-based access
-export type SuperAdminActions = 'view_all_users' | 'create_admin' | 'delete_user' | 'manage_companies';
+export type SuperAdminActions = 'view_all_users' | 'create_admin' | 'delete_user' | 'manage_companies' | 'manage_locations';
 export type AdminActions = 'view_company_users' | 'create_employee' | 'edit_employee' | 'deactivate_employee';
 export type EmployeeActions = 'view_own_profile' | 'edit_own_profile';
 
@@ -156,7 +169,7 @@ export interface UserFormErrors {
   userId?: string;
   password?: string;
   email?: string;
-  companyId?: string;
+  companies?: string;
   role?: string;
   name?: string;
 }
@@ -168,7 +181,6 @@ export interface UserFormData {
   email: string;
   name: string;
   role: UserRole;
-  companyId: string;
-  company: string;
+  companies: { companyId: string; name: string; locations: { locationId: string; name: string }[] }[];
   department: string;
 }

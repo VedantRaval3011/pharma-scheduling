@@ -89,63 +89,46 @@ export const adminEmployeeNavData: NavItem[] = [
     label: "Master",
     children: [
       {
-        label: "Accounts",
+        label: "Admin",
         children: [
           {
             label: "Admin Details",
-            description: "View & edit super-admin profile details",
-            path: "/dashboard/accounts/details",
+            description: "View & edit admin profile details",
+            path: "/dashboard/admin/details",
           },
           {
-            label: "Working Employees",
-            children: [
-              {
-                label: "List of current employees with their roles and credentials",
-                path: "/dashboard/accounts/employees/list",
-              },
-              {
-                label: "Set individual passwords (generate or assign)",
-                path: "/dashboard/accounts/employees/passwords",
-              },
-              {
-                label: "Enable/disable accounts",
-                path: "/dashboard/accounts/employees/status",
-              },
-            ],
+            label: "Kill User",
+            description: "Forcefully log out a user or terminate sessions",
+            path: "/dashboard/admin/kill-user",
           },
           {
-            label: "Change Passwords",
-            children: [
-              {
-                label: "Admin can change personal or employee passwords",
-                path: "/dashboard/accounts/passwords/change",
-              },
-            ],
+            label: "Role Assignment",
+            description: "Assign roles to users",
+            path: "/dashboard/admin/roles/assign",
           },
           {
-            label: "Access Control",
-            children: [
-              {
-                label: "Assign which modules are visible to which employee",
-                path: "/dashboard/accounts/access/modules",
-              },
-              {
-                label: "Lock/Unlock accounts",
-                path: "/dashboard/accounts/access/accounts",
-              },
-            ],
+            label: "Role Creation",
+            description: "Create new roles with specific permissions",
+            path: "/dashboard/admin/roles/create",
+          },
+          {
+            label: "Change Password",
+            description: "Change password for admin or employees",
+            path: "/dashboard/admin/password/change",
           },
           {
             label: "Audit Logs",
-            children: [
-              {
-                label: "Record of all logins, password changes, and access control updates",
-                path: "/dashboard/accounts/audit/logs",
-              },
-            ],
+            description: "View login, password change, and access history",
+            path: "/dashboard/admin/audit/logs",
+          },
+          {
+            label: "Working Employees",
+            description: "List of currently active employees",
+            path: "/dashboard/admin/employees/working",
           },
         ],
       },
+
       {
         label: "Mobile Phase Master",
         path: "/dashboard/mobile-phase",
@@ -270,7 +253,6 @@ export const adminEmployeeNavData: NavItem[] = [
     ],
   },
 ];
-
 
 // Remove admin-specific items for employee role
 export const employeeNavData: NavItem[] = adminEmployeeNavData.map((item) => {

@@ -1,4 +1,3 @@
-// app/api/auth/me/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
@@ -19,8 +18,8 @@ export async function GET(request: NextRequest) {
         id: session.user.id,
         userId: session.user.userId,
         role: session.user.role,
-        companyId: session.user.companyId,
-        company: session.user.company
+        companies: session.user.companies,
+        email: session.user.email,
       }
     });
   } catch (error) {

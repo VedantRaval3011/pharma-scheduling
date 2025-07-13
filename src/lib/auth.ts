@@ -2,7 +2,10 @@ import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { User } from "@/models/user";
+import { Company } from "@/models/company";
+import { Location } from "@/models/location";
 import connectDB from "./db";
+import { SessionUser } from "@/types/user";
 
 const ADMIN_EMAILS =
   process.env.ADMIN_EMAILS?.split(",").map((email) => email.trim()) || [];
@@ -25,6 +28,8 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
         companyId: { label: "Company ID", type: "text" },
         company: { label: "Company", type: "text" },
+        locationId: { label: "Location ID", type: "text" },
+        location: { label: "Location", type: "text" },
         loginType: { label: "Login Type", type: "text" },
       },
       async authorize(credentials) {
@@ -50,17 +55,80 @@ export const authOptions: NextAuthOptions = {
             throw new Error("Invalid password");
           }
 
-          // Validate company details for admin and employee
-          if (user.role !== "super_admin") {
-            if (!credentials.companyId || !credentials.company) {
-              throw new Error("Company details required");
+          if (user.role === "super_admin") {
+            if (!credentials.companyId || !credentials.company || !credentials.locationId || !credentials.location) {
+              throw new Error("Company and location details required");
             }
 
-            if (
-              user.companyId !== credentials.companyId.toUpperCase() ||
-              user.company !== credentials.company
-            ) {
+            let company = await Company.findOne({ companyId: credentials.companyId.toUpperCase() });
+            if (!company) {
+              company = new Company({
+                companyId: credentials.companyId.toUpperCase(),
+                name: credentials.company,
+                locations: [{ locationId: credentials.locationId, name: credentials.location }],
+                createdBy: user.userId,
+              });
+              await company.save();
+            } else {
+              const locationExists = company.locations.some(
+                (loc: any) => loc.locationId === credentials.locationId && loc.name === credentials.location
+              );
+              if (!locationExists) {
+                company.locations.push({ locationId: credentials.locationId, name: credentials.location });
+                await company.save();
+              }
+            }
+
+            const location = await Location.findOne({ locationId: credentials.locationId });
+            if (!location) {
+              const newLocation = new Location({
+                locationId: credentials.locationId,
+                name: credentials.location,
+                companyId: credentials.companyId.toUpperCase(),
+                createdBy: user.userId,
+              });
+              await newLocation.save();
+            }
+
+            const companyExistsInUser = user.companies.some(
+              (c: any) => c.companyId === credentials.companyId.toUpperCase()
+            );
+            if (!companyExistsInUser) {
+              user.companies.push({
+                companyId: credentials.companyId.toUpperCase(),
+                name: credentials.company,
+                locations: [{ locationId: credentials.locationId, name: credentials.location }],
+              });
+              await user.save();
+            } else {
+              const companyInUser = user.companies.find(
+                (c: any) => c.companyId === credentials.companyId.toUpperCase()
+              );
+              const locationExistsInCompany = companyInUser.locations.some(
+                (loc: any) => loc.locationId === credentials.locationId
+              );
+              if (!locationExistsInCompany) {
+                companyInUser.locations.push({ locationId: credentials.locationId, name: credentials.location });
+                await user.save();
+              }
+            }
+          } else {
+            if (!credentials.companyId || !credentials.company || !credentials.locationId || !credentials.location) {
+              throw new Error("Company and location details required");
+            }
+
+            const company = user.companies.find(
+              (c: any) => c.companyId === credentials.companyId.toUpperCase() && c.name === credentials.company
+            );
+            if (!company) {
               throw new Error("Invalid company details");
+            }
+
+            const location = company.locations.find(
+              (l: any) => l.locationId === credentials.locationId && l.name === credentials.location
+            );
+            if (!location) {
+              throw new Error("Invalid location details");
             }
           }
 
@@ -68,8 +136,7 @@ export const authOptions: NextAuthOptions = {
             id: user._id.toString(),
             userId: user.userId,
             role: user.role,
-            companyId: user.companyId,
-            company: user.company,
+            companies: user.companies,
             email: user.email,
           };
         } catch (error) {
@@ -84,32 +151,30 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider === "google") {
-        // Only allow specific emails for super admin
         if (!ADMIN_EMAILS.includes(user.email || "")) {
           return false;
         }
 
-        // Create or update super admin user
         try {
           await connectDB();
 
           let existingUser = await User.findOne({ email: user.email });
 
           if (!existingUser) {
-            // Create new super admin
             existingUser = new User({
               userId: user.email?.split("@")[0] || "superadmin",
-              password: "oauth_user", // Placeholder password
+              password: "oauth_user",
               role: "super_admin",
               email: user.email,
+              companies: []
             });
             await existingUser.save();
           }
 
-          // Update user object for JWT
           user.id = existingUser._id.toString();
           user.userId = existingUser.userId;
           user.role = existingUser.role;
+          user.companies = existingUser.companies;
 
           return true;
         } catch (error) {
@@ -125,8 +190,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.userId = user.userId;
         token.role = user.role;
-        token.companyId = user.companyId;
-        token.company = user.company;
+        token.companies = user.companies;
         token.email = user.email;
       }
       return token;
@@ -136,10 +200,9 @@ export const authOptions: NextAuthOptions = {
         id: token.id,
         userId: token.userId,
         role: token.role,
-        companyId: token.companyId,
-        company: token.company,
+        companies: token.companies,
         email: token.email,
-      };
+      } as SessionUser;
       return session;
     },
   },
@@ -152,3 +215,27 @@ export const authOptions: NextAuthOptions = {
   },
   secret: process.env.NEXTAUTH_SECRET,
 };
+
+declare module "next-auth" {
+  interface User {
+    id: string;
+    userId: string;
+    role: string;
+    companies: { companyId: string; name: string; locations: { locationId: string; name: string }[] }[];
+    email?: string;
+  }
+
+  interface Session {
+    user: SessionUser;
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id: string;
+    userId: string;
+    role: string;
+    companies: { companyId: string; name: string; locations: { locationId: string; name: string }[] }[];
+    email?: string;
+  }
+}
