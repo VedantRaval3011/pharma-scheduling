@@ -1,7 +1,8 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { Shield, Building, User, Save, Edit, AlertCircle } from 'lucide-react';
+import {  Building, User, Save, Edit, AlertCircle } from 'lucide-react';
 import type { JSX } from 'react';
+import ToolBox from '@/components/layout/ToolBox';
 
 interface Location {
   locationId: string;
@@ -206,9 +207,9 @@ const AdminDetailsDashboard: React.FC = () => {
   const getRoleIcon = (role: AdminUser['role']): JSX.Element => {
     switch (role) {
       case 'admin':
-        return <Building className="w-4 h-4 text-blue-600" />;
+        return <Building className="w-4 h-4 text-blue-700" />;
       default:
-        return <User className="w-4 h-4 text-green-600" />;
+        return <User className="w-4 h-4 text-green-700" />;
     }
   };
 
@@ -224,29 +225,46 @@ const AdminDetailsDashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-100 p-4">
+    <div className="min-h-screen p-4" style={{ 
+      background: 'linear-gradient(135deg, #fafafa 0%, #f0f0f0 100%)',
+      fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif'
+    }}>
+      <ToolBox/>
       <div className="max-w-4xl mx-auto">
-        <div className="bg-gradient-to-r from-amber-200 to-orange-200 border-2 border-amber-300 rounded-t-lg shadow-lg">
-          <div className="flex items-center justify-between p-3 border-b border-amber-300">
+        {/* Windows-style title bar */}
+        <div className="rounded-t-lg shadow-lg border-t-2 border-l-2 border-r-2 border-blue-300" style={{
+          background: 'linear-gradient(to bottom, #e9f3ff 0%, #d0e7ff 50%, #b0d1ff 100%)'
+        }}>
+          <div className="flex items-center p-3">
             <div className="flex items-center space-x-2">
-              <User className="w-5 h-5 text-amber-800" />
-              <h1 className="text-lg font-bold text-amber-900">Admin Details</h1>
+              <User className="w-5 h-5 text-blue-800" />
+              <h1 className="text-lg font-bold text-blue-900">Admin Details</h1>
             </div>
           </div>
         </div>
 
-        <div className="bg-gradient-to-b from-amber-50 to-orange-50 border-2 border-t-0 border-amber-300 rounded-b-lg shadow-lg p-6">
+        {/* Windows-style main content area */}
+        <div className="rounded-b-lg shadow-lg border-2 border-t-0 border-gray-400 p-6" style={{
+          background: 'linear-gradient(to bottom, #ffffff 0%, #f8f8f8 100%)',
+          borderStyle: 'ridge',
+          borderWidth: '2px'
+        }}>
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <span className="ml-2 text-amber-800">Loading admin details...</span>
+              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2"></div>
+              <span className="text-gray-800">Loading admin details...</span>
             </div>
           ) : error ? (
             <div className="text-center py-8">
-              <AlertCircle className="w-12 h-12 mx-auto mb-2 text-red-500" />
-              <p className="text-red-700 mb-2">{error}</p>
+              <AlertCircle className="w-12 h-12 mx-auto mb-2 text-red-600" />
+              <p className="text-red-800 mb-2">{error}</p>
               <button
                 onClick={fetchAdminDetails}
-                className="px-4 py-2 bg-red-200 hover:bg-red-300 border border-red-400 rounded text-red-800 text-sm"
+                className="px-4 py-2 border-2 border-gray-400 rounded text-gray-800 text-sm hover:bg-gray-100 active:border-gray-600"
+                style={{
+                  background: 'linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)',
+                  borderStyle: 'outset'
+                }}
               >
                 Try Again
               </button>
@@ -255,19 +273,26 @@ const AdminDetailsDashboard: React.FC = () => {
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-amber-200 to-orange-200 rounded-full flex items-center justify-center border-2 border-amber-400">
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center border-2 border-gray-400" style={{
+                    background: 'linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)',
+                    borderStyle: 'inset'
+                  }}>
                     {getRoleIcon(admin.role)}
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-amber-900">{admin.userId}</h2>
-                    <p className="text-amber-700 text-sm">
+                    <h2 className="text-lg font-semibold text-gray-900">{admin.userId}</h2>
+                    <p className="text-gray-700 text-sm">
                       Role: {getRoleDisplayName(admin.role)}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={handleEdit}
-                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-amber-300 to-orange-300 hover:from-amber-400 hover:to-orange-400 border-2 border-amber-400 rounded-md text-amber-900 font-medium"
+                  className="flex items-center space-x-2 px-4 py-2 border-2 border-gray-400 rounded text-gray-900 font-medium hover:bg-gray-100 active:border-gray-600"
+                  style={{
+                    background: 'linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)',
+                    borderStyle: 'outset'
+                  }}
                 >
                   {isEditing ? <Save className="w-4 h-4" /> : <Edit className="w-4 h-4" />}
                   <span>{isEditing ? 'Save' : 'Edit'}</span>
@@ -275,80 +300,94 @@ const AdminDetailsDashboard: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-amber-800 font-medium">User ID</label>
-                  <p className="text-amber-700 mt-1">{admin.userId}</p>
+                <div className="p-3 border-2 border-gray-300 rounded" style={{
+                  background: 'linear-gradient(to bottom, #fdfdfd 0%, #f5f5f5 100%)',
+                  borderStyle: 'inset'
+                }}>
+                  <label className="text-gray-800 font-medium text-sm">User ID</label>
+                  <p className="text-gray-900 mt-1">{admin.userId}</p>
                 </div>
-                <div>
-                  <label className="text-amber-800 font-medium">Role</label>
-                  <p className="text-amber-700 mt-1">{getRoleDisplayName(admin.role)}</p>
+                <div className="p-3 border-2 border-gray-300 rounded" style={{
+                  background: 'linear-gradient(to bottom, #fdfdfd 0%, #f5f5f5 100%)',
+                  borderStyle: 'inset'
+                }}>
+                  <label className="text-gray-800 font-medium text-sm">Role</label>
+                  <p className="text-gray-900 mt-1">{getRoleDisplayName(admin.role)}</p>
                 </div>
-                <div>
-                  <label className="text-amber-800 font-medium">Email</label>
+                <div className="p-3 border-2 border-gray-300 rounded" style={{
+                  background: 'linear-gradient(to bottom, #fdfdfd 0%, #f5f5f5 100%)',
+                  borderStyle: 'inset'
+                }}>
+                  <label className="text-gray-800 font-medium text-sm">Email</label>
                   {isEditing ? (
                     <input
                       type="email"
                       name="email"
                       value={formData.email || ''}
                       onChange={handleInputChange}
-                      className="w-full mt-1 p-2 border-2 border-amber-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      className="w-full mt-1 p-2 border-2 border-gray-400 rounded bg-white focus:outline-none focus:border-blue-500"
+                      style={{ borderStyle: 'inset' }}
                     />
                   ) : (
-                    <p className="text-amber-700 mt-1">{admin.email || 'Not set'}</p>
+                    <p className="text-gray-900 mt-1">{admin.email || 'Not set'}</p>
                   )}
                 </div>
               </div>
 
-              <div>
-                <label className="text-amber-800 font-medium">Companies</label>
+              <div className="p-4 border-2 border-gray-300 rounded" style={{
+                background: 'linear-gradient(to bottom, #fdfdfd 0%, #f5f5f5 100%)',
+                borderStyle: 'inset'
+              }}>
+                <label className="text-gray-800 font-medium text-sm">Companies</label>
                 {admin.companies.length > 0 ? (
                   <div className="mt-2 space-y-4">
                     {admin.companies.map((company, companyIndex) => (
-                      <div key={company.companyId} className="border-l-4 border-amber-400 pl-4">
+                      <div key={company.companyId} className="border-l-4 pl-4 p-2 bg-white rounded border border-gray-300">
                         {isEditing ? (
                           <input
                             type="text"
                             value={formData.companies[companyIndex].name}
                             onChange={(e) => handleInputChange(e, companyIndex)}
-                            className="text-amber-900 font-semibold w-full p-2 border-2 border-amber-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                            className="text-gray-900 font-semibold w-full p-2 border-2 border-gray-400 rounded bg-white focus:outline-none focus:border-blue-500"
+                            style={{ borderStyle: 'inset' }}
                           />
                         ) : (
-                          <p className="text-amber-900 font-semibold">{company.name}</p>
+                          <p className="text-gray-900 font-semibold">{company.name}</p>
                         )}
-                        <p className="text-amber-700 text-sm">Company ID: {company.companyId}</p>
                         <div className="mt-2">
-                          <label className="text-amber-800 text-sm font-medium">Locations</label>
+                          <label className="text-gray-800 text-sm font-medium">Locations</label>
                           {company.locations.length > 0 ? (
-                            <ul className="list-disc list-inside text-amber-700 text-sm">
+                            <ul className="list-disc list-inside text-gray-700 text-sm">
                               {company.locations.map((location, locationIndex) => (
-                                <li key={location.locationId}>
+                                <li key={location.locationId} className="mt-1">
                                   {isEditing ? (
                                     <input
                                       type="text"
                                       value={formData.companies[companyIndex].locations[locationIndex].name}
                                       onChange={(e) => handleInputChange(e, companyIndex, locationIndex)}
-                                      className="w-full p-2 border-2 border-amber-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                                      className="w-full p-2 border-2 border-gray-400 rounded bg-white focus:outline-none focus:border-blue-500"
+                                      style={{ borderStyle: 'inset' }}
                                     />
                                   ) : (
-                                    `${location.name} (ID: ${location.locationId})`
+                                    `${location.name} `
                                   )}
                                 </li>
                               ))}
                             </ul>
                           ) : (
-                            <p className="text-amber-700 text-sm">No locations assigned</p>
+                            <p className="text-gray-700 text-sm">No locations assigned</p>
                           )}
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-amber-700 mt-1">No companies assigned</p>
+                  <p className="text-gray-700 mt-1">No companies assigned</p>
                 )}
               </div>
             </div>
           ) : (
-            <div className="text-center py-8 text-amber-700">
+            <div className="text-center py-8 text-gray-700">
               <p>No admin details found</p>
             </div>
           )}

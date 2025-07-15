@@ -104,7 +104,7 @@ export const adminEmployeeNavData: NavItem[] = [
           {
             label: "Role Assignment",
             description: "Assign roles to users",
-            path: "/dashboard/admin/roles/assign",
+            path: "/dashboard/admin/role-assignment",
           },
           {
             label: "Role Creation",
@@ -122,9 +122,14 @@ export const adminEmployeeNavData: NavItem[] = [
             path: "/dashboard/admin/audit/logs",
           },
           {
-            label: "Working Employees",
-            description: "List of currently active employees",
-            path: "/dashboard/admin/employees/working",
+            label: "Manage Employees",
+            description: "Manage the list of currently active employees",
+            path: "/dashboard/admin/employees",
+          },
+          {
+            label: "Manage Roles",
+            description: "Manage the roles of employees",
+            path: "/dashboard/admin/roles",
           },
         ],
       },

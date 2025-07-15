@@ -4,6 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { User } from "@/models/user";
 import { Company } from "@/models/company";
 import { Location } from "@/models/location";
+import { Employee } from "@/models/employee";
 import connectDB from "./db";
 import { SessionUser } from "@/types/user";
 
@@ -40,105 +41,183 @@ export const authOptions: NextAuthOptions = {
         try {
           await connectDB();
 
-          const user = await User.findOne({
-            userId: credentials.userId.toLowerCase(),
-          });
+          if (credentials.loginType === 'employee') {
+            const employee = await Employee.findOne({
+              userId: credentials.userId.toLowerCase(),
+            });
 
-          if (!user) {
-            throw new Error("User not found");
-          }
+            if (!employee) {
+              throw new Error("Employee not found");
+            }
 
-          const isValidPassword = await user.comparePassword(
-            credentials.password
-          );
-          if (!isValidPassword) {
-            throw new Error("Invalid password");
-          }
+            const isValidPassword = await employee.comparePassword(credentials.password);
+            if (!isValidPassword) {
+              throw new Error("Invalid password");
+            }
 
-          if (user.role === "super_admin") {
             if (!credentials.companyId || !credentials.company || !credentials.locationId || !credentials.location) {
               throw new Error("Company and location details required");
             }
 
-            let company = await Company.findOne({ companyId: credentials.companyId.toUpperCase() });
-            if (!company) {
-              company = new Company({
-                companyId: credentials.companyId.toUpperCase(),
-                name: credentials.company,
-                locations: [{ locationId: credentials.locationId, name: credentials.location }],
-                createdBy: user.userId,
-              });
-              await company.save();
-            } else {
-              const locationExists = company.locations.some(
-                (loc: any) => loc.locationId === credentials.locationId && loc.name === credentials.location
-              );
-              if (!locationExists) {
-                company.locations.push({ locationId: credentials.locationId, name: credentials.location });
-                await company.save();
-              }
-            }
-
-            const location = await Location.findOne({ locationId: credentials.locationId });
-            if (!location) {
-              const newLocation = new Location({
-                locationId: credentials.locationId,
-                name: credentials.location,
-                companyId: credentials.companyId.toUpperCase(),
-                createdBy: user.userId,
-              });
-              await newLocation.save();
-            }
-
-            const companyExistsInUser = user.companies.some(
+            const company = employee.companies.find(
               (c: any) => c.companyId === credentials.companyId.toUpperCase()
-            );
-            if (!companyExistsInUser) {
-              user.companies.push({
-                companyId: credentials.companyId.toUpperCase(),
-                name: credentials.company,
-                locations: [{ locationId: credentials.locationId, name: credentials.location }],
-              });
-              await user.save();
-            } else {
-              const companyInUser = user.companies.find(
-                (c: any) => c.companyId === credentials.companyId.toUpperCase()
-              );
-              const locationExistsInCompany = companyInUser.locations.some(
-                (loc: any) => loc.locationId === credentials.locationId
-              );
-              if (!locationExistsInCompany) {
-                companyInUser.locations.push({ locationId: credentials.locationId, name: credentials.location });
-                await user.save();
-              }
-            }
-          } else {
-            if (!credentials.companyId || !credentials.company || !credentials.locationId || !credentials.location) {
-              throw new Error("Company and location details required");
-            }
-
-            const company = user.companies.find(
-              (c: any) => c.companyId === credentials.companyId.toUpperCase() && c.name === credentials.company
             );
             if (!company) {
               throw new Error("Invalid company details");
             }
 
             const location = company.locations.find(
-              (l: any) => l.locationId === credentials.locationId && l.name === credentials.location
+              (l: any) => l.locationId === credentials.locationId
             );
             if (!location) {
               throw new Error("Invalid location details");
             }
-          }
 
-          return {
-            id: user._id.toString(),
-            userId: user.userId,
-            role: user.role,
-            companies: user.companies,
-            email: user.email,
-          };
+            let user = await User.findOne({ userId: employee.userId });
+            if (!user) {
+              user = new User({
+                userId: employee.userId,
+                password: employee.password,
+                role: 'employee',
+                email: employee.email || `${employee.userId}@company.com`,
+                companies: [{
+                  companyId: company.companyId,
+                  name: company.name,
+                  locations: [{ locationId: location.locationId, name: location.name }],
+                }],
+              });
+              await user.save();
+            } else {
+              const companyExists = user.companies.some(
+                (c: any) => c.companyId === company.companyId
+              );
+              if (!companyExists) {
+                user.companies.push({
+                  companyId: company.companyId,
+                  name: company.name,
+                  locations: [{ locationId: location.locationId, name: location.name }],
+                });
+                await user.save();
+              } else {
+                const companyInUser = user.companies.find(
+                  (c: any) => c.companyId === company.companyId
+                );
+                const locationExists = companyInUser.locations.some(
+                  (l: any) => l.locationId === location.locationId
+                );
+                if (!locationExists) {
+                  companyInUser.locations.push({ locationId: location.locationId, name: location.name });
+                  await user.save();
+                }
+              }
+            }
+
+            return {
+              id: user._id.toString(),
+              userId: user.userId,
+              role: user.role,
+              companies: user.companies,
+              email: user.email,
+            };
+          } else {
+            const user = await User.findOne({
+              userId: credentials.userId.toLowerCase(),
+            });
+
+            if (!user) {
+              throw new Error("User not found");
+            }
+
+            const isValidPassword = await user.comparePassword(credentials.password);
+            if (!isValidPassword) {
+              throw new Error("Invalid password");
+            }
+
+            if (user.role === "super_admin") {
+              if (!credentials.companyId || !credentials.company || !credentials.locationId || !credentials.location) {
+                throw new Error("Company and location details required");
+              }
+
+              let company = await Company.findOne({ companyId: credentials.companyId.toUpperCase() });
+              if (!company) {
+                company = new Company({
+                  companyId: credentials.companyId.toUpperCase(),
+                  name: credentials.company,
+                  locations: [{ locationId: credentials.locationId, name: credentials.location }],
+                  createdBy: user.userId,
+                });
+                await company.save();
+              } else {
+                const locationExists = company.locations.some(
+                  (loc: any) => loc.locationId === credentials.locationId && loc.name === credentials.location
+                );
+                if (!locationExists) {
+                  company.locations.push({ locationId: credentials.locationId, name: credentials.location });
+                  await company.save();
+                }
+              }
+
+              const location = await Location.findOne({ locationId: credentials.locationId });
+              if (!location) {
+                const newLocation = new Location({
+                  locationId: credentials.locationId,
+                  name: credentials.location,
+                  companyId: credentials.companyId.toUpperCase(),
+                  createdBy: user.userId,
+                });
+                await newLocation.save();
+              }
+
+              const companyExistsInUser = user.companies.some(
+                (c: any) => c.companyId === credentials.companyId.toUpperCase()
+              );
+              if (!companyExistsInUser) {
+                user.companies.push({
+                  companyId: credentials.companyId.toUpperCase(),
+                  name: credentials.company,
+                  locations: [{ locationId: credentials.locationId, name: credentials.location }],
+                });
+                await user.save();
+              } else {
+                const companyInUser = user.companies.find(
+                  (c: any) => c.companyId === credentials.companyId.toUpperCase()
+                );
+                const locationExistsInCompany = companyInUser.locations.some(
+                  (loc: any) => loc.locationId === credentials.locationId
+                );
+                if (!locationExistsInCompany) {
+                  companyInUser.locations.push({ locationId: credentials.locationId, name: credentials.location });
+                  await user.save();
+                }
+              }
+            } else {
+              if (!credentials.companyId || !credentials.company || !credentials.locationId || !credentials.location) {
+                throw new Error("Company and location details required");
+              }
+
+              const company = user.companies.find(
+                (c: any) => c.companyId === credentials.companyId.toUpperCase() && c.name === credentials.company
+              );
+              if (!company) {
+                throw new Error("Invalid company details");
+              }
+
+              const location = company.locations.find(
+                (l: any) => l.locationId === credentials.locationId && l.name === credentials.location
+              );
+              if (!location) {
+                throw new Error("Invalid location details");
+              }
+            }
+
+            return {
+              id: user._id.toString(),
+              userId: user.userId,
+              role: user.role,
+              companies: user.companies,
+              email: user.email,
+            };
+          }
         } catch (error) {
           if (error instanceof Error) {
             throw new Error(error.message);
