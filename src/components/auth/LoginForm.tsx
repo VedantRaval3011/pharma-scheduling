@@ -365,7 +365,7 @@ export default function LoginForm() {
                   </option>
                   {companies.map((company) => (
                     <option key={company.companyId} value={company.companyId}>
-                      {company.name} ({company.companyId})
+                      {company.name} 
                     </option>
                   ))}
                 </select>
@@ -415,7 +415,7 @@ export default function LoginForm() {
                       key={location.locationId}
                       value={location.locationId}
                     >
-                      {location.name} ({location.locationId})
+                      {location.name} 
                     </option>
                   ))}
                 </select>
