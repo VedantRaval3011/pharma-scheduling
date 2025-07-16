@@ -3,6 +3,16 @@ import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
 import type { CallbackError } from 'mongoose';
 
+export interface SessionUser {
+  id: string;
+  userId: string;
+  role: string;
+  companies: { companyId: string; name: string; locations: { locationId: string; name: string }[] }[];
+  email?: string;
+  moduleAccess?: IModuleAccess[];
+}
+
+
 // Interfaces for type safety
 interface ILocation {
   locationId: string;
@@ -31,12 +41,13 @@ interface IModuleAccess {
   permissions: string[];
 }
 
+
 interface IEmployee extends Document {
   employeeId: string;
   userId: string;
   name: string;
   role: 'super_admin' | 'admin' | 'employee';
-  companyRoles: string[]; // References to CompanyRole IDs
+  companyRoles: string[];
   companies: ICompany[];
   moduleAccess: IModuleAccess[];
   email?: string;
@@ -156,7 +167,7 @@ const employeeSchema = new Schema<IEmployee>({
   },
   password: {
     type: String,
-    required: true,
+    required: false,
     minlength: 6,
   },
   role: {

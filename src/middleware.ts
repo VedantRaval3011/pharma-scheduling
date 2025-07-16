@@ -1,21 +1,42 @@
 import { withAuth } from 'next-auth/middleware';
 import { NextResponse } from 'next/server';
+import { UserRole } from './types/auth';
 
 export default withAuth(
   function middleware(req) {
     const { pathname } = req.nextUrl;
     const { token } = req.nextauth;
+    const userRole = token?.role as UserRole;
 
     // Role-based access control
-    if (pathname.startsWith('/dashboard/super-admin') && token?.role !== 'super_admin') {
+    // Super admin can access everything
+    if (userRole === 'super_admin') {
+      return NextResponse.next();
+    }
+
+    // Admin can access everything (including super-admin routes)
+    if (userRole === 'admin') {
+      return NextResponse.next();
+    }
+
+    // Restrict super-admin routes for non-super-admin/admin users
+    if (pathname.startsWith('/dashboard/super-admin') && 
+        token?.role !== 'admin') {
       return NextResponse.redirect(new URL('/unauthorized', req.url));
     }
 
-    if (pathname.startsWith('/dashboard/admin') && token?.role !== 'admin') {
+    // Restrict admin routes for non-admin users (employees)
+    if (pathname.startsWith('/dashboard/admin') && 
+        token?.role !== 'admin' && 
+        token?.role !== 'super_admin') {
       return NextResponse.redirect(new URL('/unauthorized', req.url));
     }
 
-    if (pathname.startsWith('/dashboard/employee') && token?.role !== 'employee') {
+    // Only employees are restricted to employee routes
+    if (pathname.startsWith('/dashboard/employee') && 
+        token?.role !== 'employee' && 
+        token?.role !== 'admin' && 
+        token?.role !== 'super_admin') {
       return NextResponse.redirect(new URL('/unauthorized', req.url));
     }
 

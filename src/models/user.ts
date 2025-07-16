@@ -2,6 +2,18 @@ import mongoose, { Schema, Document } from "mongoose";
 import bcrypt from "bcryptjs";
 import type { CallbackError } from "mongoose";
 
+import { IModuleAccess } from '@/models/employee';
+
+
+
+export interface SessionUser {
+  id: string;
+  userId: string;
+  role: string;
+  companies: { companyId: string; name: string; locations: { locationId: string; name: string }[] }[];
+  email?: string;
+  moduleAccess?: IModuleAccess[];  // Add this line
+}
 // Define interfaces for better type safety
 interface ILocation {
   locationId: string;

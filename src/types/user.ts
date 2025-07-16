@@ -1,3 +1,5 @@
+import { IModuleAccess } from "@/models/employee";
+
 export type UserRole = 'super_admin' | 'admin' | 'employee';
 export type UserStatus = 'active' | 'inactive';
 
@@ -26,13 +28,14 @@ export interface IUserWithDetails extends IUser {
 }
 
 // Session user interface for authentication
+
 export interface SessionUser {
   id: string;
   userId: string;
   role: UserRole;
   companies: { companyId: string; name: string; locations: { locationId: string; name: string }[] }[];
-  name?: string;
   email?: string;
+  moduleAccess?: IModuleAccess[];  // Add this line
 }
 
 // Complete session interface

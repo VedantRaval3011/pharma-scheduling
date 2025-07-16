@@ -98,8 +98,6 @@ export async function POST(request: NextRequest) {
     await newAdmin.save();
 
     // Verify the data was saved correctly
-    
-
     return NextResponse.json({ 
       message: 'Admin created successfully',
       admin: {

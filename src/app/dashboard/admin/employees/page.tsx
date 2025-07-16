@@ -1,12 +1,35 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { adminEmployeeNavData } from "@/data/navigationData";
 import { v4 as uuidv4 } from "uuid";
 import WindowsToolbar from "@/components/layout/ToolBox";
+import { NavItem } from "@/types";
+
+interface AuditLog {
+  action: string;
+  timestamp: string;
+  userId: string; // This is the performedBy field (user who made the change)
+  details: {
+    message?: string;
+    changes?: {
+      field: string;
+      oldValue: any;
+      newValue: any;
+      dataType: string;
+    }[];
+    performedBy?: string;
+    employeeId?: string;
+    userId?: string;
+    name?: string;
+    deletedEmployeeId?: string;
+    deletedUserId?: string;
+    [key: string]: any; // Index signature for additional properties
+  };
+}
 
 // Types
 interface FormData {
@@ -48,18 +71,13 @@ interface UserData {
   email?: string;
 }
 
-interface UserApiResponse {
-  user: UserData;
-  error?: string;
-}
-
 interface EmployeeRecord {
   employeeId: string;
   userId: string;
   name: string;
   companyRoles: string[];
   companyId: string;
-  locations: Location[];
+  locations: Location[]; // Explicitly define as an array
   moduleAccess: {
     modulePath: string;
     moduleName: string;
@@ -70,8 +88,23 @@ interface EmployeeRecord {
 interface AuditLog {
   action: string;
   timestamp: string;
-  userId: string;
-  details: string;
+  userId: string; // This is the performedBy field (user who made the change)
+  details: {
+    message?: string;
+    changes?: {
+      field: string;
+      oldValue: any;
+      newValue: any;
+      dataType: string;
+    }[];
+    performedBy?: string;
+    employeeId?: string;
+    userId?: string;
+    name?: string;
+    deletedEmployeeId?: string;
+    deletedUserId?: string;
+    [key: string]: any;
+  };
 }
 
 export default function AdminDashboard() {
@@ -88,7 +121,7 @@ export default function AdminDashboard() {
     password: "",
     name: "",
     companyRoles: [],
-    companyId: "",
+    companyId: session?.user?.companies?.[0]?.companyId || "",
     locationIds: [],
     moduleAccess: [],
   });
@@ -104,6 +137,97 @@ export default function AdminDashboard() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const userIdInputRef = useRef<HTMLInputElement>(null);
+  const [sortedEmployees, setSortedEmployees] = useState<EmployeeRecord[]>([]);
+  const [currentSortedIndex, setCurrentSortedIndex] = useState(-1);
+  const [filteredEmployees, setFilteredEmployees] = useState<EmployeeRecord[]>(
+    []
+  );
+  const [filterAction, setFilterAction] = useState("");
+  const [filterDateRange, setFilterDateRange] = useState("");
+  const [filteredAuditLogs, setFilteredAuditLogs] = useState<AuditLog[]>([]);
+  const [selectedEmployeeIndex, setSelectedEmployeeIndex] =
+    useState<number>(-1);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const logsPerPage = 10;
+
+  useEffect(() => {
+    setFilteredAuditLogs(auditLogs);
+  }, [auditLogs]);
+
+  const filterAuditLogs = (
+    query: string,
+    action: string,
+    dateRange: string
+  ) => {
+    let filtered = [...auditLogs];
+
+    // Apply search query
+    if (query.trim()) {
+      const lowerQuery = query.toLowerCase();
+      filtered = filtered.filter((log) => {
+        const detailsStr = JSON.stringify(log.details).toLowerCase();
+        return (
+          log.action.toLowerCase().includes(lowerQuery) ||
+          log.userId.toLowerCase().includes(lowerQuery) ||
+          detailsStr.includes(lowerQuery)
+        );
+      });
+    }
+
+    // Apply action filter
+    if (action) {
+      filtered = filtered.filter((log) => log.action === action);
+    }
+
+    // Apply date range filter
+    if (dateRange) {
+      const now = new Date();
+      let startDate: Date;
+      switch (dateRange) {
+        case "today":
+          startDate = new Date(now.setHours(0, 0, 0, 0));
+          break;
+        case "week":
+          startDate = new Date(now.setDate(now.getDate() - 7));
+          break;
+        case "month":
+          startDate = new Date(now.setDate(now.getDate() - 30));
+          break;
+        case "year":
+          startDate = new Date(now.setFullYear(now.getFullYear() - 1));
+          break;
+        default:
+          startDate = new Date(0);
+      }
+      filtered = filtered.filter((log) => new Date(log.timestamp) >= startDate);
+    }
+
+    setFilteredAuditLogs(filtered);
+    setCurrentPage(1); // Reset to first page when filters change
+  };
+
+  // Calculate pagination values
+  const totalPages = Math.ceil(filteredAuditLogs.length / logsPerPage);
+  const indexOfLastLog = currentPage * logsPerPage;
+  const indexOfFirstLog = indexOfLastLog - logsPerPage;
+  const currentLogs = filteredAuditLogs.slice(indexOfFirstLog, indexOfLastLog);
+
+  useEffect(() => {
+    const sorted = [...employees].sort((a, b) =>
+      a.userId.localeCompare(b.userId)
+    );
+    setSortedEmployees(sorted);
+
+    // Update current sorted index if we have a current employee
+    if (currentEmployeeIndex >= 0) {
+      const currentEmployee = employees[currentEmployeeIndex];
+      const sortedIndex = sorted.findIndex(
+        (emp) => emp.employeeId === currentEmployee.employeeId
+      );
+      setCurrentSortedIndex(sortedIndex);
+    }
+  }, [employees, currentEmployeeIndex]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -127,9 +251,6 @@ export default function AdminDashboard() {
         } else {
           setError(employeesData.error || "Failed to fetch employees");
         }
-
-        // Don't pre-populate companies - they will be fetched when user selects a userId
-        setCompanies([]);
       } catch {
         setError("An error occurred while fetching data");
       }
@@ -149,7 +270,10 @@ export default function AdminDashboard() {
       name: "",
       companyRoles: [],
       companyId: session?.user?.companies?.[0]?.companyId || "",
-      locationIds: [],
+      locationIds:
+        session?.user?.companies?.[0]?.locations?.map(
+          (loc: Location) => loc.locationId
+        ) || [],
       moduleAccess: [],
     });
     setError("");
@@ -189,96 +313,350 @@ export default function AdminDashboard() {
     }
   };
 
-  const fetchUserData = async (userId: string) => {
-  if (!userId) return;
+  const renderAuditDetails = (details: any) => {
+    if (!details)
+      return <span className="text-gray-500">No details available</span>;
 
-  try {
-    // Reset form and state
-    let newFormData: FormData = {
-      employeeId: "",
-      userId: userId,
-      password: "",
-      name: "",
-      companyRoles: [],
-      companyId: "",
-      locationIds: [],
-      moduleAccess: [],
-    };
+    return (
+      <div className="space-y-2">
+        {/* Message */}
+        {details.message && (
+          <div className="text-sm font-medium text-gray-900">
+            {details.message}
+          </div>
+        )}
 
-    // Step 1: Fetch user data to get companies and locations
-    const userRes = await fetch(`/api/user/${encodeURIComponent(userId)}`);
-    const userData = await userRes.json();
+        {/* Performed By */}
+        {details.performedBy && (
+          <div className="text-xs text-gray-600">
+            <span className="font-medium">Performed by:</span>{" "}
+            {details.performedByName || details.performedBy}
+          </div>
+        )}
 
-    if (userRes.ok && userData.user) {
-      const user = userData.user;
+        {/* Changes for UPDATE actions - Only show if there are actual changes */}
+        {details.changes && details.changes.length > 0 && (
+          <div className="mt-2">
+            <div className="text-xs font-medium text-gray-700 mb-1">
+              Changes ({details.changes.length} field
+              {details.changes.length > 1 ? "s" : ""}):
+            </div>
+            <div className="space-y-1">
+              {details.changes.map((change: any, index: number) => {
+                // Only render if values are actually different
+                if (change.oldValue === change.newValue) {
+                  return null;
+                }
 
-      // Set companies from the fetched user data
-      setCompanies(user.companies || []);
+                return (
+                  <div
+                    key={index}
+                    className="text-xs bg-gray-50 p-2 rounded border"
+                  >
+                    <div className="font-medium text-gray-800 capitalize">
+                      {change.field.replace(/([A-Z])/g, " $1").trim()}:
+                    </div>
+                    <div className="flex items-center space-x-2 mt-1">
+                      <div className="flex-1">
+                        <span className="text-red-600 font-medium">From:</span>{" "}
+                        <span className="text-gray-700">
+                          {change.oldValue || "None"}
+                        </span>
+                      </div>
+                      <div className="text-gray-400">→</div>
+                      <div className="flex-1">
+                        <span className="text-green-600 font-medium">To:</span>{" "}
+                        <span className="text-gray-700">
+                          {change.newValue || "None"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
-      // Set companyId and locationIds from the first company
-      const defaultCompany = user.companies[0];
-      newFormData = {
-        ...newFormData,
-        name: user.user || userId, // fallback to userId if name not found
-        companyId: defaultCompany?.companyId || "",
-        locationIds: defaultCompany?.locations?.map((loc: Location) => loc.locationId) || [],
-      };
-    } else {
-      setError(userData.error || "Failed to fetch user data");
-      setCompanies(session?.user?.companies || []);
-      newFormData.companyId = session?.user?.companies?.[0]?.companyId || "";
-      newFormData.locationIds =
-        session?.user?.companies?.[0]?.locations?.map((loc: Location) => loc.locationId) || [];
-    }
+        {/* Created Fields for CREATE actions */}
+        {details.createdFields && (
+          <div className="mt-2">
+            <div className="text-xs font-medium text-gray-700 mb-1">
+              Created with:
+            </div>
+            <div className="text-xs bg-green-50 p-2 rounded border">
+              {Object.entries(details.createdFields).map(
+                ([key, value]: [string, any]) => (
+                  <div key={key} className="mb-1">
+                    <span className="font-medium capitalize">
+                      {key.replace(/([A-Z])/g, " $1").trim()}:
+                    </span>{" "}
+                    <span>
+                      {Array.isArray(value)
+                        ? value.join(", ") || "None"
+                        : value || "None"}
+                    </span>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        )}
 
-    // Step 2: Fetch employee data to populate the rest of the form
-    const employeeRes = await fetch(`/api/admin/employees?userId=${encodeURIComponent(userId)}`);
-    const employeeData = await employeeRes.json();
+        {/* Deleted Data for DELETE actions */}
+        {details.deletedData && (
+          <div className="mt-2">
+            <div className="text-xs font-medium text-gray-700 mb-1">
+              Deleted data:
+            </div>
+            <div className="text-xs bg-red-50 p-2 rounded border">
+              {Object.entries(details.deletedData).map(
+                ([key, value]: [string, any]) => (
+                  <div key={key} className="mb-1">
+                    <span className="font-medium capitalize">
+                      {key.replace(/([A-Z])/g, " $1").trim()}:
+                    </span>{" "}
+                    <span>
+                      {Array.isArray(value)
+                        ? value.join(", ") || "None"
+                        : value || "None"}
+                    </span>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        )}
 
-    if (employeeRes.ok && employeeData.data) {
-      const employee = employeeData.data;
-      newFormData = {
-        ...newFormData,
-        employeeId: employee.employeeId || "",
-        password: "", // Never populate password
-        name: employee.name || newFormData.name,
-        companyRoles: employee.companyRoles?.map((role: any) =>
-          typeof role === "object" ? role.roleId : role
-        ) || [],
-        companyId: employee.companyId || newFormData.companyId,
-        locationIds: employee.locations?.map((loc: any) => loc.locationId) || newFormData.locationIds,
-        moduleAccess: employee.moduleAccess || [],
-      };
+        {/* Timestamp */}
+        {details.timestamp && (
+          <div className="text-xs text-gray-500 mt-2">
+            {new Date(details.timestamp).toLocaleString()}
+          </div>
+        )}
+      </div>
+    );
+  };
 
-      const existingIndex = employees.findIndex((emp) => emp.userId === userId);
-      if (existingIndex !== -1) {
-        setCurrentEmployeeIndex(existingIndex);
-      } else {
-        setCurrentEmployeeIndex(-1);
+  useEffect(() => {
+    if (!formData.companyId) return;
+
+    const selectedCompany = session?.user?.companies?.find(
+      (c) => c.companyId === formData.companyId
+    );
+
+    if (selectedCompany) {
+      const validLocationIds = formData.locationIds.filter((locId) =>
+        selectedCompany.locations.some((loc) => loc.locationId === locId)
+      );
+
+      if (validLocationIds.length === 0 && selectedCompany.locations[0]) {
+        validLocationIds.push(selectedCompany.locations[0].locationId);
       }
-    }
 
-    // Update form data and make editable
-    setFormData(newFormData);
-    setIsEditable(true);
-  } catch (error) {
-    console.error("Error fetching user data:", error);
-    setError("Failed to fetch user data, using session data for companies and locations");
-    setCompanies(session?.user?.companies || []);
-    setFormData((prev) => ({
-      ...prev,
-      userId: userId,
-      companyId: session?.user?.companies?.[0]?.companyId || "",
-      locationIds: session?.user?.companies?.[0]?.locations?.map((loc: Location) => loc.locationId) || [],
-    }));
-    setIsEditable(true);
-  }
-};
+      setFormData((prev) => ({
+        ...prev,
+        locationIds: validLocationIds,
+      }));
+    }
+  }, [formData.companyId]);
+
+  const fetchUserData = async (userId: string) => {
+    if (!userId) return;
+
+    console.log("🔍 Fetching user data for:", userId);
+
+    try {
+      let newFormData: FormData = {
+        employeeId: "",
+        userId: userId,
+        password: "",
+        name: "",
+        companyRoles: [],
+        companyId: "",
+        locationIds: [],
+        moduleAccess: [],
+      };
+
+      // Fetch user data
+      const userRes = await fetch(`/api/user/${encodeURIComponent(userId)}`);
+      const userData = await userRes.json();
+      if (userRes.ok && userData.user) {
+        const user = userData.user;
+        newFormData = {
+          ...newFormData,
+          name: user.name || userId,
+        };
+      } else {
+        setError(userData.error || "Failed to fetch user data");
+      }
+
+      // Fetch employee data
+      const employeeRes = await fetch(
+        `/api/admin/employees?userId=${encodeURIComponent(userId)}`
+      );
+      const employeeData = await employeeRes.json();
+
+      console.log("📊 Employee data response:", employeeData);
+
+      if (employeeRes.ok && employeeData.data) {
+        const employee = employeeData.data;
+
+        console.log("👤 Employee object:", employee);
+
+        // Extract companyId from companies array (take the first company)
+        const employeeCompanyId =
+          employee.companies && employee.companies.length > 0
+            ? employee.companies[0].companyId
+            : "";
+
+        console.log(
+          "🏢 Employee company ID from companies array:",
+          employeeCompanyId
+        );
+
+        // Extract locationIds from the first company's locations
+        const employeeLocationIds =
+          employee.companies && employee.companies.length > 0
+            ? (employee.companies[0].locations || []).map(
+                (loc: any) => loc.locationId
+              )
+            : [];
+
+        console.log(
+          "📍 Employee location IDs from companies array:",
+          employeeLocationIds
+        );
+
+        newFormData = {
+          ...newFormData,
+          employeeId: employee.employeeId || uuidv4(),
+          password: "",
+          name: employee.name || newFormData.name,
+          companyRoles:
+            employee.companyRoles?.map((role: any) =>
+              typeof role === "object" ? role.roleId : role
+            ) || [],
+          companyId: employeeCompanyId,
+          locationIds: employeeLocationIds,
+          moduleAccess: employee.moduleAccess || [],
+        };
+
+        console.log("📋 New form data after employee fetch:", newFormData);
+
+        // Validate and fix locationIds based on the selected company
+        const selectedCompany = session?.user?.companies?.find(
+          (c) => c.companyId === employeeCompanyId
+        );
+
+        console.log("🏢 Selected company:", selectedCompany);
+
+        if (selectedCompany) {
+          // Filter locationIds to only include locations that exist in the selected company
+          let validLocationIds = newFormData.locationIds.filter((locId) =>
+            selectedCompany.locations.some((loc) => loc.locationId === locId)
+          );
+
+          // If no valid locations found, use the first location of the company
+          if (
+            validLocationIds.length === 0 &&
+            selectedCompany.locations.length > 0
+          ) {
+            validLocationIds = [selectedCompany.locations[0].locationId];
+          }
+
+          newFormData.locationIds = validLocationIds;
+          console.log("📍 Valid location IDs:", validLocationIds);
+        }
+
+        // Update employees array
+        const existingIndex = employees.findIndex(
+          (emp) => emp.userId === userId
+        );
+
+        if (existingIndex !== -1) {
+          setCurrentEmployeeIndex(existingIndex);
+          const sortedIndex = sortedEmployees.findIndex(
+            (emp) => emp.userId === userId
+          );
+          setCurrentSortedIndex(sortedIndex);
+          setEmployees((prev) => {
+            const newEmployees = [...prev];
+            newEmployees[existingIndex] = {
+              ...newEmployees[existingIndex],
+              ...newFormData,
+              locations: newFormData.locationIds
+                .map((id) =>
+                  session?.user?.companies
+                    ?.flatMap((c) => c.locations)
+                    .find((loc) => loc.locationId === id)
+                )
+                .filter((loc): loc is Location => loc !== undefined),
+            };
+            return newEmployees;
+          });
+        } else {
+          setCurrentEmployeeIndex(-1);
+          setCurrentSortedIndex(-1);
+          setEmployees((prev) => [
+            ...prev,
+            {
+              ...newFormData,
+              locations: newFormData.locationIds
+                .map((id) =>
+                  session?.user?.companies
+                    ?.flatMap((c) => c.locations)
+                    .find((loc) => loc.locationId === id)
+                )
+                .filter((loc): loc is Location => loc !== undefined),
+            },
+          ]);
+        }
+      } else {
+        console.log("❌ No employee data found, using fallback");
+        // Fallback only if no employee data found
+        newFormData = {
+          ...newFormData,
+          companyId: session?.user?.companies?.[0]?.companyId || "",
+          locationIds:
+            session?.user?.companies?.[0]?.locations?.map(
+              (loc: Location) => loc.locationId
+            ) || [],
+        };
+      }
+
+      console.log("✅ Final form data before setState:", newFormData);
+
+      // Set form data once with all the correct values
+      setFormData(newFormData);
+      setIsEditable(true);
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+      setError("Failed to fetch user data");
+
+      // Fallback form data on error
+      setFormData((prev) => ({
+        ...prev,
+        userId: userId,
+        employeeId: prev.employeeId || uuidv4(),
+        companyId: session?.user?.companies?.[0]?.companyId || "",
+        locationIds:
+          session?.user?.companies?.[0]?.locations?.map(
+            (loc: Location) => loc.locationId
+          ) || [],
+      }));
+      setIsEditable(true);
+    }
+  };
 
   const handleUserIdKeyDown = (e: React.KeyboardEvent) => {
     if (!showSuggestions) {
       if (e.key === "Enter") {
         e.preventDefault();
+        if (!formData.userId.trim()) {
+          setError("User ID cannot be empty.");
+          return;
+        }
         fetchUserData(formData.userId);
         setIsEditable(true);
       }
@@ -321,58 +699,263 @@ export default function AdminDashboard() {
 
   const handleSave = async () => {
     if (!isEditable) return;
+
     const form = document.querySelector("form");
-    if (form) {
-      setIsCreating(true);
-      try {
-        const method = currentEmployeeIndex >= 0 ? "PUT" : "POST";
-        const newEmployeeId =
-          currentEmployeeIndex >= 0 ? formData.employeeId : uuidv4();
-        const payload = {
-          ...formData,
-          employeeId: newEmployeeId,
-          companyRoles: formData.companyRoles, // Ensure this is an array of roleId strings
+    if (!form) {
+      setError("Form not found");
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const method = currentEmployeeIndex >= 0 ? "PUT" : "POST";
+      const newEmployeeId =
+        currentEmployeeIndex >= 0 ? formData.employeeId : uuidv4();
+
+      // Ensure userId is set
+      const updatedFormData = {
+        ...formData,
+        employeeId: newEmployeeId,
+        userId: formData.userId || session?.user?.userId || "unknown-user",
+        companyRoles: formData.companyRoles || [],
+        locationIds: formData.locationIds || [],
+      };
+
+      // Validate required fields before proceeding
+      if (!updatedFormData.employeeId || !updatedFormData.userId) {
+        console.error("Missing required fields in updatedFormData:", {
+          employeeId: updatedFormData.employeeId,
+          userId: updatedFormData.userId,
+        });
+        setError("Cannot save employee: Missing employeeId or userId");
+        return;
+      }
+
+      console.log("updatedFormData before API call:", updatedFormData);
+
+      // Update formData state
+      setFormData(updatedFormData);
+
+      // Make API call to save employee
+      const res = await fetch("/api/admin/create-employee", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedFormData),
+      });
+
+      const data = await res.json();
+      console.log("API response data:", data);
+
+      if (res.ok) {
+        const isUpdate = currentEmployeeIndex >= 0;
+        setMessage(
+          isUpdate
+            ? "Employee updated successfully!"
+            : "Employee created successfully!"
+        );
+
+        // Update employees state
+        const employeeData = {
+          ...updatedFormData,
+          locations:
+            availableLocations.filter((loc) =>
+              updatedFormData.locationIds.includes(loc.locationId)
+            ) || [],
         };
 
-        const res = await fetch("/api/admin/create-employee", {
-          method,
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+        setEmployees((prev) => {
+          const newEmployees = [...prev];
+          if (isUpdate) {
+            newEmployees[currentEmployeeIndex] = employeeData;
+          } else {
+            newEmployees.push(employeeData);
+          }
+          return newEmployees;
         });
 
-        const data = await res.json();
-        if (res.ok) {
-          setMessage(
-            currentEmployeeIndex >= 0
-              ? "Employee updated successfully!"
-              : "Employee created successfully!"
-          );
-          setEmployees((prev) => {
-            const newEmployees = [...prev];
-            const employeeData = {
-              ...formData,
-              employeeId: newEmployeeId,
-              locations: availableLocations.filter((loc) =>
-                formData.locationIds.includes(loc.locationId)
-              ),
-            };
-            if (currentEmployeeIndex >= 0) {
-              newEmployees[currentEmployeeIndex] = employeeData;
-            } else {
-              newEmployees.push(employeeData);
-            }
-            return newEmployees;
-          });
-          handleAddNew();
-        } else {
-          setError(data.error || "Failed to save employee");
-        }
-      } catch {
-        setError("An error occurred while saving employee");
-      } finally {
-        setIsCreating(false);
+        // Log audit with validated data
+        await logAudit(isUpdate ? "UPDATE" : "CREATE", {
+          formData: updatedFormData,
+          employeeId: updatedFormData.employeeId,
+          userId: updatedFormData.userId,
+          name: updatedFormData.name || "Unknown",
+          ...data,
+        });
+
+        // Reset form after audit logging
+        handleAddNew();
+      } else {
+        setError(data.error || "Failed to save employee");
+      }
+    } catch (error) {
+      console.error("Error in handleSave:", {
+        message: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      setError("An error occurred while saving employee");
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const detectChanges = (oldData: EmployeeRecord, newData: FormData) => {
+    const changes: {
+      field: string;
+      oldValue: any;
+      newValue: any;
+      dataType: string;
+    }[] = [];
+
+    // Helper function to normalize values (handle null, undefined, empty string consistently)
+    const normalizeValue = (value: any): any => {
+      if (value === null || value === undefined || value === "") {
+        return null;
+      }
+      return value;
+    };
+
+    // Helper function for deep array comparison
+    const arraysEqual = (arr1: any[], arr2: any[]): boolean => {
+      if (arr1.length !== arr2.length) return false;
+      const sorted1 = [...arr1].sort();
+      const sorted2 = [...arr2].sort();
+      return JSON.stringify(sorted1) === JSON.stringify(sorted2);
+    };
+
+    // Check userId
+    const oldUserId = normalizeValue(oldData.userId);
+    const newUserId = normalizeValue(newData.userId);
+
+    if (oldUserId !== newUserId) {
+      changes.push({
+        field: "userId",
+        oldValue: oldUserId || "None",
+        newValue: newUserId || "None",
+        dataType: "string",
+      });
+    }
+
+    // Check name
+    const oldName = normalizeValue(oldData.name);
+    const newName = normalizeValue(newData.name);
+
+    if (oldName !== newName) {
+      changes.push({
+        field: "name",
+        oldValue: oldName || "None",
+        newValue: newName || "None",
+        dataType: "string",
+      });
+    }
+
+    // Check company ID with proper comparison
+    const oldCompanyId = normalizeValue(oldData.companyId);
+    const newCompanyId = normalizeValue(newData.companyId);
+
+    if (oldCompanyId !== newCompanyId) {
+      const oldCompanyName = oldCompanyId
+        ? companies.find((c) => c.companyId === oldCompanyId)?.name ||
+          oldCompanyId
+        : "None";
+      const newCompanyName = newCompanyId
+        ? companies.find((c) => c.companyId === newCompanyId)?.name ||
+          newCompanyId
+        : "None";
+
+      // Only log if there's an actual change in company names
+      if (oldCompanyName !== newCompanyName) {
+        changes.push({
+          field: "company",
+          oldValue: oldCompanyName,
+          newValue: newCompanyName,
+          dataType: "string",
+        });
       }
     }
+
+    // Check company roles with proper array comparison
+    const oldRoles = (oldData.companyRoles || []).filter((role) => role); // Remove falsy values
+    const newRoles = (newData.companyRoles || []).filter((role) => role);
+
+    if (!arraysEqual(oldRoles, newRoles)) {
+      const oldRoleNames =
+        oldRoles.length > 0
+          ? oldRoles.map(
+              (roleId) =>
+                availableRoles.find((r) => r.roleId === roleId)?.name || roleId
+            )
+          : ["None"];
+
+      const newRoleNames =
+        newRoles.length > 0
+          ? newRoles.map(
+              (roleId) =>
+                availableRoles.find((r) => r.roleId === roleId)?.name || roleId
+            )
+          : ["None"];
+
+      changes.push({
+        field: "companyRoles",
+        oldValue: oldRoleNames,
+        newValue: newRoleNames,
+        dataType: "array",
+      });
+    }
+
+    // Check locations with proper comparison
+    const oldLocationIds = (oldData.locations || [])
+      .map((loc) => loc?.locationId)
+      .filter((id) => id);
+    const newLocationIds = (newData.locationIds || []).filter((id) => id);
+    if (!arraysEqual(oldLocationIds, newLocationIds)) {
+      const oldLocationNames =
+        oldLocationIds.length > 0
+          ? oldLocationIds
+              .map(
+                (locId) =>
+                  availableLocations.find((l) => l.locationId === locId)
+                    ?.name || locId
+              )
+              .filter((name) => name)
+          : ["None"];
+      const newLocationNames =
+        newLocationIds.length > 0
+          ? newLocationIds
+              .map(
+                (locId) =>
+                  availableLocations.find((l) => l.locationId === locId)
+                    ?.name || locId
+              )
+              .filter((name) => name)
+          : ["None"];
+      if (!arraysEqual(oldLocationNames, newLocationNames)) {
+        changes.push({
+          field: "locations",
+          oldValue: oldLocationNames,
+          newValue: newLocationNames,
+          dataType: "array",
+        });
+      }
+    }
+
+    // Check module access
+    const oldModules = (oldData.moduleAccess || [])
+      .map((m) => m.moduleName)
+      .filter((name) => name);
+    const newModules = (newData.moduleAccess || [])
+      .map((m) => m.moduleName)
+      .filter((name) => name);
+
+    if (!arraysEqual(oldModules, newModules)) {
+      changes.push({
+        field: "moduleAccess",
+        oldValue: oldModules.length > 0 ? oldModules : ["None"],
+        newValue: newModules.length > 0 ? newModules : ["None"],
+        dataType: "array",
+      });
+    }
+
+    return changes;
   };
 
   const handleClear = () => {
@@ -397,61 +980,93 @@ export default function AdminDashboard() {
     router.push("/dashboard");
   };
 
-  const handleUp = () => {
-    if (currentEmployeeIndex > 0) {
-      setCurrentEmployeeIndex(currentEmployeeIndex - 1);
-      const employee = employees[currentEmployeeIndex - 1];
-      setFormData({
-        ...employee,
-        password: "",
-        locationIds: employee.locations.map((loc) => loc.locationId),
-      });
-      setIsEditable(true);
+  const handleUp = async () => {
+    if (sortedEmployees.length === 0) return;
+
+    let newIndex;
+    if (currentSortedIndex <= 0) {
+      newIndex = sortedEmployees.length - 1; // Wrap to last employee
+    } else {
+      newIndex = currentSortedIndex - 1;
     }
+
+    const employee = sortedEmployees[newIndex];
+    setCurrentSortedIndex(newIndex);
+
+    // Find the original index in the unsorted array
+    const originalIndex = employees.findIndex(
+      (emp) => emp.employeeId === employee.employeeId
+    );
+    setCurrentEmployeeIndex(originalIndex);
+
+    // Fetch and populate the form with employee data
+    await fetchUserData(employee.userId);
   };
 
-  const handleDown = () => {
-    if (currentEmployeeIndex < employees.length - 1) {
-      setCurrentEmployeeIndex(currentEmployeeIndex + 1);
-      const employee = employees[currentEmployeeIndex + 1];
-      setFormData({
-        ...employee,
-        password: "",
-        locationIds: employee.locations.map((loc) => loc.locationId),
-      });
-      setIsEditable(true);
+  const handleDown = async () => {
+    if (sortedEmployees.length === 0) return;
+
+    let newIndex;
+    if (currentSortedIndex >= sortedEmployees.length - 1) {
+      newIndex = 0; // Wrap to first employee
+    } else {
+      newIndex = currentSortedIndex + 1;
     }
+
+    const employee = sortedEmployees[newIndex];
+    setCurrentSortedIndex(newIndex);
+
+    // Find the original index in the unsorted array
+    const originalIndex = employees.findIndex(
+      (emp) => emp.employeeId === employee.employeeId
+    );
+    setCurrentEmployeeIndex(originalIndex);
+
+    // Fetch and populate the form with employee data
+    await fetchUserData(employee.userId);
+  };
+
+  const filterEmployees = (query: string) => {
+    if (!query.trim()) {
+      setFilteredEmployees(employees);
+      setSelectedEmployeeIndex(-1);
+      return;
+    }
+
+    const filtered = employees.filter(
+      (emp) =>
+        emp.name.toLowerCase().includes(query.toLowerCase()) ||
+        emp.userId.toLowerCase().includes(query.toLowerCase())
+    );
+    setFilteredEmployees(filtered);
+    setSelectedEmployeeIndex(-1); // Reset selection when filtering
   };
 
   const handleSearch = () => {
+    setFilteredEmployees(employees); // Show all employees initially
+    setSelectedEmployeeIndex(-1);
+    setSearchQuery("");
     setShowSearchModal(true);
   };
 
   const handleImplementQuery = async () => {
-    if (!searchQuery) return;
+    if (
+      selectedEmployeeIndex === -1 ||
+      !filteredEmployees[selectedEmployeeIndex]
+    ) {
+      setError("Please select an employee from the list");
+      return;
+    }
+
     try {
-      const res = await fetch(
-        `/api/admin/employees?query=${encodeURIComponent(searchQuery)}`
-      );
-      const data = await res.json();
-      if (res.ok && data.data?.length > 0) {
-        setEmployees(data.data);
-        setCurrentEmployeeIndex(0);
-        const employee = data.data[0];
-        setFormData({
-          ...employee,
-          password: "",
-          locationIds: employee.locations.map(
-            (loc: Location) => loc.locationId
-          ),
-        });
-        setIsEditable(true);
-        setShowSearchModal(false);
-      } else {
-        setError(data.error || "No employees found");
-      }
-    } catch {
-      setError("An error occurred while searching");
+      const selectedEmployee = filteredEmployees[selectedEmployeeIndex];
+      // Populate the form with selected employee data
+      await fetchUserData(selectedEmployee.userId);
+      setShowSearchModal(false);
+      setSearchQuery("");
+      setSelectedEmployeeIndex(-1);
+    } catch (error) {
+      setError("Failed to load employee data");
     }
   };
 
@@ -465,43 +1080,424 @@ export default function AdminDashboard() {
   };
 
   const handleDelete = async () => {
-    if (currentEmployeeIndex >= 0) {
-      const employee = employees[currentEmployeeIndex];
-      try {
-        const res = await fetch(`/api/admin/employees/${employee.employeeId}`, {
+    if (currentEmployeeIndex < 0 || !employees[currentEmployeeIndex]) {
+      setError("No employee selected for deletion");
+      return;
+    }
+
+    const employee = employees[currentEmployeeIndex];
+    if (!employee.employeeId || !employee.userId) {
+      setError("Cannot delete: Employee data incomplete");
+      return;
+    }
+
+    // Confirm deletion
+    if (
+      !confirm(
+        `Are you sure you want to delete employee ${employee.name} (${employee.userId})? This will also delete associated user and audit log records.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setIsCreating(true);
+      setError("");
+      setMessage("");
+
+      const res = await fetch(
+        `/api/admin/delete-employee/${encodeURIComponent(employee.userId)}`,
+        {
           method: "DELETE",
-        });
-        if (res.ok) {
-          setEmployees((prev) =>
-            prev.filter((_, i) => i !== currentEmployeeIndex)
-          );
-          handleClear();
-          setMessage("Employee deleted successfully!");
-        } else {
-          const data = await res.json();
-          setError(data.error || "Failed to delete employee");
+          headers: { "Content-Type": "application/json" },
         }
-      } catch {
-        setError("An error occurred while deleting employee");
+      );
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setEmployees((prev) =>
+          prev.filter((_, i) => i !== currentEmployeeIndex)
+        );
+        handleClear();
+        setMessage("Employee, user, and audit logs deleted successfully!");
+      } else {
+        setError(data.error || "Failed to delete employee records");
       }
+    } catch (error) {
+      setError("An error occurred while deleting employee records");
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const logAudit = async (
+    action: "CREATE" | "UPDATE" | "DELETE",
+    additionalData: Record<string, any> = {}
+  ) => {
+    try {
+      console.log("=== LOGGING AUDIT ===");
+      console.log("Action:", action);
+      console.log("Additional data:", additionalData);
+      console.log("Form data:", formData);
+
+      // Check if session exists first
+      if (!session?.user?.id) {
+        console.error("No user session found");
+        setError("Cannot log audit: No user session");
+        return;
+      }
+
+      // Get the performedBy information from session
+      const performedBy = session.user.userId || "unknown-user";
+      // Use name from session if available, otherwise use userId
+      const performedByName =
+        session.user.userId || session.user.userId || "Unknown User";
+
+      let auditDetails: any = {
+        performedBy: performedBy,
+        performedByName: performedByName,
+        timestamp: new Date().toISOString(),
+      };
+
+      let employeeIdToUse: string;
+      let userIdToUse: string;
+
+      switch (action) {
+        case "CREATE":
+          const createFormData = additionalData.formData || formData;
+
+          console.log("CREATE audit - checking form data:", {
+            hasAdditionalFormData: !!additionalData.formData,
+            createFormData: createFormData,
+            globalFormData: formData,
+          });
+
+          if (!createFormData.employeeId || !createFormData.userId) {
+            console.error("Missing required fields for CREATE audit", {
+              employeeId: createFormData.employeeId,
+              userId: createFormData.userId,
+              createFormData: createFormData,
+            });
+
+            if (additionalData.employeeId && additionalData.userId) {
+              employeeIdToUse = additionalData.employeeId;
+              userIdToUse = additionalData.userId;
+              console.log("Using employeeId and userId from additionalData");
+            } else {
+              setError(
+                "Cannot log audit: Missing employeeId or userId for creation"
+              );
+              return;
+            }
+          } else {
+            employeeIdToUse = createFormData.employeeId;
+            userIdToUse = createFormData.userId;
+          }
+
+          const companyName =
+            createFormData.companyId && companies?.length > 0
+              ? companies.find((c) => c.companyId === createFormData.companyId)
+                  ?.name || createFormData.companyId
+              : "None";
+
+          const roleNames =
+            createFormData.companyRoles?.length > 0 &&
+            availableRoles?.length > 0
+              ? createFormData.companyRoles.map(
+                  (roleId: string) =>
+                    availableRoles.find((r) => r.roleId === roleId)?.name ||
+                    roleId
+                )
+              : ["None"];
+
+          const locationNames =
+            createFormData.locationIds?.length > 0 &&
+            availableLocations?.length > 0
+              ? createFormData.locationIds.map(
+                  (locId: string) =>
+                    availableLocations.find((l) => l.locationId === locId)
+                      ?.name || locId
+                )
+              : ["None"];
+
+          auditDetails = {
+            ...auditDetails,
+            message: `Employee record created by ${performedByName}`,
+            employeeId: employeeIdToUse,
+            userId: userIdToUse,
+            name: createFormData.name || additionalData.name || "Unknown",
+            createdFields: {
+              company: companyName,
+              roles: roleNames,
+              locations: locationNames,
+            },
+            ...Object.fromEntries(
+              Object.entries(additionalData).filter(
+                ([key]) => key !== "message"
+              )
+            ),
+          };
+          break;
+
+        case "UPDATE":
+          if (
+            currentEmployeeIndex < 0 ||
+            !employees ||
+            !employees[currentEmployeeIndex]
+          ) {
+            console.error("Invalid currentEmployeeIndex or no employee data", {
+              currentEmployeeIndex,
+              employeesLength: employees?.length || 0,
+            });
+            setError("Cannot log audit: No employee selected");
+            return;
+          }
+
+          const originalEmployee = employees[currentEmployeeIndex];
+          if (!originalEmployee.employeeId || !originalEmployee.userId) {
+            console.error("Employee data missing required fields", {
+              employeeId: originalEmployee.employeeId,
+              userId: originalEmployee.userId,
+            });
+            setError("Cannot log audit: Employee data incomplete");
+            return;
+          }
+
+          employeeIdToUse = originalEmployee.employeeId;
+          userIdToUse = originalEmployee.userId;
+
+          let changes = [];
+          try {
+            changes = detectChanges(originalEmployee, formData);
+          } catch (detectError) {
+            console.error("Error detecting changes:", detectError);
+            changes = [
+              { field: "unknown", oldValue: "unknown", newValue: "unknown" },
+            ];
+          }
+
+          if (changes.length === 0) {
+            console.log("No changes detected, skipping audit log");
+            return;
+          }
+
+          auditDetails = {
+            ...auditDetails,
+            message: `Employee record updated by ${performedByName} - ${changes.length} field(s) changed`,
+            changes: changes,
+            employeeId: originalEmployee.employeeId,
+            userId: originalEmployee.userId,
+            name: originalEmployee.name || "Unknown",
+            changedFields: changes.map((change) => change.field),
+            ...Object.fromEntries(
+              Object.entries(additionalData).filter(
+                ([key]) => key !== "message"
+              )
+            ),
+          };
+          break;
+
+        case "DELETE":
+          if (
+            currentEmployeeIndex < 0 ||
+            !employees ||
+            !employees[currentEmployeeIndex]
+          ) {
+            console.error("Invalid currentEmployeeIndex or no employee data", {
+              currentEmployeeIndex,
+              employeesLength: employees?.length || 0,
+            });
+            setError("Cannot log audit: No employee selected");
+            return;
+          }
+
+          const deletedEmployee = employees[currentEmployeeIndex];
+          if (!deletedEmployee.employeeId || !deletedEmployee.userId) {
+            console.error("Employee data missing required fields", {
+              employeeId: deletedEmployee.employeeId,
+              userId: deletedEmployee.userId,
+            });
+            setError("Cannot log audit: Employee data incomplete");
+            return;
+          }
+
+          employeeIdToUse = deletedEmployee.employeeId;
+          userIdToUse = deletedEmployee.userId;
+
+          const deletedCompanyName =
+            deletedEmployee.companyId && companies?.length > 0
+              ? companies.find((c) => c.companyId === deletedEmployee.companyId)
+                  ?.name || deletedEmployee.companyId
+              : "None";
+
+          const deletedRoleNames =
+            deletedEmployee.companyRoles?.length > 0 &&
+            availableRoles?.length > 0
+              ? deletedEmployee.companyRoles.map(
+                  (roleId) =>
+                    availableRoles.find((r) => r.roleId === roleId)?.name ||
+                    roleId
+                )
+              : ["None"];
+
+          const deletedLocationNames =
+            deletedEmployee.locations?.length > 0
+              ? deletedEmployee.locations.map((loc) => loc.name)
+              : ["None"];
+
+          auditDetails = {
+            ...auditDetails,
+            message: `Employee record deleted by ${performedByName}`,
+            deletedEmployeeId: deletedEmployee.employeeId,
+            deletedUserId: deletedEmployee.userId,
+            name: deletedEmployee.name,
+            deletedData: {
+              company: deletedCompanyName,
+              roles: deletedRoleNames,
+              locations: deletedLocationNames,
+            },
+            ...Object.fromEntries(
+              Object.entries(additionalData).filter(
+                ([key]) => key !== "message"
+              )
+            ),
+          };
+          break;
+      }
+
+      const requestBody = {
+        action,
+        employeeId: employeeIdToUse,
+        userId: userIdToUse,
+        details: auditDetails,
+      };
+
+      console.log("Request body being sent:", requestBody);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      try {
+        const res = await fetch("/api/admin/audit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        console.log("Audit log response status:", res.status);
+
+        if (res.ok) {
+          const responseData = await res.json();
+          console.log("Audit log response data:", responseData);
+        } else {
+          let errorData;
+          try {
+            errorData = await res.json();
+          } catch (parseError) {
+            console.error("Failed to parse error response:", parseError);
+            errorData = { error: "Failed to parse error response" };
+          }
+
+          console.error("Failed to log audit:", {
+            status: res.status,
+            statusText: res.statusText,
+            error: errorData.error || "No error message provided",
+            details: errorData.details || "No additional details",
+          });
+          setError(errorData.error || "Failed to log audit");
+        }
+      } catch (fetchError: unknown) {
+        clearTimeout(timeoutId);
+
+        if (
+          fetchError instanceof DOMException &&
+          fetchError.name === "AbortError"
+        ) {
+          console.error("Audit log request timed out");
+          setError("Audit log request timed out");
+        } else {
+          console.error("Network error during audit log:", fetchError);
+          setError("Network error during audit log");
+        }
+        return;
+      }
+
+      console.log("=== END AUDIT LOG ===");
+    } catch (error) {
+      console.error("Error logging audit:", {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        name: error instanceof Error ? error.name : typeof error,
+        errorType: Object.prototype.toString.call(error),
+        errorConstructor: error?.constructor?.name,
+      });
+
+      if (error && typeof error === "object") {
+        console.error("Error object keys:", Object.keys(error));
+        console.error("Error object:", error);
+      }
+
+      setError("An error occurred while logging audit");
     }
   };
 
   const handleAudit = async () => {
     if (currentEmployeeIndex >= 0) {
       try {
+        const searchValue = employees[currentEmployeeIndex].employeeId; // Use employeeId for audit query
+        console.log("Fetching audit logs for employeeId:", searchValue);
+
         const res = await fetch(
-          `/api/admin/audit/${employees[currentEmployeeIndex].employeeId}`
+          `/api/admin/audit?employeeId=${encodeURIComponent(searchValue)}`
         );
-        const data = await res.json();
+        console.log("Response status:", res.status);
+
         if (res.ok) {
-          setAuditLogs(data.data || []);
+          const data = await res.json();
+          console.log("Response data:", data);
+
+          // Ensure data is an array and normalize the structure
+          const logs = Array.isArray(data) ? data : data.data || [];
+          const normalizedLogs = logs.map((log: any) => ({
+            action: log.action,
+            timestamp: log.timestamp || new Date().toISOString(),
+            userId: log.userId || log.details?.performedBy || "unknown-user",
+            details: {
+              ...log.details,
+              performedBy:
+                log.details?.performedBy || log.userId || "unknown-user",
+              performedByName:
+                log.details?.performedByName || log.userId || "Unknown User",
+              message: log.details?.message || "",
+              changes: log.details?.changes || [],
+              employeeId: log.details?.employeeId || log.employeeId,
+              userId: log.details?.userId || log.userId,
+              name: log.details?.name || "Unknown",
+            },
+          }));
+
+          console.log("Processed logs:", normalizedLogs);
+
+          setAuditLogs(normalizedLogs);
+          setFilteredAuditLogs(normalizedLogs);
           setShowAuditModal(true);
+          setCurrentPage(1);
+
+          setSearchQuery("");
+          setFilterAction("");
+          setFilterDateRange("");
         } else {
-          setError(data.error || "Failed to fetch audit logs");
+          const errorData = await res.json();
+          console.error("Error response:", errorData);
+          setError(errorData.error || "Failed to load audit logs");
         }
-      } catch {
-        setError("An error occurred while fetching audit logs");
+      } catch (err) {
+        console.error("Error fetching audit logs:", err);
+        setError("An error occurred while loading audit logs.");
       }
     }
   };
@@ -554,32 +1550,44 @@ export default function AdminDashboard() {
     setShowHelpModal(true);
   };
 
-  const checkUserId = async (userId: string) => {
-    await fetchUserData(userId);
+  const getAllModules = (
+    items: NavItem[],
+    userRole: string
+  ): { path: string; label: string }[] => {
+    const modules: { path: string; label: string }[] = [];
+    const traverse = (item: NavItem) => {
+      if (
+        item.path &&
+        typeof item.path === "string" &&
+        item.path.trim() !== "" &&
+        typeof item.label === "string" &&
+        (!item.roles ||
+          item.roles.includes(userRole as "super_admin" | "admin" | "employee"))
+      ) {
+        modules.push({ path: item.path, label: item.label });
+      }
+      if (item.children && item.children.length > 0) {
+        item.children.forEach(traverse);
+      }
+    };
+    items.forEach(traverse);
+    return modules;
   };
-
-  const availableModules = adminEmployeeNavData
-    .flatMap(
-      (item) =>
-        item?.children?.flatMap((child) =>
-          child?.children
-            ? child.children.map((sub) => ({
-                path: sub.path ?? "",
-                label: sub.label,
-              }))
-            : child?.path
-            ? [{ path: child.path, label: child.label }]
-            : []
-        ) ?? []
-    )
-    .filter(
+  const availableModules = () => {
+    const { data: session } = useSession();
+    const userRole = session?.user?.role || "employee";
+    return getAllModules(adminEmployeeNavData, userRole).filter(
       (item): item is { path: string; label: string } =>
         typeof item.path === "string" &&
         item.path.trim() !== "" &&
         typeof item.label === "string"
     );
+  };
 
-  const availableLocations = companies.flatMap((c) => c.locations);
+  const availableLocations =
+    session?.user?.companies?.find(
+      (c: Company) => c.companyId === formData.companyId
+    )?.locations || [];
 
   const toggleRole = (roleId: string) => {
     setFormData((prev) => ({
@@ -609,6 +1617,36 @@ export default function AdminDashboard() {
             { modulePath, moduleName, permissions: ["read"] },
           ],
     }));
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (filteredEmployees.length === 0) return;
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setSelectedEmployeeIndex((prev) =>
+          prev < filteredEmployees.length - 1 ? prev + 1 : 0
+        );
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setSelectedEmployeeIndex((prev) =>
+          prev > 0 ? prev - 1 : filteredEmployees.length - 1
+        );
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (selectedEmployeeIndex >= 0) {
+          handleImplementQuery();
+        }
+        break;
+      case "Escape":
+        setShowSearchModal(false);
+        setSearchQuery("");
+        setSelectedEmployeeIndex(-1);
+        break;
+    }
   };
 
   return (
@@ -778,14 +1816,23 @@ export default function AdminDashboard() {
                     fontFamily: "Segoe UI, Tahoma, Geneva, Verdana, sans-serif",
                   }}
                   value={formData.companyId}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const newCompanyId = e.target.value;
+                    // Update companyId and reset locationIds to the new company's locations
                     setFormData((prev) => ({
                       ...prev,
-                      companyId: e.target.value,
-                      locationIds: [],
-                    }))
-                  }
+                      companyId: newCompanyId,
+                      locationIds:
+                        session?.user?.companies
+                          ?.find((c) => c.companyId === newCompanyId)
+                          ?.locations?.map((loc: Location) => loc.locationId) ||
+                        [],
+                    }));
+                  }}
                 >
+                  <option value="" disabled>
+                    Select a company
+                  </option>
                   {companies.map((company) => (
                     <option key={company.companyId} value={company.companyId}>
                       {company.name}
@@ -858,7 +1905,7 @@ export default function AdminDashboard() {
                   Module Access
                 </label>
                 <div className="mt-2 space-y-2">
-                  {availableModules.map((mod, id) => (
+                  {availableModules().map((mod, id) => (
                     <div key={id} className="flex items-center">
                       <input
                         type="checkbox"
@@ -892,9 +1939,9 @@ export default function AdminDashboard() {
 
         {/* Search Modal */}
         {showSearchModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
             <div
-              className="bg-white rounded-lg p-6 w-full max-w-md"
+              className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[80vh] overflow-hidden"
               style={{
                 border: "1px outset #c0c0c0",
                 background:
@@ -902,31 +1949,133 @@ export default function AdminDashboard() {
               }}
             >
               <h2 className="text-lg font-semibold mb-4">Search Employees</h2>
-              <input
-                type="text"
-                placeholder="Enter user ID or email (use % for wildcard)"
-                className="w-full px-3 py-2 border rounded-md mb-4"
-                style={{
-                  border: "1px inset #c0c0c0",
-                  background: "#ffffff",
-                }}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+
+              {/* Search Input */}
+              <div className="mb-4">
+                <input
+                  type="text"
+                  placeholder="Search by name or user ID... (Use arrow keys to navigate, Enter to select)"
+                  className="w-full px-3 py-2 border rounded-md"
+                  style={{
+                    border: "1px inset #c0c0c0",
+                    background: "#ffffff",
+                  }}
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    filterEmployees(e.target.value);
+                  }}
+                  onKeyDown={handleSearchKeyDown}
+                  autoFocus
+                />
+              </div>
+
+              {/* Employee List */}
+              <div
+                className="mb-4 max-h-96 overflow-y-auto border rounded-md"
+                style={{ border: "1px inset #c0c0c0" }}
+              >
+                <table className="w-full">
+                  <thead
+                    style={{
+                      background: "#f0f0f0",
+                      position: "sticky",
+                      top: 0,
+                    }}
+                  >
+                    <tr>
+                      <th className="text-left p-2 border-b">User ID</th>
+                      <th className="text-left p-2 border-b">Name</th>
+                      <th className="text-left p-2 border-b">Roles</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredEmployees.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className="text-center p-4 text-gray-500"
+                        >
+                          {searchQuery
+                            ? "No employees found matching your search"
+                            : "No employees available"}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredEmployees.map((employee, index) => (
+                        <tr
+                          key={employee.employeeId}
+                          className={`border-b hover:bg-blue-50 cursor-pointer ${
+                            selectedEmployeeIndex === index ? "bg-blue-200" : ""
+                          }`}
+                          onClick={() => setSelectedEmployeeIndex(index)}
+                        >
+                          <td className="p-2 font-mono text-sm">
+                            {employee.userId}
+                          </td>
+                          <td className="p-2">{employee.name}</td>
+
+                          <td className="p-2">
+                            {employee.companyRoles
+                              .map((roleId) => {
+                                const role = availableRoles.find(
+                                  (r) => r.roleId === roleId
+                                );
+                                return role?.name;
+                              })
+                              .filter(Boolean)
+                              .join(", ") || "None"}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Selected Employee Info */}
+              {selectedEmployeeIndex >= 0 &&
+                filteredEmployees[selectedEmployeeIndex] && (
+                  <div
+                    className="mb-4 p-3 bg-blue-50 rounded-md border"
+                    style={{ border: "1px inset #c0c0c0" }}
+                  >
+                    <h3 className="font-semibold text-sm mb-2">
+                      Selected Employee:
+                    </h3>
+                    <p className="text-sm">
+                      <strong>User ID:</strong>{" "}
+                      {filteredEmployees[selectedEmployeeIndex].userId} |
+                      <strong> Name:</strong>{" "}
+                      {filteredEmployees[selectedEmployeeIndex].name}
+                    </p>
+                  </div>
+                )}
+
+              {/* Action Buttons */}
               <div className="flex justify-end space-x-2">
                 <button
                   onClick={handleImplementQuery}
-                  className="px-4 py-2 rounded-md"
+                  disabled={selectedEmployeeIndex === -1}
+                  className={`px-4 py-2 rounded-md ${
+                    selectedEmployeeIndex === -1
+                      ? "opacity-50 cursor-not-allowed"
+                      : ""
+                  }`}
                   style={{
                     background:
                       "linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)",
                     border: "1px outset #c0c0c0",
                   }}
                 >
-                  Search
+                  Select Employee
                 </button>
                 <button
-                  onClick={() => setShowSearchModal(false)}
+                  onClick={() => {
+                    setShowSearchModal(false);
+                    setSearchQuery("");
+                    setSelectedEmployeeIndex(-1);
+                  }}
                   className="px-4 py-2 rounded-md"
                   style={{
                     background:
@@ -941,49 +2090,253 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* Audit Modal */}
+        {/* Audit Log Modal */}
         {showAuditModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
             <div
-              className="bg-white rounded-lg p-6 w-full max-w-2xl"
+              className="bg-white rounded-lg p-6 w-full max-w-5xl max-h-[90vh] overflow-y-auto"
               style={{
-                border: "1px outset #c0c0c0",
+                border: "1px solid #ccc",
                 background:
-                  "linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)",
+                  "linear-gradient(to bottom, #f9f9f9 0%, #eaeaea 100%)",
               }}
             >
-              <h2 className="text-lg font-semibold mb-4">Audit Log</h2>
-              <div className="max-h-96 overflow-y-auto">
-                <table className="w-full">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-800">Audit Log</h2>
+                <div className="text-sm text-gray-600">
+                  {currentEmployeeIndex >= 0 && (
+                    <>
+                      Employee: {employees[currentEmployeeIndex].name} (
+                      {employees[currentEmployeeIndex].userId})
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Search and Filters */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-md border border-gray-300">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Search Input */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Search Logs
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Search by action, user ID, or details..."
+                      className="w-full px-3 py-2 border rounded-md"
+                      style={{
+                        border: "1px inset #c0c0c0",
+                        background: "#ffffff",
+                      }}
+                      value={searchQuery}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        filterAuditLogs(
+                          e.target.value,
+                          filterAction,
+                          filterDateRange
+                        );
+                      }}
+                    />
+                  </div>
+
+                  {/* Action Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Filter by Action
+                    </label>
+                    <select
+                      className="w-full px-3 py-2 border rounded-md"
+                      style={{
+                        border: "1px inset #c0c0c0",
+                        background: "#ffffff",
+                      }}
+                      value={filterAction}
+                      onChange={(e) => {
+                        setFilterAction(e.target.value);
+                        filterAuditLogs(
+                          searchQuery,
+                          e.target.value,
+                          filterDateRange
+                        );
+                      }}
+                    >
+                      <option value="">All Actions</option>
+                      <option value="CREATE">Create</option>
+                      <option value="UPDATE">Update</option>
+                      <option value="DELETE">Delete</option>
+                    </select>
+                  </div>
+
+                  {/* Date Range Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Filter by Date Range
+                    </label>
+                    <select
+                      className="w-full px-3 py-2 border rounded-md"
+                      style={{
+                        border: "1px inset #c0c0c0",
+                        background: "#ffffff",
+                      }}
+                      value={filterDateRange}
+                      onChange={(e) => {
+                        setFilterDateRange(e.target.value);
+                        filterAuditLogs(
+                          searchQuery,
+                          filterAction,
+                          e.target.value
+                        );
+                      }}
+                    >
+                      <option value="">All Dates</option>
+                      <option value="today">Today</option>
+                      <option value="week">Last 7 Days</option>
+                      <option value="month">Last 30 Days</option>
+                      <option value="year">Last Year</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Audit Log Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full table-auto border-collapse border border-gray-300">
                   <thead>
-                    <tr>
-                      <th className="text-left p-2">Action</th>
-                      <th className="text-left p-2">Timestamp</th>
-                      <th className="text-left p-2">Details</th>
+                    <tr className="bg-gray-100 text-sm font-semibold text-gray-700">
+                      <th className="p-3 text-left border border-gray-300 w-20">
+                        Action
+                      </th>
+                      <th className="p-3 text-left border border-gray-300 w-40">
+                        Timestamp
+                      </th>
+                      <th className="p-3 text-left border border-gray-300 w-24">
+                        User
+                      </th>
+                      <th className="p-3 text-left border border-gray-300">
+                        Details
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {auditLogs.map((log, index) => (
-                      <tr key={index} className="border-t">
-                        <td className="p-2">{log.action}</td>
-                        <td className="p-2">
-                          {new Date(log.timestamp).toLocaleString()}
+                    {currentLogs.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className="p-6 text-center text-gray-500 border border-gray-300"
+                        >
+                          No audit logs found for this employee
                         </td>
-                        <td className="p-2">{log.details}</td>
                       </tr>
-                    ))}
+                    ) : (
+                      currentLogs.map((log, index) => (
+                        <tr
+                          key={index}
+                          className="border-b hover:bg-gray-50 transition duration-100"
+                        >
+                          <td className="p-3 align-top border border-gray-300">
+                            <span
+                              className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                                log.action === "CREATE"
+                                  ? "bg-green-100 text-green-800"
+                                  : log.action === "UPDATE"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              {log.action}
+                            </span>
+                          </td>
+                          <td className="p-3 align-top border border-gray-300 text-sm text-gray-600">
+                            <div>
+                              {new Date(log.timestamp).toLocaleDateString()}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {new Date(log.timestamp).toLocaleTimeString()}
+                            </div>
+                          </td>
+                          <td className="p-3 align-top border border-gray-300 text-sm text-gray-600">
+                            {log.details.userId}
+                          </td>
+                          <td className="p-3 align-top border border-gray-300">
+                            {renderAuditDetails(log.details)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
-              <div className="flex justify-end mt-4">
+
+              {/* Enhanced Pagination */}
+              <div
+                className="flex justify-between items-center mt-4 pt-4 
+      border-t border-gray-300"
+              >
+                <div className="text-sm text-gray-600">
+                  Showing{" "}
+                  {currentLogs.length > 0
+                    ? (currentPage - 1) * logsPerPage + 1
+                    : 0}
+                  –
+                  {Math.min(
+                    currentPage * logsPerPage,
+                    filteredAuditLogs.length
+                  )}{" "}
+                  of {filteredAuditLogs.length} entries
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="px-2 py-1 text-sm rounded-md bg-gray-200 disabled:opacity-50"
+                  >
+                    First
+                  </button>
+                  <button
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.max(1, prev - 1))
+                    }
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 text-sm rounded-md bg-gray-200 disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-sm text-gray-600">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                    }
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 text-sm rounded-md bg-gray-200 disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className="px-2 py-1 text-sm rounded-md bg-gray-200 disabled:opacity-50"
+                  >
+                    Last
+                  </button>
+                </div>
+              </div>
+
+              {/* Close Button */}
+              <div className="mt-6 flex justify-end">
                 <button
-                  onClick={() => setShowAuditModal(false)}
-                  className="px-4 py-2 rounded-md"
-                  style={{
-                    background:
-                      "linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)",
-                    border: "1px outset #c0c0c0",
+                  onClick={() => {
+                    setShowAuditModal(false);
+                    setSearchQuery("");
+                    setFilterAction("");
+                    setFilterDateRange("");
+                    setFilteredAuditLogs(auditLogs);
+                    setCurrentPage(1);
                   }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
                 >
                   Close
                 </button>
@@ -994,7 +2347,7 @@ export default function AdminDashboard() {
 
         {/* Help Modal */}
         {showHelpModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
             <div
               className="bg-white rounded-lg p-6 w-full max-w-md"
               style={{

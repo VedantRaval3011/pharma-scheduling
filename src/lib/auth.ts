@@ -7,6 +7,9 @@ import { Location } from "@/models/location";
 import { Employee } from "@/models/employee";
 import connectDB from "./db";
 import { SessionUser } from "@/types/user";
+import { IModuleAccess } from "@/models/employee";
+
+export type UserRole = 'super_admin' | 'admin' | 'employee';
 
 const ADMIN_EMAILS =
   process.env.ADMIN_EMAILS?.split(",").map((email) => email.trim()) || [];
@@ -118,8 +121,10 @@ export const authOptions: NextAuthOptions = {
               role: user.role,
               companies: user.companies,
               email: user.email,
+              moduleAccess: employee.moduleAccess,
             };
           } else {
+            // Handle admin and super_admin login
             const user = await User.findOne({
               userId: credentials.userId.toLowerCase(),
             });
@@ -133,6 +138,96 @@ export const authOptions: NextAuthOptions = {
               throw new Error("Invalid password");
             }
 
+            // Admin logic - they can access everything
+            if (user.role === "admin") {
+              // Admins have full access to all modules
+              const moduleAccess: IModuleAccess[] = [
+                {
+                  moduleId: 'all-modules',
+                  modulePath: '*',
+                  moduleName: 'All Modules',
+                  permissions: ['read', 'write', 'delete', 'edit', 'audit']
+                }
+              ];
+
+              // For admin login, we need to handle company/location info
+              let userCompanies = user.companies || [];
+              
+              if (credentials.companyId && credentials.company) {
+                // If company details are provided, ensure they exist in the system
+                let company = await Company.findOne({ companyId: credentials.companyId.toUpperCase() });
+                if (!company) {
+                  company = new Company({
+                    companyId: credentials.companyId.toUpperCase(),
+                    name: credentials.company,
+                    locations: credentials.locationId && credentials.location ? 
+                      [{ locationId: credentials.locationId, name: credentials.location }] : [],
+                    createdBy: user.userId,
+                  });
+                  await company.save();
+                } else if (credentials.locationId && credentials.location) {
+                  const locationExists = company.locations.some(
+                    (loc: any) => loc.locationId === credentials.locationId && loc.name === credentials.location
+                  );
+                  if (!locationExists) {
+                    company.locations.push({ locationId: credentials.locationId, name: credentials.location });
+                    await company.save();
+                  }
+                }
+
+                // Create location if provided
+                if (credentials.locationId && credentials.location) {
+                  const location = await Location.findOne({ locationId: credentials.locationId });
+                  if (!location) {
+                    const newLocation = new Location({
+                      locationId: credentials.locationId,
+                      name: credentials.location,
+                      companyId: credentials.companyId.toUpperCase(),
+                      createdBy: user.userId,
+                    });
+                    await newLocation.save();
+                  }
+                }
+
+                // Update user's companies if not already present
+                const companyExistsInUser = userCompanies.some(
+                  (c: any) => c.companyId === credentials.companyId.toUpperCase()
+                );
+                if (!companyExistsInUser) {
+                  userCompanies.push({
+                    companyId: credentials.companyId.toUpperCase(),
+                    name: credentials.company,
+                    locations: credentials.locationId && credentials.location ? 
+                      [{ locationId: credentials.locationId, name: credentials.location }] : [],
+                  });
+                  user.companies = userCompanies;
+                  await user.save();
+                } else if (credentials.locationId && credentials.location) {
+                  const companyInUser = userCompanies.find(
+                    (c: any) => c.companyId === credentials.companyId.toUpperCase()
+                  );
+                  const locationExistsInCompany = companyInUser.locations.some(
+                    (loc: any) => loc.locationId === credentials.locationId
+                  );
+                  if (!locationExistsInCompany) {
+                    companyInUser.locations.push({ locationId: credentials.locationId, name: credentials.location });
+                    user.companies = userCompanies;
+                    await user.save();
+                  }
+                }
+              }
+
+              return {
+                id: user._id.toString(),
+                userId: user.userId,
+                role: user.role,
+                companies: userCompanies,
+                email: user.email,
+                moduleAccess,
+              };
+            }
+
+            // Super admin logic (existing logic)
             if (user.role === "super_admin") {
               if (!credentials.companyId || !credentials.company || !credentials.locationId || !credentials.location) {
                 throw new Error("Company and location details required");
@@ -190,7 +285,33 @@ export const authOptions: NextAuthOptions = {
                   await user.save();
                 }
               }
-            } else {
+
+              const moduleAccess: IModuleAccess[] = [
+                {
+                  moduleId: 'all-modules',
+                  modulePath: '*',
+                  moduleName: 'All Modules',
+                  permissions: ['read', 'write', 'delete', 'edit', 'audit']
+                }
+              ];
+
+              return {
+                id: user._id.toString(),
+                userId: user.userId,
+                role: user.role,
+                companies: user.companies,
+                email: user.email,
+                moduleAccess,
+              };
+            }
+
+            // If user role is employee but not using employee login type
+            if (user.role === "employee") {
+              const employee = await Employee.findOne({ userId: user.userId });
+              if (!employee) {
+                throw new Error("Employee record not found");
+              }
+
               if (!credentials.companyId || !credentials.company || !credentials.locationId || !credentials.location) {
                 throw new Error("Company and location details required");
               }
@@ -208,15 +329,18 @@ export const authOptions: NextAuthOptions = {
               if (!location) {
                 throw new Error("Invalid location details");
               }
+
+              return {
+                id: user._id.toString(),
+                userId: user.userId,
+                role: user.role,
+                companies: user.companies,
+                email: user.email,
+                moduleAccess: employee.moduleAccess,
+              };
             }
 
-            return {
-              id: user._id.toString(),
-              userId: user.userId,
-              role: user.role,
-              companies: user.companies,
-              email: user.email,
-            };
+            throw new Error("Invalid user role");
           }
         } catch (error) {
           if (error instanceof Error) {
@@ -254,6 +378,12 @@ export const authOptions: NextAuthOptions = {
           user.userId = existingUser.userId;
           user.role = existingUser.role;
           user.companies = existingUser.companies;
+          user.moduleAccess = [{
+            moduleId: 'all-modules',
+            modulePath: '*',
+            moduleName: 'All Modules',
+            permissions: ['read', 'write', 'delete', 'edit', 'audit']
+          }];
 
           return true;
         } catch (error) {
@@ -271,6 +401,7 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role;
         token.companies = user.companies;
         token.email = user.email;
+        token.moduleAccess = user.moduleAccess;
       }
       return token;
     },
@@ -281,6 +412,7 @@ export const authOptions: NextAuthOptions = {
         role: token.role,
         companies: token.companies,
         email: token.email,
+        moduleAccess: token.moduleAccess,
       } as SessionUser;
       return session;
     },
@@ -299,9 +431,10 @@ declare module "next-auth" {
   interface User {
     id: string;
     userId: string;
-    role: string;
+    role: UserRole; // Use UserRole instead of string
     companies: { companyId: string; name: string; locations: { locationId: string; name: string }[] }[];
     email?: string;
+    moduleAccess?: IModuleAccess[];
   }
 
   interface Session {
@@ -313,8 +446,9 @@ declare module "next-auth/jwt" {
   interface JWT {
     id: string;
     userId: string;
-    role: string;
+    role: UserRole; // Use UserRole instead of string
     companies: { companyId: string; name: string; locations: { locationId: string; name: string }[] }[];
     email?: string;
+    moduleAccess?: IModuleAccess[];
   }
 }

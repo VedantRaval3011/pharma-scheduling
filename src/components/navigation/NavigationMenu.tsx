@@ -113,10 +113,7 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
     return <div className="p-4">Loading...</div>;
   }
 
-  const handleMouseEnter = (index: number) => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    setActiveTab(index);
-  };
+ 
 
   const handleMouseLeave = () => {
     timeoutRef.current = setTimeout(() => setActiveTab(null), 300);
