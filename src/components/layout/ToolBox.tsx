@@ -53,37 +53,137 @@ const WindowsToolbar: React.FC<ToolbarProps> = ({
 }) => {
   const { data: session } = useSession();
 
-  // Map buttons to required permissions
+  // Map buttons to required permissions - refined based on your requirements
   const buttonPermissions = [
-    { id: 'addNew', icon: Plus, label: 'Add New', shortcut: 'F1', onClick: onAddNew, permission: 'write' },
-    { id: 'save', icon: Save, label: 'Save', shortcut: 'F2', onClick: onSave, permission: 'write' },
-    { id: 'clear', icon: X, label: 'Clear', shortcut: 'F3', onClick: onClear, permission: 'edit' },
-    { id: 'exit', icon: LogOut, label: 'Exit', shortcut: 'F4', onClick: onExit, permission: null },
-    { id: 'up', icon: ChevronUp, label: 'Up', shortcut: 'F5', onClick: onUp, permission: 'read' },
-    { id: 'down', icon: ChevronDown, label: 'Down', shortcut: 'F6', onClick: onDown, permission: 'read' },
-    { id: 'search', icon: Search, label: 'Search', shortcut: 'F7', onClick: onSearch, permission: 'read' },
+    { 
+      id: 'addNew', 
+      icon: Plus, 
+      label: 'Add New', 
+      shortcut: 'F1', 
+      onClick: onAddNew, 
+      requiredPermissions: ['read', 'write'] // Need both read and write to add new
+    },
+    { 
+      id: 'save', 
+      icon: Save, 
+      label: 'Save', 
+      shortcut: 'F2', 
+      onClick: onSave, 
+      requiredPermissions: ['read', 'write'] // Need read, write, and edit to save
+    },
+    { 
+      id: 'clear', 
+      icon: X, 
+      label: 'Clear', 
+      shortcut: 'F3', 
+      onClick: onClear, 
+      requiredPermissions: ['read', 'write'] // Need read and write to clear
+    },
+    { 
+      id: 'exit', 
+      icon: LogOut, 
+      label: 'Exit', 
+      shortcut: 'F4', 
+      onClick: onExit, 
+      requiredPermissions: [] // Always available
+    },
+    { 
+      id: 'up', 
+      icon: ChevronUp, 
+      label: 'Up', 
+      shortcut: 'F5', 
+      onClick: onUp, 
+      requiredPermissions: ['read'] // Only need read permission
+    },
+    { 
+      id: 'down', 
+      icon: ChevronDown, 
+      label: 'Down', 
+      shortcut: 'F6', 
+      onClick: onDown, 
+      requiredPermissions: ['read'] // Only need read permission
+    },
+    { 
+      id: 'search', 
+      icon: Search, 
+      label: 'Search', 
+      shortcut: 'F7', 
+      onClick: onSearch, 
+      requiredPermissions: ['read'] // Only need read permission
+    },
     {
       id: 'implement',
       icon: Play,
       label: 'Implement Query',
       shortcut: 'F8',
       onClick: onImplementQuery,
-      permission: 'write',
+      requiredPermissions: ['read', 'write'], // Need read and write to implement
     },
-    { id: 'edit', icon: Edit, label: 'Edit', shortcut: 'F9', onClick: onEdit, permission: 'edit' },
-    { id: 'delete', icon: Trash2, label: 'Delete', shortcut: 'F10', onClick: onDelete, permission: 'delete' },
-    { id: 'audit', icon: History, label: 'Audit', shortcut: 'F11', onClick: onAudit, permission: 'audit' },
-    { id: 'print', icon: Printer, label: 'Print', shortcut: 'F12', onClick: onPrint, permission: 'read' },
-    { id: 'help', icon: HelpCircle, label: 'Help', shortcut: 'Ctrl+H', onClick: onHelp, permission: null },
+    { 
+      id: 'edit', 
+      icon: Edit, 
+      label: 'Edit', 
+      shortcut: 'F9', 
+      onClick: onEdit, 
+      requiredPermissions: ['read', 'edit'] // Need read and edit permissions
+    },
+    { 
+      id: 'delete', 
+      icon: Trash2, 
+      label: 'Delete', 
+      shortcut: 'F10', 
+      onClick: onDelete, 
+      requiredPermissions: ['read', 'delete'] // Need read and delete permissions
+    },
+    { 
+      id: 'audit', 
+      icon: History, 
+      label: 'Audit', 
+      shortcut: 'F11', 
+      onClick: onAudit, 
+      requiredPermissions: ['read', 'audit'] // Need read and audit permissions
+    },
+    { 
+      id: 'print', 
+      icon: Printer, 
+      label: 'Print', 
+      shortcut: 'F12', 
+      onClick: onPrint, 
+      requiredPermissions: ['read'] // Only need read permission
+    },
+    { 
+      id: 'help', 
+      icon: HelpCircle, 
+      label: 'Help', 
+      shortcut: 'Ctrl+H', 
+      onClick: onHelp, 
+      requiredPermissions: [] // Always available
+    },
   ];
 
-  // Check if user has permission for a specific action
-  const hasPermission = (permission: string | null) => {
-    if (!permission) return true; // No permission required (e.g., Exit, Help)
+  // Check if user has all required permissions for a specific action
+  const hasPermission = (requiredPermissions: string[]) => {
+    // If no permissions required, always allow
+    if (requiredPermissions.length === 0) return true;
+    
+    // If no session or user, deny access
     if (!session?.user) return false;
-    if (['super_admin', 'admin'].includes(session.user.role)) return true; // Admins have all permissions
-    const module = session.user.moduleAccess?.find((m) => m.modulePath === modulePath || m.modulePath === '*');
-    return module ? module.permissions.includes(permission) : false;
+    
+    // Super admins and admins have all permissions
+    if (['super_admin', 'admin'].includes(session.user.role)) return true;
+    
+    // Find the module in user's moduleAccess
+    const module = session.user.moduleAccess?.find((m) => 
+      m.modulePath === modulePath || m.modulePath === '*'
+    );
+    
+    // If module not found, deny access
+    if (!module) return false;
+    
+    // Check if user has ALL required permissions for this action
+    return requiredPermissions.every(permission => 
+      module.permissions.includes(permission)
+    );
   };
 
   // Handle keyboard shortcuts
@@ -92,7 +192,7 @@ const WindowsToolbar: React.FC<ToolbarProps> = ({
       const button = buttonPermissions.find(
         (b) => b.shortcut === event.key || (event.ctrlKey && event.key === 'h' && b.shortcut === 'Ctrl+H')
       );
-      if (button && button.onClick && hasPermission(button.permission)) {
+      if (button && button.onClick && hasPermission(button.requiredPermissions)) {
         event.preventDefault();
         button.onClick();
       }
@@ -116,14 +216,18 @@ const WindowsToolbar: React.FC<ToolbarProps> = ({
       <div className="flex flex-col space-y-1">
         {buttonPermissions.map((button) => {
           const IconComponent = button.icon;
-          const isDisabled = !hasPermission(button.permission);
+          const isDisabled = !hasPermission(button.requiredPermissions);
+          const isVisible = button.onClick !== undefined; // Only show if handler is provided
+
+          // Don't render the button if no onClick handler is provided
+          if (!isVisible) return null;
 
           return (
             <button
               key={button.id}
               onClick={button.onClick}
               disabled={isDisabled}
-              title={`${button.label} (${button.shortcut})`}
+              title={`${button.label} (${button.shortcut})${isDisabled ? ' - Access Denied' : ''}`}
               className={`group relative w-8 h-8 flex items-center justify-center ${
                 isDisabled ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:text-gray-900'
               } transition-colors`}
@@ -164,6 +268,11 @@ const WindowsToolbar: React.FC<ToolbarProps> = ({
               >
                 <div className="font-medium">{button.label}</div>
                 <div className="text-xs text-gray-600">{button.shortcut}</div>
+                {isDisabled && (
+                  <div className="text-xs text-red-600 mt-1">
+                    Required: {button.requiredPermissions.join(', ')}
+                  </div>
+                )}
               </div>
             </button>
           );

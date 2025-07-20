@@ -1,81 +1,76 @@
-'use client';
+"use client";
 
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import { UserRole } from '@/types/auth';
-import { IModuleAccess } from '@/models/employee';
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { UserRole } from "@/types/auth";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   allowedRoles?: UserRole[];
-  requiredModule?: string;
-  requiredPermission?: 'read' | 'write' | 'delete' | 'edit' | 'audit';
 }
 
 export default function ProtectedRoute({
   children,
   allowedRoles,
-  requiredModule,
-  requiredPermission,
 }: ProtectedRouteProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
 
   useEffect(() => {
-    if (status === 'loading') return;
+    if (status === "loading") return;
 
     if (!session) {
-      console.log('ProtectedRoute: No session, redirecting to login');
-      router.push('/auth/login');
+      console.log("ProtectedRoute: No session, redirecting to login");
+      router.push("/auth/login");
       return;
     }
 
-    if (allowedRoles && !allowedRoles.includes(session.user.role)) {
-      console.log(`ProtectedRoute: Role ${session.user.role} not allowed, redirecting to unauthorized`);
-      router.push('/unauthorized');
-      return;
-    }
+    // Role hierarchy: super_admin > admin > employee
+    const userRole = session.user.role;
 
-    if (requiredModule) {
-      const hasModuleAccess = session.user.moduleAccess?.some(
-        (module: IModuleAccess) =>
-          (module.modulePath === requiredModule || module.modulePath === '*') &&
-          (!requiredPermission || module.permissions.includes(requiredPermission))
-      );
+    if (allowedRoles && allowedRoles.length > 0) {
+      let hasAccess = false;
 
-      if (!hasModuleAccess) {
+      // Check if user role is in allowed roles OR has higher permissions
+      if (allowedRoles.includes(userRole)) {
+        hasAccess = true;
+      } else if (userRole === "super_admin") {
+        // Super admin can access everything
+        hasAccess = true;
+      } else if (userRole === "employee" && !allowedRoles.includes("admin")) {
+        // Super admin can access everything
+        hasAccess = true;
+      } else if (
+        userRole === "admin" &&
+        !allowedRoles.includes("super_admin")
+      ) {
+        // Admin can access admin and employee routes, but not super_admin only routes
+        hasAccess = true;
+      }
+
+      if (!hasAccess) {
         console.log(
-          `ProtectedRoute: No access to module ${requiredModule} with permission ${requiredPermission}, redirecting to unauthorized`
+          `ProtectedRoute: Role ${userRole} not allowed for roles ${allowedRoles.join(
+            ", "
+          )}, redirecting to unauthorized`
         );
-        router.push('/unauthorized');
+        router.push("/unauthorized");
         return;
       }
     }
-  }, [session, status, router, allowedRoles, requiredModule, requiredPermission]);
+  }, [session, status, router, allowedRoles]);
 
-  if (status === 'loading') {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  if (status === "loading") {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        Loading...
+      </div>
+    );
   }
 
   if (!session) {
     return null;
-  }
-
-  if (allowedRoles && !allowedRoles.includes(session.user.role)) {
-    return null;
-  }
-
-  if (requiredModule) {
-    const hasModuleAccess = session.user.moduleAccess?.some(
-      (module: IModuleAccess) =>
-        (module.modulePath === requiredModule || module.modulePath === '*') &&
-        (!requiredPermission || module.permissions.includes(requiredPermission))
-    );
-
-    if (!hasModuleAccess) {
-      return null;
-    }
   }
 
   return <>{children}</>;

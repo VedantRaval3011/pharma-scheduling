@@ -304,7 +304,7 @@ export default function PermissionsPage() {
   const handleHelp = () => toast.info('Help not implemented');
 
   return (
-    <ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredModule="/permissions" requiredPermission="edit">
+    <ProtectedRoute allowedRoles={['super_admin', 'admin', 'employee']}>
       <div className="container mx-auto p-4 max-w-6xl">
         <WindowsToolbar
           modulePath="/permissions"

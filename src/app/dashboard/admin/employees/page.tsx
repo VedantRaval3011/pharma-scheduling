@@ -1650,7 +1650,7 @@ export default function AdminDashboard() {
   };
 
   return (
-    <ProtectedRoute allowedRoles={["admin"]}>
+    <ProtectedRoute allowedRoles={["admin","employee"]}>
       <div
         className="min-h-screen"
         style={{
@@ -1668,7 +1668,7 @@ export default function AdminDashboard() {
         ></div>
 
         <WindowsToolbar
-          
+          modulePath="/dashboard/admin/employees"
           onAddNew={handleAddNew}
           onSave={handleSave}
           onClear={handleClear}

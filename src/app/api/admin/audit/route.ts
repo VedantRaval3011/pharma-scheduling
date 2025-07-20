@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
     console.log("=== AUDIT LOG POST REQUEST ===");
     
     const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== "admin") {
+    if (!session ) {
       console.log("Unauthorized access attempt");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -242,7 +242,7 @@ export async function PUT(request: NextRequest) {
       const auditDetails = {
         message: `Employee updated successfully`,
         performedBy: session.user.id,
-        performedByName: session.user.name || session.user.email || "Unknown User",
+        performedByName: session.user.userId || "Unknown User",
         changes: actualChanges,
         timestamp: new Date().toISOString(),
       };

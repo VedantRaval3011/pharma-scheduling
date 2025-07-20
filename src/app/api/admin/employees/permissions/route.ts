@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     if (
       !session ||
       !session.user ||
-      !['admin', 'super_admin'].includes(session.user.role)
+      !['employee','admin', 'super_admin'].includes(session.user.role)
     ) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -91,7 +91,7 @@ export async function PATCH(request: NextRequest) {
     if (
       !session ||
       !session.user ||
-      !['admin', 'super_admin'].includes(session.user.role)
+      !['employee','admin', 'super_admin'].includes(session.user.role)
     ) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

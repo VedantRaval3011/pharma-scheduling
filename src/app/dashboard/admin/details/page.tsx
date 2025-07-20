@@ -1,8 +1,8 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import {  Building, User, Save, Edit, AlertCircle } from 'lucide-react';
+import { Building, User, Save, Edit, AlertCircle } from 'lucide-react';
 import type { JSX } from 'react';
-import ToolBox from '@/components/layout/ToolBox';
+import WindowsToolbar from '@/components/layout/ToolBox';
 
 interface Location {
   locationId: string;
@@ -49,7 +49,6 @@ const AdminDetailsDashboard: React.FC = () => {
     setError(null);
 
     try {
-      // First, get the session to obtain the userId
       const sessionResponse = await fetch('/api/auth/session', {
         method: 'GET',
         headers: {
@@ -68,7 +67,6 @@ const AdminDetailsDashboard: React.FC = () => {
         throw new Error('No user ID found in session');
       }
 
-      // Then fetch user details using the userId
       const response = await fetch(`/api/user/${userId}`, {
         method: 'GET',
         headers: {
@@ -86,7 +84,6 @@ const AdminDetailsDashboard: React.FC = () => {
         throw new Error(data.error);
       }
 
-      // Ensure data.user is defined before setting state
       if (data.user) {
         setAdmin({
           userId: data.user.userId,
@@ -114,72 +111,131 @@ const AdminDetailsDashboard: React.FC = () => {
     }
   };
 
-  const handleEdit = async (): Promise<void> => {
-  if (!isEditing) {
-    setIsEditing(true);
-    return;
-  }
+  const handleAddNew = async (): Promise<void> => {
+    if (!formData) return;
 
-  try {
-    if (!admin || !formData) {
-      throw new Error('No admin data to update');
+    try {
+      // Create a new company with a default location
+      const newCompany: Company = {
+        companyId: `comp-${Date.now()}`, // Generate a temporary ID
+        name: 'New Company',
+        locations: [{ locationId: `loc-${Date.now()}`, name: 'New Location' }],
+      };
+
+      const updatedCompanies = [...formData.companies, newCompany];
+      setFormData({ ...formData, companies: updatedCompanies });
+      setIsEditing(true); // Enable editing mode to allow immediate changes
+    } catch (err) {
+      setError('Failed to add new company');
     }
+  };
 
-    // Only send fields that are allowed to be updated
-    const updatePayload = {
-      email: formData.email,
-      companies: formData.companies.map(company => ({
-        name: company.name,
-        locations: company.locations.map(location => ({
-          name: location.name,
-          ...(location._id && { _id: location._id })
-        }))
-      }))
-    };
+  const handleSave = async (): Promise<void> => {
+    try {
+      if (!admin || !formData) {
+        throw new Error('No admin data to update');
+      }
 
-    const response = await fetch(`/api/user/${admin.userId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(updatePayload),
-    });
+      const updatePayload = {
+        email: formData.email,
+        companies: formData.companies.map((company) => ({
+          name: company.name,
+          locations: company.locations.map((location) => ({
+            name: location.name,
+            ...(location._id && { _id: location._id }),
+          })),
+        })),
+      };
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-    }
-
-    const data: ApiResponse = await response.json();
-
-    if (data.error) {
-      throw new Error(data.error);
-    }
-
-    if (data.user) {
-      setAdmin({
-        userId: data.user.userId,
-        role: data.user.role,
-        companies: data.user.companies || [],
-        email: data.user.email || null,
+      const response = await fetch(`/api/user/${admin.userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatePayload),
       });
-      setFormData({
-        userId: data.user.userId,
-        role: data.user.role,
-        companies: data.user.companies || [],
-        email: data.user.email || null,
-      });
-    } else {
-      setAdmin(null);
-      setFormData(null);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data: ApiResponse = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      if (data.user) {
+        setAdmin({
+          userId: data.user.userId,
+          role: data.user.role,
+          companies: data.user.companies || [],
+          email: data.user.email || null,
+        });
+        setFormData({
+          userId: data.user.userId,
+          role: data.user.role,
+          companies: data.user.companies || [],
+          email: data.user.email || null,
+        });
+      } else {
+        setAdmin(null);
+        setFormData(null);
+      }
+      setIsEditing(false);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update admin details';
+      setError(errorMessage);
     }
-    setIsEditing(false);
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'Failed to update admin details';
-    console.error('Update error:', errorMessage); // Add logging
-    setError(errorMessage);
-  }
-};
+  };
+
+  const handleClear = (): void => {
+    if (admin) {
+      setFormData({ ...admin }); // Reset formData to original admin data
+      setIsEditing(false);
+      setError(null);
+    }
+  };
+
+  const handleExit = (): void => {
+    // Redirect to a different page or clear state
+    window.location.href = '/dashboard'; // Adjust the URL as needed
+  };
+
+  const handleEdit = (): void => {
+    setIsEditing(!isEditing);
+  };
+
+  const handleAudit = async (): Promise<void> => {
+    try {
+      if (!admin) {
+        throw new Error('No admin data available');
+      }
+
+      const response = await fetch(`/api/user/${admin.userId}/audit`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const auditData = await response.json();
+      // Display audit data (e.g., in a modal or alert)
+      alert(JSON.stringify(auditData, null, 2)); // Replace with a proper UI component
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch audit logs');
+    }
+  };
+
+  const handleHelp = (): void => {
+    // Open a help modal or redirect to a help page
+    window.open('/help', '_blank'); // Adjust the URL as needed
+  };
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -189,17 +245,14 @@ const AdminDetailsDashboard: React.FC = () => {
     if (!formData) return;
 
     if (companyIndex !== undefined && locationIndex !== undefined) {
-      // Update location name
       const updatedCompanies = [...formData.companies];
       updatedCompanies[companyIndex].locations[locationIndex].name = e.target.value;
       setFormData({ ...formData, companies: updatedCompanies });
     } else if (companyIndex !== undefined) {
-      // Update company name
       const updatedCompanies = [...formData.companies];
       updatedCompanies[companyIndex].name = e.target.value;
       setFormData({ ...formData, companies: updatedCompanies });
     } else {
-      // Update email
       setFormData({ ...formData, [e.target.name]: e.target.value });
     }
   };
@@ -225,16 +278,30 @@ const AdminDetailsDashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen p-4" style={{ 
-      background: 'linear-gradient(135deg, #fafafa 0%, #f0f0f0 100%)',
-      fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif'
-    }}>
-      <ToolBox/>
+    <div
+      className="min-h-screen p-4"
+      style={{
+        background: 'linear-gradient(135deg, #fafafa 0%, #f0f0f0 100%)',
+        fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif',
+      }}
+    >
+      <WindowsToolbar
+        modulePath="/admin-details" // Adjust the module path as needed
+        onAddNew={handleAddNew}
+        onSave={handleSave}
+        onClear={handleClear}
+        onExit={handleExit}
+        onEdit={handleEdit}
+        onAudit={handleAudit}
+        onHelp={handleHelp}
+      />
       <div className="max-w-4xl mx-auto">
-        {/* Windows-style title bar */}
-        <div className="rounded-t-lg shadow-lg border-t-2 border-l-2 border-r-2 border-blue-300" style={{
-          background: 'linear-gradient(to bottom, #e9f3ff 0%, #d0e7ff 50%, #b0d1ff 100%)'
-        }}>
+        <div
+          className="rounded-t-lg shadow-lg border-t-2 border-l-2 border-r-2 border-blue-300"
+          style={{
+            background: 'linear-gradient(to bottom, #e9f3ff 0%, #d0e7ff 50%, #b0d1ff 100%)',
+          }}
+        >
           <div className="flex items-center p-3">
             <div className="flex items-center space-x-2">
               <User className="w-5 h-5 text-blue-800" />
@@ -243,12 +310,14 @@ const AdminDetailsDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Windows-style main content area */}
-        <div className="rounded-b-lg shadow-lg border-2 border-t-0 border-gray-400 p-6" style={{
-          background: 'linear-gradient(to bottom, #ffffff 0%, #f8f8f8 100%)',
-          borderStyle: 'ridge',
-          borderWidth: '2px'
-        }}>
+        <div
+          className="rounded-b-lg shadow-lg border-2 border-t-0 border-gray-400 p-6"
+          style={{
+            background: 'linear-gradient(to bottom, #ffffff 0%, #f8f8f8 100%)',
+            borderStyle: 'ridge',
+            borderWidth: '2px',
+          }}
+        >
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2"></div>
@@ -263,7 +332,7 @@ const AdminDetailsDashboard: React.FC = () => {
                 className="px-4 py-2 border-2 border-gray-400 rounded text-gray-800 text-sm hover:bg-gray-100 active:border-gray-600"
                 style={{
                   background: 'linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)',
-                  borderStyle: 'outset'
+                  borderStyle: 'outset',
                 }}
               >
                 Try Again
@@ -273,51 +342,50 @@ const AdminDetailsDashboard: React.FC = () => {
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center border-2 border-gray-400" style={{
-                    background: 'linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)',
-                    borderStyle: 'inset'
-                  }}>
+                  <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center border-2 border-gray-400"
+                    style={{
+                      background: 'linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)',
+                      borderStyle: 'inset',
+                    }}
+                  >
                     {getRoleIcon(admin.role)}
                   </div>
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">{admin.userId}</h2>
-                    <p className="text-gray-700 text-sm">
-                      Role: {getRoleDisplayName(admin.role)}
-                    </p>
+                    <p className="text-gray-700 text-sm">Role: {getRoleDisplayName(admin.role)}</p>
                   </div>
                 </div>
-                <button
-                  onClick={handleEdit}
-                  className="flex items-center space-x-2 px-4 py-2 border-2 border-gray-400 rounded text-gray-900 font-medium hover:bg-gray-100 active:border-gray-600"
-                  style={{
-                    background: 'linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)',
-                    borderStyle: 'outset'
-                  }}
-                >
-                  {isEditing ? <Save className="w-4 h-4" /> : <Edit className="w-4 h-4" />}
-                  <span>{isEditing ? 'Save' : 'Edit'}</span>
-                </button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-3 border-2 border-gray-300 rounded" style={{
-                  background: 'linear-gradient(to bottom, #fdfdfd 0%, #f5f5f5 100%)',
-                  borderStyle: 'inset'
-                }}>
+                <div
+                  className="p-3 border-2 border-gray-300 rounded"
+                  style={{
+                    background: 'linear-gradient(to bottom, #fdfdfd 0%, #f5f5f5 100%)',
+                    borderStyle: 'inset',
+                  }}
+                >
                   <label className="text-gray-800 font-medium text-sm">User ID</label>
                   <p className="text-gray-900 mt-1">{admin.userId}</p>
                 </div>
-                <div className="p-3 border-2 border-gray-300 rounded" style={{
-                  background: 'linear-gradient(to bottom, #fdfdfd 0%, #f5f5f5 100%)',
-                  borderStyle: 'inset'
-                }}>
+                <div
+                  className="p-3 border-2 border-gray-300 rounded"
+                  style={{
+                    background: 'linear-gradient(to bottom, #fdfdfd 0%, #f5f5f5 100%)',
+                    borderStyle: 'inset',
+                  }}
+                >
                   <label className="text-gray-800 font-medium text-sm">Role</label>
                   <p className="text-gray-900 mt-1">{getRoleDisplayName(admin.role)}</p>
                 </div>
-                <div className="p-3 border-2 border-gray-300 rounded" style={{
-                  background: 'linear-gradient(to bottom, #fdfdfd 0%, #f5f5f5 100%)',
-                  borderStyle: 'inset'
-                }}>
+                <div
+                  className="p-3 border-2 border-gray-300 rounded"
+                  style={{
+                    background: 'linear-gradient(to bottom, #fdfdfd 0%, #f5f5f5 100%)',
+                    borderStyle: 'inset',
+                  }}
+                >
                   <label className="text-gray-800 font-medium text-sm">Email</label>
                   {isEditing ? (
                     <input
@@ -334,15 +402,21 @@ const AdminDetailsDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-4 border-2 border-gray-300 rounded" style={{
-                background: 'linear-gradient(to bottom, #fdfdfd 0%, #f5f5f5 100%)',
-                borderStyle: 'inset'
-              }}>
+              <div
+                className="p-4 border-2 border-gray-300 rounded"
+                style={{
+                  background: 'linear-gradient(to bottom, #fdfdfd 0%, #f5f5f5 100%)',
+                  borderStyle: 'inset',
+                }}
+              >
                 <label className="text-gray-800 font-medium text-sm">Companies</label>
                 {admin.companies.length > 0 ? (
                   <div className="mt-2 space-y-4">
                     {admin.companies.map((company, companyIndex) => (
-                      <div key={company.companyId} className="border-l-4 pl-4 p-2 bg-white rounded border border-gray-300">
+                      <div
+                        key={company.companyId}
+                        className="border-l-4 pl-4 p-2 bg-white rounded border border-gray-300"
+                      >
                         {isEditing ? (
                           <input
                             type="text"
@@ -369,7 +443,7 @@ const AdminDetailsDashboard: React.FC = () => {
                                       style={{ borderStyle: 'inset' }}
                                     />
                                   ) : (
-                                    `${location.name} `
+                                    `${location.name}`
                                   )}
                                 </li>
                               ))}
