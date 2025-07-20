@@ -4,8 +4,6 @@ import type { CallbackError } from "mongoose";
 
 import { IModuleAccess } from '@/models/employee';
 
-
-
 export interface SessionUser {
   id: string;
   userId: string;

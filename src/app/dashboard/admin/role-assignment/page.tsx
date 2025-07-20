@@ -1,18 +1,22 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import WindowsToolbar from '@/components/layout/ToolBox';
 import { IEmployee, IModuleAccess } from '@/models/employee';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { useSession } from 'next-auth/react';
+import { flattenNavData } from '@/lib/utils';
+import { adminEmployeeNavData } from '@/data/navigationData';
 
-// Define interfaces
 interface Permission {
   read: boolean;
   write: boolean;
   edit: boolean;
   delete: boolean;
   audit: boolean;
+  included: boolean;
 }
 
 interface PermissionsMap {
@@ -26,107 +30,172 @@ interface Module {
 }
 
 export default function PermissionsPage() {
+  const { data: session } = useSession();
   const [employees, setEmployees] = useState<IEmployee[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<IEmployee | null>(null);
   const [searchInput, setSearchInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [permissions, setPermissions] = useState<PermissionsMap>({});
   const [modules, setModules] = useState<Module[]>([]);
-  const [searchModule, setSearchModule] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Fetch employee data
-  const fetchEmployee = useCallback(async (query: string) => {
-    if (!query || query.length < 3) {
+  // Initialize default permission for a module
+  const getDefaultPermission = (): Permission => ({
+    read: false,
+    write: false,
+    edit: false,
+    delete: false,
+    audit: false,
+    included: false,
+  });
+
+  // Flatten navData to get modules
+  useEffect(() => {
+    const flattenedModules = flattenNavData(adminEmployeeNavData);
+    console.log('Flattened modules:', flattenedModules);
+    setModules(flattenedModules);
+    
+    // Initialize permissions for all modules to prevent undefined values
+    const initialPermissions: PermissionsMap = {};
+    flattenedModules.forEach((module) => {
+      initialPermissions[module.modulePath] = getDefaultPermission();
+    });
+    setPermissions(initialPermissions);
+  }, []);
+
+  // Handle clicks outside dropdown to close it
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Fetch employee suggestions with improved error handling
+  const fetchEmployeeSuggestions = useCallback(async (query: string) => {
+    if (!query || query.length < 1) {
       setEmployees([]);
-      setSelectedEmployee(null);
-      setPermissions({});
+      setShowDropdown(false);
       return;
     }
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/admin/employee?query=${encodeURIComponent(query)}`);
-      const data = await response.json();
+      const response = await fetch(`/api/admin/employees?query=${encodeURIComponent(query)}`);
+      const result = await response.json();
 
-      if (response.ok && data.employees) {
-        setEmployees(data.employees);
-        if (data.employees.length === 1) {
-          setSelectedEmployee(data.employees[0]);
-          // Initialize permissions from employee moduleAccess
-          const initialPermissions: PermissionsMap = {};
-          data.employees[0].moduleAccess.forEach((module: IModuleAccess) => {
-            initialPermissions[module.modulePath] = {
-              read: module.permissions.includes('read'),
-              write: module.permissions.includes('write'),
-              edit: module.permissions.includes('edit'),
-              delete: module.permissions.includes('delete'),
-              audit: module.permissions.includes('audit'),
-            };
-          });
-          setPermissions(initialPermissions);
-        } else {
-          setSelectedEmployee(null);
-          setPermissions({});
-        }
+      if (response.ok && result.data) {
+        const filteredEmployees = session?.user.role === 'admin'
+          ? result.data.filter((emp: IEmployee) =>
+              emp.companies.some((empCompany) =>
+                session.user.companies.some((userCompany) => userCompany.companyId === empCompany.companyId)
+              )
+            )
+          : result.data;
+
+        setEmployees(filteredEmployees);
+        setShowDropdown(filteredEmployees.length > 0);
       } else {
-        toast.error(data.error || 'No employees found');
+        toast.error(result.error || 'No employees found');
         setEmployees([]);
-        setSelectedEmployee(null);
-        setPermissions({});
+        setShowDropdown(false);
       }
     } catch (error) {
+      console.error('Error fetching employees:', error);
       toast.error('Failed to fetch employees');
       setEmployees([]);
-      setSelectedEmployee(null);
-      setPermissions({});
+      setShowDropdown(false);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [session]);
+
+  // Fetch specific employee and their permissions
+  const fetchEmployeePermissions = useCallback(async (employeeId: string) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/admin/employees/permissions?employeeId=${encodeURIComponent(employeeId)}`);
+      const result = await response.json();
+
+      if (response.ok) {
+        return result.moduleAccess || [];
+      } else {
+        toast.error(result.error || 'Failed to fetch permissions');
+        return [];
+      }
+    } catch (error) {
+      console.error('Error fetching permissions:', error);
+      toast.error('Failed to fetch employee permissions');
+      return [];
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // Fetch modules
-  useEffect(() => {
-    const fetchModules = async () => {
-      try {
-        const response = await fetch('/api/modules');
-        const data = await response.json();
-        if (response.ok) {
-          setModules(data.modules);
-        } else {
-          toast.error(data.error || 'Failed to fetch modules');
-        }
-      } catch (error) {
-        toast.error('Failed to fetch modules');
-      }
-    };
-    fetchModules();
-  }, []);
-
-  // Handle employee selection
-  const handleEmployeeSelect = (employee: IEmployee) => {
+  // Handle employee selection with permission loading
+  const handleEmployeeSelect = async (employee: IEmployee) => {
     setSelectedEmployee(employee);
+    setSearchInput(employee.userId);
+    setShowDropdown(false);
+    
+    const currentPermissions = await fetchEmployeePermissions(employee.employeeId);
+    
+    // Initialize permissions state with default values first
     const initialPermissions: PermissionsMap = {};
-    employee.moduleAccess.forEach((module: IModuleAccess) => {
+    modules.forEach((module) => {
+      const moduleAccess = currentPermissions.find((m: IModuleAccess) => m.modulePath === module.modulePath);
       initialPermissions[module.modulePath] = {
-        read: module.permissions.includes('read'),
-        write: module.permissions.includes('write'),
-        edit: module.permissions.includes('edit'),
-        delete: module.permissions.includes('delete'),
-        audit: module.permissions.includes('audit'),
+        read: moduleAccess?.permissions.includes('read') || false,
+        write: moduleAccess?.permissions.includes('write') || false,
+        edit: moduleAccess?.permissions.includes('edit') || false,
+        delete: moduleAccess?.permissions.includes('delete') || false,
+        audit: moduleAccess?.permissions.includes('audit') || false,
+        included: !!moduleAccess,
       };
     });
     setPermissions(initialPermissions);
   };
 
-  // Handle permission change
+  // Handle permission change with better state management
   const handlePermissionChange = (modulePath: string, permission: keyof Permission) => {
-    setPermissions((prev) => ({
-      ...prev,
-      [modulePath]: {
-        ...prev[modulePath],
-        [permission]: !prev[modulePath]?.[permission],
-      },
-    }));
+    setPermissions((prev) => {
+      const currentModule = prev[modulePath] || getDefaultPermission();
+      const newPermission = !currentModule[permission];
+      
+      return {
+        ...prev,
+        [modulePath]: {
+          ...currentModule,
+          [permission]: newPermission,
+          included: permission === 'included' ? newPermission : (newPermission || currentModule.included),
+        },
+      };
+    });
+  };
+
+  // Handle module inclusion with smart permission management
+  const handleModuleInclusion = (modulePath: string) => {
+    setPermissions((prev) => {
+      const currentModule = prev[modulePath] || getDefaultPermission();
+      const isIncluded = !currentModule.included;
+      
+      return {
+        ...prev,
+        [modulePath]: {
+          read: isIncluded ? currentModule.read : false,
+          write: isIncluded ? currentModule.write : false,
+          edit: isIncluded ? currentModule.edit : false,
+          delete: isIncluded ? currentModule.delete : false,
+          audit: isIncluded ? currentModule.audit : false,
+          included: isIncluded,
+        },
+      };
+    });
   };
 
   // Handle select all permissions for a module
@@ -139,6 +208,7 @@ export default function PermissionsPage() {
         edit: checked,
         delete: checked,
         audit: checked,
+        included: checked,
       },
     }));
   };
@@ -150,163 +220,302 @@ export default function PermissionsPage() {
       return;
     }
 
-    setIsLoading(true);
+    setIsSaving(true);
     try {
-      const permissionObject = {
-        employeeId: selectedEmployee.employeeId,
-        permissions: Object.entries(permissions).reduce((acc, [modulePath, perms]) => {
+      const permissionsToUpdate = Object.entries(permissions).reduce((acc, [modulePath, perms]) => {
+        if (perms.included) {
           const activePermissions = Object.entries(perms)
-            .filter(([_, value]) => value)
+            .filter(([key, value]) => value && key !== 'included')
             .map(([key]) => key);
+          
           if (activePermissions.length > 0) {
             acc[modulePath] = activePermissions;
           }
-          return acc;
-        }, {} as { [key: string]: string[] }),
-      };
+        }
+        return acc;
+      }, {} as { [key: string]: string[] });
 
-      const response = await fetch('/api/employee/permissions', {
+      const response = await fetch('/api/admin/employees/permissions', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(permissionObject),
+        body: JSON.stringify({
+          employeeId: selectedEmployee.employeeId,
+          permissions: permissionsToUpdate,
+        }),
       });
+
+      const result = await response.json();
 
       if (response.ok) {
         toast.success('Permissions updated successfully');
-        // Refresh employee data
-        fetchEmployee(searchInput);
+        handleEmployeeSelect(selectedEmployee);
       } else {
-        const data = await response.json();
-        toast.error(data.error || 'Failed to update permissions');
+        toast.error(result.error || 'Failed to update permissions');
       }
     } catch (error) {
+      console.error('Error saving permissions:', error);
       toast.error('Failed to save permissions');
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
 
-  // Filter modules based on search
-  const filteredModules = modules.filter((module) =>
-    module.moduleName.toLowerCase().includes(searchModule.toLowerCase())
-  );
+  // **FIXED: Utility function to check if all permissions are selected**
+  const areAllPermissionsSelected = (modulePath: string): boolean => {
+    const modulePerms = permissions[modulePath];
+    if (!modulePerms) return false;
+    
+    return modulePerms.included && 
+           modulePerms.read && 
+           modulePerms.write && 
+           modulePerms.edit && 
+           modulePerms.delete && 
+           modulePerms.audit;
+  };
+
+  // **FIXED: Helper function to get permission value safely**
+  const getPermissionValue = (modulePath: string, permission: keyof Permission): boolean => {
+    return permissions[modulePath]?.[permission] || false;
+  };
+
+  // Toolbar actions
+  const handleAddNew = () => toast.info('Add New not implemented');
+  const handleClear = () => {
+    setSearchInput('');
+    setEmployees([]);
+    setSelectedEmployee(null);
+    // Reset permissions to default values for all modules
+    const resetPermissions: PermissionsMap = {};
+    modules.forEach((module) => {
+      resetPermissions[module.modulePath] = getDefaultPermission();
+    });
+    setPermissions(resetPermissions);
+    setShowDropdown(false);
+  };
+  const handleExit = () => toast.info('Exit not implemented');
+  const handleUp = () => toast.info('Up not implemented');
+  const handleDown = () => toast.info('Down not implemented');
+  const handleSearch = () => fetchEmployeeSuggestions(searchInput);
+  const handleImplementQuery = () => toast.info('Implement Query not implemented');
+  const handleEdit = () => toast.info('Edit not implemented');
+  const handleDelete = () => toast.info('Delete not implemented');
+  const handleAudit = () => toast.info('Audit not implemented');
+  const handlePrint = () => toast.info('Print not implemented');
+  const handleHelp = () => toast.info('Help not implemented');
 
   return (
     <ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredModule="/permissions" requiredPermission="edit">
-      <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-4">Manage Employee Permissions</h1>
+      <div className="container mx-auto p-4 max-w-6xl">
+        <WindowsToolbar
+          modulePath="/permissions"
+          onAddNew={handleAddNew}
+          onSave={handleSave}
+          onClear={handleClear}
+          onExit={handleExit}
+          onUp={handleUp}
+          onDown={handleDown}
+          onSearch={handleSearch}
+          onImplementQuery={handleImplementQuery}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onAudit={handleAudit}
+          onPrint={handlePrint}
+          onHelp={handleHelp}
+        />
+        
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <h1 className="text-3xl font-bold mb-6 text-gray-800">Manage Employee Permissions</h1>
 
-        {/* Employee Search */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700">Search Employee</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => {
-                setSearchInput(e.target.value);
-                fetchEmployee(e.target.value);
-              }}
-              placeholder="Enter employee ID or name"
-              className="mt-1 p-2 border rounded w-full max-w-md"
-            />
-            {isLoading && <span className="text-blue-600">Loading...</span>}
+          <div className="mb-4 p-2 bg-yellow-100 border border-yellow-300 rounded text-sm">
+            <strong>Debug:</strong> Total modules loaded: {modules.length}
+            {modules.length === 0 && <span className="text-red-600"> - No modules found!</span>}
           </div>
-        </div>
 
-        {/* Employee List */}
-        {employees.length > 0 && (
-          <div className="mb-6">
-            <h2 className="text-lg font-semibold">Select Employee</h2>
-            <div className="grid gap-2">
-              {employees.map((emp) => (
-                <button
-                  key={emp.employeeId}
-                  onClick={() => handleEmployeeSelect(emp)}
-                  className={`p-2 border rounded text-left ${
-                    selectedEmployee?.employeeId === emp.employeeId ? 'bg-blue-100' : 'bg-white'
-                  }`}
-                >
-                  <p><strong>Name:</strong> {emp.name}</p>
-                  <p><strong>Employee ID:</strong> {emp.employeeId}</p>
-                </button>
-              ))}
+          {/* Employee Search Section */}
+          <div className="mb-8">
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Search Employee by User ID
+              </label>
+              <div className="relative">
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    value={searchInput}
+                    onChange={(e) => {
+                      setSearchInput(e.target.value);
+                      fetchEmployeeSuggestions(e.target.value);
+                    }}
+                    placeholder="Type employee user ID (e.g., ozil10, le...)"
+                    className="p-3 border border-gray-300 rounded-lg w-full max-w-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    style={{
+                      background: 'linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%)',
+                      border: '1px solid #ced4da',
+                    }}
+                  />
+                  {isLoading && (
+                    <div className="flex items-center text-blue-600">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                      Loading...
+                    </div>
+                  )}
+                </div>
+                
+                {showDropdown && employees.length > 0 && (
+                  <div
+                    ref={dropdownRef}
+                    className="absolute z-20 mt-1 w-full max-w-md bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                    style={{
+                      background: 'linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%)',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                    }}
+                  >
+                    {employees.map((emp) => (
+                      <div
+                        key={emp.employeeId}
+                        onClick={() => handleEmployeeSelect(emp)}
+                        className="p-3 hover:bg-blue-50 cursor-pointer transition-colors duration-150 border-b border-gray-100 last:border-b-0"
+                      >
+                        <p className="font-medium text-gray-900">{emp.userId}</p>
+                        <p className="text-sm text-gray-600">{emp.name}</p>
+                        <p className="text-xs text-gray-500">ID: {emp.employeeId}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        )}
 
-        {/* Employee Info */}
-        {selectedEmployee && (
-          <div className="mb-6 p-4 border rounded bg-gray-50">
-            <h2 className="text-lg font-semibold">Employee Details</h2>
-            <p><strong>Name:</strong> {selectedEmployee.name}</p>
-            <p><strong>Role:</strong> {selectedEmployee.role}</p>
-            <p><strong>Email:</strong> {selectedEmployee.email || 'N/A'}</p>
-            <p><strong>Employee ID:</strong> {selectedEmployee.employeeId}</p>
-          </div>
-        )}
+          {/* Selected Employee Info */}
+          {selectedEmployee && (
+            <div className="mb-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h2 className="text-xl font-semibold mb-3 text-blue-800">Selected Employee</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                <div><strong>Name:</strong> {selectedEmployee.name}</div>
+                <div><strong>User ID:</strong> {selectedEmployee.userId}</div>
+                <div><strong>Employee ID:</strong> {selectedEmployee.employeeId}</div>
+                <div><strong>Role:</strong> <span className="capitalize">{selectedEmployee.role}</span></div>
+                <div><strong>Email:</strong> {selectedEmployee.email || 'N/A'}</div>
+              </div>
+            </div>
+          )}
 
-        {/* Module Search */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700">Search Modules</label>
-          <input
-            type="text"
-            value={searchModule}
-            onChange={(e) => setSearchModule(e.target.value)}
-            placeholder="Search modules..."
-            className="mt-1 p-2 border rounded w-full max-w-md"
-          />
-        </div>
-
-        {/* Modules List */}
-        {selectedEmployee && (
-          <div className="space-y-4">
-            {filteredModules.map((module) => (
-              <div key={module.moduleId} className="p-4 border rounded bg-white">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium">{module.moduleName}</h3>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      onChange={(e) => handleSelectAll(module.modulePath, e.target.checked)}
-                      checked={permissions[module.modulePath]?.read &&
-                        permissions[module.modulePath]?.write &&
-                        permissions[module.modulePath]?.edit &&
-                        permissions[module.modulePath]?.delete &&
-                        permissions[module.modulePath]?.audit}
-                    />
-                    Select All
-                  </label>
-                </div>
-                <div className="mt-2 grid grid-cols-2 sm:grid-cols-5 gap-2">
-                  {['read', 'write', 'edit', 'delete', 'audit'].map((perm) => (
-                    <label key={perm} className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={permissions[module.modulePath]?.[perm as keyof Permission] || false}
-                        onChange={() => handlePermissionChange(module.modulePath, perm as keyof Permission)}
-                      />
-                      {perm.charAt(0).toUpperCase() + perm.slice(1)}
-                    </label>
-                  ))}
+          {/* Permissions Management Form */}
+          {selectedEmployee && modules.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-semibold text-gray-800">Module Permissions</h2>
+                <div className="text-sm text-gray-600">
+                  Total Modules: {modules.length} | 
+                  Assigned: {Object.values(permissions).filter(p => p.included).length}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
 
-        {/* Save Button */}
-        {selectedEmployee && (
-          <div className="mt-6">
-            <button
-              onClick={handleSave}
-              disabled={isLoading || !selectedEmployee}
-              className="px-4 py-2 bg-blue-600 text-white rounded disabled:bg-gray-400"
-            >
-              {isLoading ? 'Saving...' : 'Save Permissions'}
-            </button>
-          </div>
-        )}
+              <div className="space-y-3">
+                {modules.map((module) => (
+                  <div 
+                    key={module.moduleId} 
+                    className={`p-4 border rounded-lg transition-all duration-200 ${
+                      getPermissionValue(module.modulePath, 'included')
+                        ? 'bg-green-50 border-green-200' 
+                        : 'bg-gray-50 border-gray-200'
+                    }`}
+                  >
+                    {/* Module Header */}
+                    <div className="flex justify-between items-center mb-3">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={getPermissionValue(module.modulePath, 'included')}
+                          onChange={() => handleModuleInclusion(module.modulePath)}
+                          className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <div>
+                          <h3 className="text-lg font-medium text-gray-900">{module.moduleName}</h3>
+                          <p className="text-sm text-gray-600">{module.modulePath}</p>
+                        </div>
+                      </div>
+                      
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          onChange={(e) => handleSelectAll(module.modulePath, e.target.checked)}
+                          checked={areAllPermissionsSelected(module.modulePath)}
+                          disabled={!getPermissionValue(module.modulePath, 'included')}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:bg-gray-100"
+                        />
+                        <span className={getPermissionValue(module.modulePath, 'included') ? 'text-gray-900' : 'text-gray-400'}>
+                          Select All
+                        </span>
+                      </label>
+                    </div>
+
+                    {/* Individual Permissions */}
+                    {getPermissionValue(module.modulePath, 'included') && (
+                      <div className="ml-8 grid grid-cols-2 sm:grid-cols-5 gap-3">
+                        {['read', 'write', 'edit', 'delete', 'audit'].map((perm) => (
+                          <label key={perm} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={getPermissionValue(module.modulePath, perm as keyof Permission)}
+                              onChange={() => handlePermissionChange(module.modulePath, perm as keyof Permission)}
+                              disabled={!getPermissionValue(module.modulePath, 'included')}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                            <span className="capitalize font-medium">{perm}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Save Button */}
+              <div className="mt-8 flex justify-end space-x-4">
+                <button
+                  onClick={handleClear}
+                  className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors duration-150"
+                >
+                  Clear Selection
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving || !selectedEmployee}
+                  className="px-8 py-3 bg-blue-600 text-white rounded-lg disabled:bg-gray-400 hover:bg-blue-700 transition-colors duration-150 flex items-center gap-2"
+                  style={{
+                    background: isSaving || !selectedEmployee
+                      ? 'linear-gradient(180deg, #a0a0a0 0%, #808080 100%)'
+                      : 'linear-gradient(180deg, #4a90e2 0%, #357abd 100%)',
+                  }}
+                >
+                  {isSaving && (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  )}
+                  {isSaving ? 'Saving...' : 'Save Permissions'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Empty States */}
+          {!selectedEmployee && (
+            <div className="text-center py-12 text-gray-500">
+              <div className="text-6xl mb-4">👥</div>
+              <h3 className="text-xl font-medium mb-2">No Employee Selected</h3>
+              <p>Search and select an employee above to manage their permissions.</p>
+            </div>
+          )}
+
+          {selectedEmployee && modules.length === 0 && (
+            <div className="text-center py-12 text-red-500">
+              <div className="text-6xl mb-4">⚠️</div>
+              <h3 className="text-xl font-medium mb-2">No Modules Loaded</h3>
+              <p>There seems to be an issue loading the navigation modules. Please check the console for errors.</p>
+            </div>
+          )}
+        </div>
       </div>
     </ProtectedRoute>
   );

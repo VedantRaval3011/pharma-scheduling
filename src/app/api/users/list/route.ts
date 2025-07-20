@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     } else if (currentUser.role === 'admin') {
       // Admin can only see employees in their company
       users = await User.find({
-        companyId: currentUser.companyId,
+        companyId: currentUser.companies[0].companyId,
         role: 'employee'
       })
       .select('-password')
@@ -51,8 +51,8 @@ export async function GET(request: NextRequest) {
         id: currentUser.id,
         userId: currentUser.userId,
         role: currentUser.role,
-        companyId: currentUser.companyId,
-        company: currentUser.company
+        companyId: currentUser.companies[0].companyId,
+        company: currentUser.companies[0].name
       }
     });
   } catch (error) {

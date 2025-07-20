@@ -147,35 +147,30 @@ const detectChanges = (
   return changes;
 };
 
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== "admin") {
+    if (!session || !session.user || session.user.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     await connectDB();
 
-    const companies = session.user.companies;
-    if (!companies || companies.length === 0) {
-      return NextResponse.json(
-        { error: "No companies associated with user" },
-        { status: 400 }
-      );
+    const adminCompanies = session.user.companies;
+    if (!adminCompanies || adminCompanies.length === 0) {
+      return NextResponse.json({ data: [] }, { status: 200 });
     }
 
-    const allEmployees = await Promise.all(
-      companies.map(async (company) => {
-        const employees = await Employee.find({
-          "companies.companyId": company.companyId,
-        });
-        return employees;
-      })
-    );
+    const companyIds = adminCompanies.map(company => company.companyId);
 
-    const flatEmployees = allEmployees.flat();
+    // This is the critical query
+    const employees = await Employee.find({
+      'companies.companyId': { $in: companyIds }
+    });
 
-    return NextResponse.json({ data: flatEmployees }, { status: 200 });
+    return NextResponse.json({ data: employees }, { status: 200 });
+
   } catch (error: unknown) {
     console.error("Fetch employees error:", error);
     const errorMessage =
@@ -402,8 +397,7 @@ export async function PUT(request: NextRequest) {
         );
       }
     }
-
-    // Validate company roles
+    // Validate company roles  
     const validRoles = await CompanyRole.find({
       roleId: { $in: companyRoles },
     });

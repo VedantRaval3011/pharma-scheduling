@@ -1668,6 +1668,7 @@ export default function AdminDashboard() {
         ></div>
 
         <WindowsToolbar
+          
           onAddNew={handleAddNew}
           onSave={handleSave}
           onClear={handleClear}

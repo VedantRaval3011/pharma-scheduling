@@ -3,14 +3,29 @@ import { Employee, CompanyRole } from '@/models/employee';
 import connectDB from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
+    // Get the session to identify the logged-in admin
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user || session.user.role !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     await connectDB();
     const { searchParams } = new URL(request.url);
     const userIdQuery = searchParams.get('userIdQuery');
     const query = searchParams.get('query');
     const userId = searchParams.get('userId');
+
+    // Get the company IDs from the admin's session
+    const adminCompanyIds = session.user.companies.map(c => c.companyId);
+
+    if (adminCompanyIds.length === 0) {
+        return NextResponse.json({ data: [], message: "Admin has no associated companies." });
+    }
 
     const companyRolePopulateOptions = {
       path: 'companyRoles',
@@ -20,15 +35,18 @@ export async function GET(request: NextRequest) {
       select: 'roleId name description',
     };
 
-    // Handle exact userId match
+    // Handle exact userId match (ensure it's within admin's scope)
     if (userId) {
-      const employee = await Employee.findOne({ userId })
+      const employee = await Employee.findOne({ 
+        userId,
+        'companies.companyId': { $in: adminCompanyIds } // <-- Security filter added
+      })
         .populate(companyRolePopulateOptions)
         .lean();
 
       if (!employee) {
         return NextResponse.json(
-          { error: 'Employee not found' },
+          { error: 'Employee not found or not in your scope' },
           { status: 404 }
         );
       }
@@ -39,13 +57,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Handle userIdQuery for suggestions
+    // Handle userIdQuery for suggestions (ensure it's within admin's scope)
     if (userIdQuery) {
       const employees = await Employee.find({
         userId: {
           $regex: `^${userIdQuery}`,
           $options: 'i',
         },
+        'companies.companyId': { $in: adminCompanyIds } // <-- Security filter added
       })
         .select('userId name')
         .limit(10)
@@ -57,9 +76,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Handle general query
+    // Handle general query (ensure it's within admin's scope)
     if (query) {
       const employees = await Employee.find({
+        'companies.companyId': { $in: adminCompanyIds }, // <-- Base security filter
         $or: [
           { userId: { $regex: query, $options: 'i' } },
           { name: { $regex: query, $options: 'i' } },
@@ -75,14 +95,17 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Fetch all employees
-    const employees = await Employee.find({})
+    // --- CORRECTED DEFAULT CASE ---
+    // Fetch all employees ONLY from the admin's companies
+    const employees = await Employee.find({
+      'companies.companyId': { $in: adminCompanyIds } // <-- The crucial filter
+    })
       .populate(companyRolePopulateOptions)
       .lean();
 
     return NextResponse.json({
       data: employees,
-      message: 'All employees fetched successfully',
+      message: 'Employees for your companies fetched successfully',
     });
   } catch (error) {
     console.error('Error fetching employees:', error);

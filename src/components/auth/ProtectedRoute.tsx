@@ -13,37 +13,41 @@ interface ProtectedRouteProps {
   requiredPermission?: 'read' | 'write' | 'delete' | 'edit' | 'audit';
 }
 
-export default function ProtectedRoute({ 
-  children, 
-  allowedRoles, 
-  requiredModule, 
-  requiredPermission 
+export default function ProtectedRoute({
+  children,
+  allowedRoles,
+  requiredModule,
+  requiredPermission,
 }: ProtectedRouteProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
 
   useEffect(() => {
-    console.log('Session user:', session?.user); // Debug log
     if (status === 'loading') return;
 
     if (!session) {
+      console.log('ProtectedRoute: No session, redirecting to login');
       router.push('/auth/login');
       return;
     }
 
     if (allowedRoles && !allowedRoles.includes(session.user.role)) {
+      console.log(`ProtectedRoute: Role ${session.user.role} not allowed, redirecting to unauthorized`);
       router.push('/unauthorized');
       return;
     }
 
     if (requiredModule) {
       const hasModuleAccess = session.user.moduleAccess?.some(
-        (module: IModuleAccess) => 
-          module.modulePath === requiredModule && 
+        (module: IModuleAccess) =>
+          (module.modulePath === requiredModule || module.modulePath === '*') &&
           (!requiredPermission || module.permissions.includes(requiredPermission))
       );
 
       if (!hasModuleAccess) {
+        console.log(
+          `ProtectedRoute: No access to module ${requiredModule} with permission ${requiredPermission}, redirecting to unauthorized`
+        );
         router.push('/unauthorized');
         return;
       }
@@ -64,8 +68,8 @@ export default function ProtectedRoute({
 
   if (requiredModule) {
     const hasModuleAccess = session.user.moduleAccess?.some(
-      (module: IModuleAccess) => 
-        module.modulePath === requiredModule && 
+      (module: IModuleAccess) =>
+        (module.modulePath === requiredModule || module.modulePath === '*') &&
         (!requiredPermission || module.permissions.includes(requiredPermission))
     );
 

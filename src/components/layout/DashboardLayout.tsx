@@ -28,8 +28,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   const user = {
     userId: session.user?.userId || '',
     role: session.user?.role || 'employee',
-    company: session.user?.companies[0].name || '',
-    companyId: session.user?.companies[0].companyId || ''
+    company: session.user?.companies[0]?.name || '',
+    companyId: session.user?.companies[0]?.companyId || ''
   };
 
   const getNavData = (): NavItem[] => {
