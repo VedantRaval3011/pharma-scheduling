@@ -983,6 +983,9 @@ export default function AdminDashboard() {
   const handleUp = async () => {
     if (sortedEmployees.length === 0) return;
 
+    // Check if input is currently disabled (read-only mode)
+    const wasDisabled = !isEditable;
+
     let newIndex;
     if (currentSortedIndex <= 0) {
       newIndex = sortedEmployees.length - 1; // Wrap to last employee
@@ -1001,10 +1004,18 @@ export default function AdminDashboard() {
 
     // Fetch and populate the form with employee data
     await fetchUserData(employee.userId);
+
+    // Restore the disabled state if it was disabled before navigation
+    if (wasDisabled) {
+      setIsEditable(false);
+    }
   };
 
   const handleDown = async () => {
     if (sortedEmployees.length === 0) return;
+
+    // Check if input is currently disabled (read-only mode)
+    const wasDisabled = !isEditable;
 
     let newIndex;
     if (currentSortedIndex >= sortedEmployees.length - 1) {
@@ -1024,6 +1035,11 @@ export default function AdminDashboard() {
 
     // Fetch and populate the form with employee data
     await fetchUserData(employee.userId);
+
+    // Restore the disabled state if it was disabled before navigation
+    if (wasDisabled) {
+      setIsEditable(false);
+    }
   };
 
   const filterEmployees = (query: string) => {
@@ -1650,7 +1666,7 @@ export default function AdminDashboard() {
   };
 
   return (
-    <ProtectedRoute allowedRoles={["admin","employee"]}>
+    <ProtectedRoute allowedRoles={["admin", "employee"]}>
       <div
         className="min-h-screen"
         style={{
@@ -1676,7 +1692,6 @@ export default function AdminDashboard() {
           onUp={handleUp}
           onDown={handleDown}
           onSearch={handleSearch}
-          onImplementQuery={handleImplementQuery}
           onEdit={handleEdit}
           onDelete={handleDelete}
           onAudit={handleAudit}

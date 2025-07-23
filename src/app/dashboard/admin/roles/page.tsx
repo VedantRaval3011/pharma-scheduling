@@ -13,6 +13,19 @@ interface CompanyRole {
   description?: string;
 }
 
+// Interface for audit log
+interface AuditLog {
+  auditId: string;
+  roleId: string;
+  action: "CREATE" | "UPDATE";
+  changedData: {
+    previous?: { name: string; description?: string };
+    new?: { name: string; description?: string };
+  };
+  performedBy: string;
+  timestamp: string;
+}
+
 // Interface for form data
 interface RoleFormData {
   name: string;
@@ -23,9 +36,10 @@ export default function CompanyRolesDashboard() {
   const { data: session } = useSession();
   const router = useRouter();
   const nameInputRef = useRef<HTMLInputElement>(null);
-
   const [isFormEnabled, setIsFormEnabled] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [formData, setFormData] = useState<RoleFormData>({
     name: "",
     description: "",
@@ -33,6 +47,33 @@ export default function CompanyRolesDashboard() {
   const [roles, setRoles] = useState<CompanyRole[]>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchPopupOpen, setIsSearchPopupOpen] = useState(false);
+  const [filteredSuggestions, setFilteredSuggestions] = useState<CompanyRole[]>(
+    []
+  );
+  const [isAuditPopupOpen, setIsAuditPopupOpen] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Get sorted roles for navigation
+  const sortedRoles = [...roles].sort((a, b) =>
+    a.name.toLowerCase().localeCompare(b.name.toLowerCase())
+  );
+
+  // Handle clicks outside dropdown to close it
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setFilteredSuggestions([]);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Fetch existing roles
   useEffect(() => {
@@ -59,6 +100,18 @@ export default function CompanyRolesDashboard() {
     }
   }, [isFormEnabled]);
 
+  // Filter suggestions based on input
+  useEffect(() => {
+    if (formData.name.trim()) {
+      const suggestions = roles.filter((role) =>
+        role.name.toLowerCase().startsWith(formData.name.toLowerCase())
+      );
+      setFilteredSuggestions(suggestions);
+    } else {
+      setFilteredSuggestions([]);
+    }
+  }, [formData.name, roles]);
+
   const handleCreateRole = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
@@ -83,7 +136,8 @@ export default function CompanyRolesDashboard() {
         setMessage("Role created successfully!");
         setFormData({ name: "", description: "" });
         setRoles([...roles, data.role]);
-        setIsFormEnabled(false); // Disable form after successful creation
+        setIsFormEnabled(false);
+        setFilteredSuggestions([]);
       } else {
         setError(data.error || "Failed to create role");
       }
@@ -94,17 +148,180 @@ export default function CompanyRolesDashboard() {
     }
   };
 
-  // Toolbar handlers
+  const handleUpdateRole = async () => {
+    if (!selectedRoleId || !isFormEnabled) return;
+
+    try {
+      const response = await fetch(
+        `/api/admin/company-roles/${selectedRoleId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(formData),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage("Role updated successfully!");
+        setRoles(
+          roles.map((role) =>
+            role.roleId === selectedRoleId ? { ...role, ...formData } : role
+          )
+        );
+        setFormData({ name: "", description: "" });
+        setIsFormEnabled(false);
+        setIsEditing(false);
+        setSelectedRoleId(null);
+        setFilteredSuggestions([]);
+      } else {
+        setError(data.error || "Failed to update role");
+      }
+    } catch (err) {
+      setError("An error occurred while updating role");
+    }
+  };
+
+  const handleDeleteRole = async () => {
+    if (!selectedRoleId) {
+      setError("Please select a role to delete");
+      return;
+    }
+    if (!confirm("Are you sure you want to delete this role")) return;
+
+    try {
+      const response = await fetch(`/api/admin/company-roles`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ roleId: selectedRoleId }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage("Role deleted successfully!");
+        setRoles(roles.filter((role) => role.roleId !== selectedRoleId));
+        setSelectedRoleId(null);
+        setFormData({ name: "", description: "" });
+        setIsFormEnabled(false);
+      } else {
+        setError(data.error || "Failed to delete role");
+      }
+    } catch (err) {
+      setError("An error occurred while deleting role");
+    }
+  };
+
+  const handleSelectSuggestion = (role: CompanyRole) => {
+    setFormData({
+      name: role.name,
+      description: role.description || "",
+    });
+    setSelectedRoleId(role.roleId);
+    setIsEditing(true);
+    setIsFormEnabled(true);
+    setFilteredSuggestions([]);
+    // Focus on name input after selection
+    setTimeout(() => {
+      if (nameInputRef.current) {
+        nameInputRef.current.focus();
+      }
+    }, 0);
+  };
+
+  const handleSearchSelect = (role: CompanyRole) => {
+    setSelectedRoleId(role.roleId);
+    setFormData({
+      name: role.name,
+      description: role.description || "",
+    });
+    setIsSearchPopupOpen(false);
+    setSearchQuery("");
+    setIsFormEnabled(true); // Open the form
+    setIsEditing(true); // Set to editing mode
+    // Focus on name input after selection
+    setTimeout(() => {
+      if (nameInputRef.current) {
+        nameInputRef.current.focus();
+      }
+    }, 0);
+  };
+
+  const handleAudit = async () => {
+    if (!selectedRoleId) {
+      setError("Please select a role to view audit logs");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/admin/company-roles/audit?roleId=${selectedRoleId}`
+      );
+      const data = await response.json();
+      if (response.ok) {
+        setAuditLogs(data.data || []);
+        setIsAuditPopupOpen(true);
+        setError("");
+      } else {
+        setError(data.error || "Failed to fetch audit logs");
+      }
+    } catch (err) {
+      setError("An error occurred while fetching audit logs");
+    }
+  };
+
   const handleAddNew = () => {
     setIsFormEnabled(true);
+    setIsEditing(false);
+    setSelectedRoleId(null);
     setFormData({ name: "", description: "" });
     setMessage("");
     setError("");
+    setFilteredSuggestions([]);
+    // Focus on name input
+    setTimeout(() => {
+      if (nameInputRef.current) {
+        nameInputRef.current.focus();
+      }
+    }, 0);
   };
 
   const handleSave = () => {
     if (isFormEnabled && formData.name.trim()) {
-      handleCreateRole();
+      if (isEditing) {
+        handleUpdateRole();
+      } else {
+        handleCreateRole();
+      }
+    }
+  };
+
+  const handleEdit = () => {
+    if (selectedRoleId) {
+      const roleToEdit = roles.find((role) => role.roleId === selectedRoleId);
+      if (roleToEdit) {
+        setFormData({
+          name: roleToEdit.name,
+          description: roleToEdit.description || "",
+        });
+        setIsFormEnabled(true);
+        setIsEditing(true);
+        setMessage("");
+        setError("");
+        // Focus on name input
+        setTimeout(() => {
+          if (nameInputRef.current) {
+            nameInputRef.current.focus();
+          }
+        }, 0);
+      }
+    } else {
+      setError("Please select a role to edit");
     }
   };
 
@@ -112,11 +329,113 @@ export default function CompanyRolesDashboard() {
     setFormData({ name: "", description: "" });
     setMessage("");
     setError("");
+    setIsEditing(false);
+    setSelectedRoleId(null);
+    setIsFormEnabled(false);
+    setFilteredSuggestions([]);
   };
 
   const handleExit = () => {
     router.push("/dashboard");
   };
+
+  // Filter suggestions based on input
+useEffect(() => {
+  if (isFormEnabled && formData.name.trim()) {
+    const suggestions = roles.filter((role) =>
+      role.name.toLowerCase().startsWith(formData.name.toLowerCase())
+    );
+    setFilteredSuggestions(suggestions);
+  } else {
+    setFilteredSuggestions([]);
+  }
+}, [formData.name, roles, isFormEnabled]);
+
+  const handleUp = () => {
+  if (sortedRoles.length === 0) return;
+
+  let currentIndex = -1;
+  if (selectedRoleId) {
+    currentIndex = sortedRoles.findIndex(
+      (role) => role.roleId === selectedRoleId
+    );
+  }
+
+  const newIndex =
+    currentIndex <= 0 ? sortedRoles.length - 1 : currentIndex - 1;
+  const selectedRole = sortedRoles[newIndex];
+
+  setSelectedRoleId(selectedRole.roleId);
+  setFormData({
+    name: selectedRole.name,
+    description: selectedRole.description || "",
+  });
+
+  if (isFormEnabled) {
+    setIsEditing(true); // Set to editing mode only if form is enabled
+    // Focus on name input
+    setTimeout(() => {
+      if (nameInputRef.current) {
+        nameInputRef.current.focus();
+      }
+    }, 0);
+  }
+
+  setError("");
+};
+
+const handleDown = () => {
+  if (sortedRoles.length === 0) return;
+
+  let currentIndex = -1;
+  if (selectedRoleId) {
+    currentIndex = sortedRoles.findIndex(
+      (role) => role.roleId === selectedRoleId
+    );
+  }
+
+  const newIndex =
+    currentIndex >= sortedRoles.length - 1 ? 0 : currentIndex + 1;
+  const selectedRole = sortedRoles[newIndex];
+
+  setSelectedRoleId(selectedRole.roleId);
+  setFormData({
+    name: selectedRole.name,
+    description: selectedRole.description || "",
+  });
+
+  if (isFormEnabled) {
+    setIsEditing(true); // Set to editing mode only if form is enabled
+    // Focus on name input
+    setTimeout(() => {
+      if (nameInputRef.current) {
+        nameInputRef.current.focus();
+      }
+    }, 0);
+  }
+
+  setError("");
+};
+
+  const handleSearch = () => {
+    setIsSearchPopupOpen(true);
+    setSearchQuery("");
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleHelp = () => {
+    window.open("/help/roles", "_blank");
+  };
+
+  const filteredRoles = roles.filter(
+    (role) =>
+      role.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (role.description &&
+        role.description.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
@@ -126,18 +445,25 @@ export default function CompanyRolesDashboard() {
           background:
             "linear-gradient(180deg, #e4f2ff 0%, #d1e7fe 50%, #b6d6ff 100%)",
           fontFamily: "Segoe UI, Tahoma, Geneva, Verdana, sans-serif",
-        }}>
+        }}
+      >
         <WindowsToolbar
           modulePath="/dashboard/admin/roles"
           onAddNew={handleAddNew}
           onSave={handleSave}
           onClear={handleClear}
           onExit={handleExit}
+          onUp={handleUp}
+          onDown={handleDown}
+          onSearch={handleSearch}
+          onEdit={handleEdit}
+          onDelete={handleDeleteRole}
+          onAudit={handleAudit}
+          onPrint={handlePrint}
+          onHelp={handleHelp}
         />
 
-        {/* Windows XP/7 Style Window */}
         <div className="p-6">
-          {/* Main Window Container */}
           <div
             className="mx-auto max-w-4xl"
             style={{
@@ -145,8 +471,8 @@ export default function CompanyRolesDashboard() {
               border: "1px solid #4a90e2",
               borderRadius: "8px",
               boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-            }}>
-            {/* Window Title Bar */}
+            }}
+          >
             <div
               className="px-4 py-3 flex items-center"
               style={{
@@ -154,7 +480,8 @@ export default function CompanyRolesDashboard() {
                 borderTopLeftRadius: "8px",
                 borderTopRightRadius: "8px",
                 borderBottom: "1px solid #2e5cb8",
-              }}>
+              }}
+            >
               <div className="flex items-center">
                 <div className="w-4 h-4 bg-white rounded-sm mr-3 flex items-center justify-center">
                   <div className="w-2 h-2 bg-blue-600 rounded-sm"></div>
@@ -165,16 +492,13 @@ export default function CompanyRolesDashboard() {
               </div>
             </div>
 
-            {/* Window Content */}
             <div className="p-6">
-              {/* Company Info */}
               <div className="mb-6">
                 <p className="text-sm text-gray-600">
                   Company: {session?.user?.companies?.[0]?.name}
                 </p>
               </div>
 
-              {/* Create Role Section */}
               <div
                 className="mb-6 p-4"
                 style={{
@@ -182,11 +506,12 @@ export default function CompanyRolesDashboard() {
                     "linear-gradient(180deg, #f8fbff 0%, #e8f4fd 100%)",
                   border: "1px solid #c5d7ed",
                   borderRadius: "4px",
-                }}>
+                }}
+              >
                 <h2 className="text-base font-bold mb-4 text-gray-800">
-                  Create Company Role
+                  {isEditing ? "Edit Company Role" : "Create Company Role"}
                 </h2>
-                <div className="space-y-4">
+                <div className="space-y-4 relative">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Role Name *
@@ -208,9 +533,9 @@ export default function CompanyRolesDashboard() {
                         color: isFormEnabled ? "#000000" : "#666666",
                       }}
                       value={formData.name}
-                      onChange={(e) =>
-                        setFormData({ ...formData, name: e.target.value })
-                      }
+                      onChange={(e) => {
+                        setFormData({ ...formData, name: e.target.value });
+                      }}
                       onFocus={(e) => {
                         if (isFormEnabled) {
                           e.target.style.border = "1px solid #4a90e2";
@@ -222,6 +547,27 @@ export default function CompanyRolesDashboard() {
                         }
                       }}
                     />
+                    {filteredSuggestions.length > 0 && (
+                      <div
+                        ref={dropdownRef}
+                        className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded shadow-lg max-h-60 overflow-y-auto"
+                      >
+                        {filteredSuggestions.map((role) => (
+                          <div
+                            key={role.roleId}
+                            className="px-3 py-2 text-sm hover:bg-blue-100 cursor-pointer"
+                            onClick={() => handleSelectSuggestion(role)}
+                          >
+                            {role.name}
+                            {role.description && (
+                              <p className="text-xs text-gray-500">
+                                {role.description}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -276,7 +622,7 @@ export default function CompanyRolesDashboard() {
                   <button
                     type="button"
                     disabled={isCreating || !isFormEnabled}
-                    onClick={handleCreateRole}
+                    onClick={isEditing ? handleUpdateRole : handleCreateRole}
                     className="px-6 py-2 text-sm font-medium text-white disabled:opacity-50 transition-all duration-150"
                     style={{
                       background:
@@ -307,51 +653,169 @@ export default function CompanyRolesDashboard() {
                         (e.target as HTMLButtonElement).style.background =
                           "linear-gradient(180deg, #4a90e2 0%, #2e5cb8 100%)";
                       }
-                    }}>
-                    {isCreating ? "Creating..." : "Create Role"}
+                    }}
+                  >
+                    {isCreating
+                      ? "Creating..."
+                      : isEditing
+                      ? "Update Role"
+                      : "Create Role"}
                   </button>
                 </div>
               </div>
 
-              {/* Existing Roles Section */}
-              <div
-                className="p-4"
-                style={{
-                  background:
-                    "linear-gradient(180deg, #f8fbff 0%, #e8f4fd 100%)",
-                  border: "1px solid #c5d7ed",
-                  borderRadius: "4px",
-                }}>
-                <h2 className="text-base font-bold mb-4 text-gray-800">
-                  Existing Roles
-                </h2>
-                {roles.length === 0 ? (
-                  <p className="text-sm text-gray-500 italic">No roles found</p>
-                ) : (
-                  <div className="space-y-2">
-                    {roles.map((role) => (
-                      <div
-                        key={role.roleId}
-                        className="p-3"
-                        style={{
-                          background:
-                            "linear-gradient(180deg, #ffffff 0%, #f0f8ff 100%)",
-                          border: "1px solid #d1e7fe",
-                          borderRadius: "3px",
-                        }}>
-                        <p className="text-sm font-semibold text-gray-800">
-                          {role.name}
+              {isSearchPopupOpen && (
+                <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
+                  <div
+                    className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full"
+                    style={{
+                      background:
+                        "linear-gradient(180deg, #ffffff 0%, #f0f8ff 100%)",
+                      border: "1px solid #4a90e2",
+                    }}
+                  >
+                    <h2 className="text-base font-bold mb-4 text-gray-800">
+                      Search Roles
+                    </h2>
+                    <input
+                      type="text"
+                      placeholder="Search roles..."
+                      className="w-full px-3 py-2 text-sm mb-4"
+                      style={{
+                        border: "1px solid #a8c8ec",
+                        borderRadius: "2px",
+                        background:
+                          "linear-gradient(180deg, #ffffff 0%, #f0f8ff 100%)",
+                        outline: "none",
+                      }}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    <div className="max-h-60 overflow-y-auto">
+                      {filteredRoles.length === 0 ? (
+                        <p className="text-sm text-gray-500 italic">
+                          No roles found
                         </p>
-                        {role.description && (
-                          <p className="text-xs text-gray-600 mt-1">
-                            {role.description}
-                          </p>
-                        )}
-                      </div>
-                    ))}
+                      ) : (
+                        filteredRoles.map((role) => (
+                          <div
+                            key={role.roleId}
+                            className="px-3 py-2 text-sm hover:bg-blue-100 cursor-pointer"
+                            onClick={() => handleSearchSelect(role)}
+                          >
+                            <p className="font-semibold">{role.name}</p>
+                            {role.description && (
+                              <p className="text-xs text-gray-600">
+                                {role.description}
+                              </p>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setIsSearchPopupOpen(false)}
+                      className="mt-4 px-4 py-2 text-sm font-medium text-white"
+                      style={{
+                        background:
+                          "linear-gradient(180deg, #4a90e2 0%, #2e5cb8 100%)",
+                        border: "1px solid #2e5cb8",
+                        borderRadius: "3px",
+                      }}
+                    >
+                      Close
+                    </button>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+
+              {isAuditPopupOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                  <div
+                    className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full"
+                    style={{
+                      background:
+                        "linear-gradient(180deg, #ffffff 0%, #f0f8ff 100%)",
+                      border: "1px solid #4a90e2",
+                    }}
+                  >
+                    <h2 className="text-base font-bold mb-4 text-gray-800">
+                      Audit Logs for Role
+                    </h2>
+                    <div className="max-h-60 overflow-y-auto">
+                      {auditLogs.length === 0 ? (
+                        <p className="text-sm text-gray-500 italic">
+                          No audit logs found
+                        </p>
+                      ) : (
+                        auditLogs.map((log) => (
+                          <div
+                            key={log.auditId}
+                            className="p-3 mb-2 border border-gray-200 rounded"
+                          >
+                            <p className="text-sm font-semibold text-gray-800">
+                              Action: {log.action}
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              By: {log.performedBy}
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              When: {new Date(log.timestamp).toLocaleString()}
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              Changes:
+                              {log.action === "CREATE" ? (
+                                <ul className="list-disc ml-4">
+                                  <li>Name: {log.changedData.new?.name}</li>
+                                  {log.changedData.new?.description && (
+                                    <li>
+                                      Description:{" "}
+                                      {log.changedData.new.description}
+                                    </li>
+                                  )}
+                                </ul>
+                              ) : (
+                                <ul className="list-disc ml-4">
+                                  {log.changedData.previous?.name !==
+                                    log.changedData.new?.name && (
+                                    <li>
+                                      Name: {log.changedData.previous?.name} →{" "}
+                                      {log.changedData.new?.name}
+                                    </li>
+                                  )}
+                                  {log.changedData.previous?.description !==
+                                    log.changedData.new?.description && (
+                                    <li>
+                                      Description:{" "}
+                                      {log.changedData.previous?.description ||
+                                        "None"}{" "}
+                                      →{" "}
+                                      {log.changedData.new?.description ||
+                                        "None"}
+                                    </li>
+                                  )}
+                                </ul>
+                              )}
+                            </p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setIsAuditPopupOpen(false)}
+                      className="mt-4 px-4 py-2 text-sm font-medium text-white"
+                      style={{
+                        background:
+                          "linear-gradient(180deg, #4a90e2 0%, #2e5cb8 100%)",
+                        border: "1px solid #2e5cb8",
+                        borderRadius: "3px",
+                      }}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
