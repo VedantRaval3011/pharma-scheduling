@@ -147,7 +147,6 @@ const detectChanges = (
   return changes;
 };
 
-
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -162,15 +161,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ data: [] }, { status: 200 });
     }
 
-    const companyIds = adminCompanies.map(company => company.companyId);
+    const companyIds = adminCompanies.map((company) => company.companyId);
 
     // This is the critical query
     const employees = await Employee.find({
-      'companies.companyId': { $in: companyIds }
+      "companies.companyId": { $in: companyIds },
     });
 
     return NextResponse.json({ data: employees }, { status: 200 });
-
   } catch (error: unknown) {
     console.error("Fetch employees error:", error);
     const errorMessage =
@@ -256,11 +254,13 @@ export async function POST(request: NextRequest) {
         userId: userId.toLowerCase(),
         name,
         password, // Assume password hashing is handled in User model
-        companies: [{ 
-          companyId, 
-          name: company.name, // Add company name
-          locations: locations // Use location objects, not just IDs
-        }],
+        companies: [
+          {
+            companyId,
+            name: company.name, // Add company name
+            locations: locations, // Use location objects, not just IDs
+          },
+        ],
         role: "employee",
       });
       await user.save();
@@ -283,11 +283,13 @@ export async function POST(request: NextRequest) {
       password: password || "defaultPassword", // Provide password or default
       role: "employee", // Add required role field
       companyRoles,
-      companies: [{ 
-        companyId, 
-        name: company.name,
-        locations: locations 
-      }],
+      companies: [
+        {
+          companyId,
+          name: company.name,
+          locations: locations,
+        },
+      ],
       moduleAccess,
     });
 
@@ -296,18 +298,21 @@ export async function POST(request: NextRequest) {
     // Log audit
     const auditDetails = {
       performedBy: session.user.id,
-      performedByName: session.user.userId || session.user.email || "Unknown User",
-      message: `Employee ${name} created by ${session.user.userId || session.user.email}`,
+      performedByName:
+        session.user.userId || session.user.email || "Unknown User",
+      message: `Employee ${name} created by ${
+        session.user.userId || session.user.email
+      }`,
       createdFields: {
         userId,
         name,
         company: company?.name || companyId,
         roles: companyRoles,
-        locations: locations.map((loc : ILocation) => loc.name),
+        locations: locations.map((loc: ILocation) => loc.name),
       },
       sessionInfo: {
         userId: session.user.id,
-        name:session.user.userId,
+        name: session.user.userId,
         userEmail: session.user.email,
         userRole: session.user.role,
         timestamp: new Date().toISOString(),
@@ -397,13 +402,16 @@ export async function PUT(request: NextRequest) {
         );
       }
     }
-    // Validate company roles  
+    // Validate company roles
     const validRoles = await CompanyRole.find({
       roleId: { $in: companyRoles },
     });
     if (validRoles.length !== companyRoles.length) {
+      const invalidRoles = companyRoles.filter(
+        (roleId) => !validRoles.some((role) => role.roleId === roleId)
+      );
       return NextResponse.json(
-        { error: "Invalid company roles provided" },
+        { error: `Invalid role IDs provided: ${invalidRoles.join(", ")}` },
         { status: 400 }
       );
     }
@@ -428,22 +436,22 @@ export async function PUT(request: NextRequest) {
 
     // Validate and process module access
     const extractPaths = (navItems: NavItem[]): string[] => {
-  const paths: string[] = [];
+      const paths: string[] = [];
 
-  for (const item of navItems) {
-    if (item.path) {
-      paths.push(item.path);
-    }
+      for (const item of navItems) {
+        if (item.path) {
+          paths.push(item.path);
+        }
 
-    if (item.children && item.children.length > 0) {
-      paths.push(...extractPaths(item.children));
-    }
-  }
+        if (item.children && item.children.length > 0) {
+          paths.push(...extractPaths(item.children));
+        }
+      }
 
-  return paths;
-};
+      return paths;
+    };
 
-const validModules: string[] = extractPaths(adminEmployeeNavData);
+    const validModules: string[] = extractPaths(adminEmployeeNavData);
 
     const processedModuleAccess: IModuleAccess[] = moduleAccess.map(
       (access) => {

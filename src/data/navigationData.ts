@@ -152,6 +152,10 @@ export const adminEmployeeNavData: NavItem[] = [
         path: "/dashboard/columns",
       },
       {
+        label: "Master Make",
+        path: "/dashboard/make-master",
+      },
+      {
         label: "Test Master",
         children: [
           {

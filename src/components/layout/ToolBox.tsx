@@ -69,7 +69,7 @@ const WindowsToolbar: React.FC<ToolbarProps> = ({
       label: 'Save', 
       shortcut: 'F2', 
       onClick: onSave, 
-      requiredPermissions: ['read', 'write'] // Need read, write, and edit to save
+      requiredPermissions: ['read', 'write','edit'] // Need read, write, and edit to save
     },
     { 
       id: 'clear', 

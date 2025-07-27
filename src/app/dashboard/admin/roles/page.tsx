@@ -226,7 +226,6 @@ export default function CompanyRolesDashboard() {
     setIsEditing(true);
     setIsFormEnabled(true);
     setFilteredSuggestions([]);
-    // Focus on name input after selection
     setTimeout(() => {
       if (nameInputRef.current) {
         nameInputRef.current.focus();
@@ -242,9 +241,8 @@ export default function CompanyRolesDashboard() {
     });
     setIsSearchPopupOpen(false);
     setSearchQuery("");
-    setIsFormEnabled(true); // Open the form
-    setIsEditing(true); // Set to editing mode
-    // Focus on name input after selection
+    setIsFormEnabled(true);
+    setIsEditing(true);
     setTimeout(() => {
       if (nameInputRef.current) {
         nameInputRef.current.focus();
@@ -258,20 +256,37 @@ export default function CompanyRolesDashboard() {
       return;
     }
 
+    setError(""); // Clear previous errors
+    setIsAuditPopupOpen(false); // Reset popup state
+    setAuditLogs([]); // Reset audit logs
+
     try {
+      console.log("Fetching audit logs for roleId:", selectedRoleId); // Debug log
       const response = await fetch(
-        `/api/admin/company-roles/audit?roleId=${selectedRoleId}`
+        `/api/admin/company-roles/audit?roleId=${encodeURIComponent(
+          selectedRoleId
+        )}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
       );
+
       const data = await response.json();
+      console.log("Audit API response:", data); // Debug log
+
       if (response.ok) {
         setAuditLogs(data.data || []);
-        setIsAuditPopupOpen(true);
-        setError("");
+        setIsAuditPopupOpen(true); // Open the popup
       } else {
         setError(data.error || "Failed to fetch audit logs");
+        console.warn("API error:", data.error);
       }
     } catch (err) {
       setError("An error occurred while fetching audit logs");
+      console.error("Audit fetch error:", err); // Enhanced error logging
     }
   };
 
@@ -283,7 +298,6 @@ export default function CompanyRolesDashboard() {
     setMessage("");
     setError("");
     setFilteredSuggestions([]);
-    // Focus on name input
     setTimeout(() => {
       if (nameInputRef.current) {
         nameInputRef.current.focus();
@@ -313,7 +327,6 @@ export default function CompanyRolesDashboard() {
         setIsEditing(true);
         setMessage("");
         setError("");
-        // Focus on name input
         setTimeout(() => {
           if (nameInputRef.current) {
             nameInputRef.current.focus();
@@ -339,83 +352,69 @@ export default function CompanyRolesDashboard() {
     router.push("/dashboard");
   };
 
-  // Filter suggestions based on input
-useEffect(() => {
-  if (isFormEnabled && formData.name.trim()) {
-    const suggestions = roles.filter((role) =>
-      role.name.toLowerCase().startsWith(formData.name.toLowerCase())
-    );
-    setFilteredSuggestions(suggestions);
-  } else {
-    setFilteredSuggestions([]);
-  }
-}, [formData.name, roles, isFormEnabled]);
-
   const handleUp = () => {
-  if (sortedRoles.length === 0) return;
+    if (sortedRoles.length === 0) return;
 
-  let currentIndex = -1;
-  if (selectedRoleId) {
-    currentIndex = sortedRoles.findIndex(
-      (role) => role.roleId === selectedRoleId
-    );
-  }
+    let currentIndex = -1;
+    if (selectedRoleId) {
+      currentIndex = sortedRoles.findIndex(
+        (role) => role.roleId === selectedRoleId
+      );
+    }
 
-  const newIndex =
-    currentIndex <= 0 ? sortedRoles.length - 1 : currentIndex - 1;
-  const selectedRole = sortedRoles[newIndex];
+    const newIndex =
+      currentIndex <= 0 ? sortedRoles.length - 1 : currentIndex - 1;
+    const selectedRole = sortedRoles[newIndex];
 
-  setSelectedRoleId(selectedRole.roleId);
-  setFormData({
-    name: selectedRole.name,
-    description: selectedRole.description || "",
-  });
+    setSelectedRoleId(selectedRole.roleId);
+    setFormData({
+      name: selectedRole.name,
+      description: selectedRole.description || "",
+    });
 
-  if (isFormEnabled) {
-    setIsEditing(true); // Set to editing mode only if form is enabled
-    // Focus on name input
-    setTimeout(() => {
-      if (nameInputRef.current) {
-        nameInputRef.current.focus();
-      }
-    }, 0);
-  }
+    if (isFormEnabled) {
+      setIsEditing(true);
+      setTimeout(() => {
+        if (nameInputRef.current) {
+          nameInputRef.current.focus();
+        }
+      }, 0);
+    }
 
-  setError("");
-};
+    setError("");
+  };
 
-const handleDown = () => {
-  if (sortedRoles.length === 0) return;
+  const handleDown = () => {
+    if (sortedRoles.length === 0) return;
 
-  let currentIndex = -1;
-  if (selectedRoleId) {
-    currentIndex = sortedRoles.findIndex(
-      (role) => role.roleId === selectedRoleId
-    );
-  }
+    let currentIndex = -1;
+    if (selectedRoleId) {
+      currentIndex = sortedRoles.findIndex(
+        (role) => role.roleId === selectedRoleId
+      );
+    }
 
-  const newIndex =
-    currentIndex >= sortedRoles.length - 1 ? 0 : currentIndex + 1;
-  const selectedRole = sortedRoles[newIndex];
+    const newIndex =
+      currentIndex >= sortedRoles.length - 1 ? 0 : currentIndex + 1;
+    const selectedRole = sortedRoles[newIndex];
 
-  setSelectedRoleId(selectedRole.roleId);
-  setFormData({
-    name: selectedRole.name,
-    description: selectedRole.description || "",
-  });
+    setSelectedRoleId(selectedRole.roleId);
+    setFormData({
+      name: selectedRole.name,
+      description: selectedRole.description || "",
+    });
 
-  if (isFormEnabled) {
-    setIsEditing(true); // Set to editing mode only if form is enabled
-    // Focus on name input
-    setTimeout(() => {
-      if (nameInputRef.current) {
-        nameInputRef.current.focus();
-      }
-    }, 0);
-  }
+    if (isFormEnabled) {
+      setIsEditing(true);
+      setTimeout(() => {
+        if (nameInputRef.current) {
+          nameInputRef.current.focus();
+        }
+      }, 0);
+    }
 
-  setError("");
-};
+    setError("");
+  };
 
   const handleSearch = () => {
     setIsSearchPopupOpen(true);
@@ -438,15 +437,14 @@ const handleDown = () => {
   );
 
   return (
-    <ProtectedRoute allowedRoles={["admin"]}>
+    <ProtectedRoute allowedRoles={["admin", "employee"]}>
       <div
         className="min-h-screen"
         style={{
           background:
             "linear-gradient(180deg, #e4f2ff 0%, #d1e7fe 50%, #b6d6ff 100%)",
           fontFamily: "Segoe UI, Tahoma, Geneva, Verdana, sans-serif",
-        }}
-      >
+        }}>
         <WindowsToolbar
           modulePath="/dashboard/admin/roles"
           onAddNew={handleAddNew}
@@ -465,28 +463,25 @@ const handleDown = () => {
 
         <div className="p-6">
           <div
-            className="mx-auto max-w-4xl"
+            className="mx-auto max-w-4xl shadow-[inset_2px_2px_0px_#ffffff,inset_-2px_-2px_0px_#4b5563] rounded-lg"
             style={{
-              background: "linear-gradient(180deg, #ffffff 0%, #f0f8ff 100%)",
-              border: "1px solid #4a90e2",
-              borderRadius: "8px",
-              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-            }}
-          >
+              background: "linear-gradient(180deg, #f5f6f5 0%, #e0e1e0 100%)",
+              border: "2px solid #8c8c8c",
+            }}>
             <div
-              className="px-4 py-3 flex items-center"
+              className="px-4 py-3 flex items-center bg-gradient-to-r from-[#4a90e2] to-[#2e5cb8] text-white"
               style={{
-                background: "linear-gradient(180deg, #4a90e2 0%, #2e5cb8 100%)",
-                borderTopLeftRadius: "8px",
-                borderTopRightRadius: "8px",
-                borderBottom: "1px solid #2e5cb8",
-              }}
-            >
+                borderTopLeftRadius: "6px",
+                borderTopRightRadius: "6px",
+                borderBottom: "2px solid #2e5cb8",
+                boxShadow:
+                  "inset 1px 1px 0px #ffffff, inset -1px -1px 0px #2e5cb8",
+              }}>
               <div className="flex items-center">
                 <div className="w-4 h-4 bg-white rounded-sm mr-3 flex items-center justify-center">
-                  <div className="w-2 h-2 bg-blue-600 rounded-sm"></div>
+                  <div className="w-2 h-2 bg-[#003087] rounded-sm"></div>
                 </div>
-                <h1 className="text-white font-semibold text-sm">
+                <h1 className="text-base font-semibold">
                   Company Roles Management
                 </h1>
               </div>
@@ -494,26 +489,26 @@ const handleDown = () => {
 
             <div className="p-6">
               <div className="mb-6">
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-[#003087]">
                   Company: {session?.user?.companies?.[0]?.name}
                 </p>
               </div>
 
               <div
-                className="mb-6 p-4"
+                className="mb-6 p-4 rounded"
                 style={{
                   background:
-                    "linear-gradient(180deg, #f8fbff 0%, #e8f4fd 100%)",
-                  border: "1px solid #c5d7ed",
-                  borderRadius: "4px",
-                }}
-              >
-                <h2 className="text-base font-bold mb-4 text-gray-800">
+                    "linear-gradient(180deg, #f5f6f5 0%, #e0e1e0 100%)",
+                  border: "2px solid #8c8c8c",
+                  boxShadow:
+                    "inset 2px 2px 0px #ffffff, inset -2px -2px 0px #4b5563",
+                }}>
+                <h2 className="text-base font-bold mb-4 text-[#003087]">
                   {isEditing ? "Edit Company Role" : "Create Company Role"}
                 </h2>
                 <div className="space-y-4 relative">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-bold text-[#003087] mb-1">
                       Role Name *
                     </label>
                     <input
@@ -521,14 +516,11 @@ const handleDown = () => {
                       type="text"
                       required
                       disabled={!isFormEnabled}
-                      className="w-full px-3 py-2 text-sm"
+                      className="w-full px-3 py-2 text-sm bg-white rounded focus:outline-none focus:ring-2 focus:ring-[#0052cc] disabled:bg-[#d8d8d8]"
                       style={{
-                        border: "1px solid #a8c8ec",
-                        borderRadius: "2px",
-                        background: isFormEnabled
-                          ? "linear-gradient(180deg, #ffffff 0%, #f0f8ff 100%)"
-                          : "linear-gradient(180deg, #f5f5f5 0%, #e8e8e8 100%)",
-                        outline: "none",
+                        border: "2px solid #8c8c8c",
+                        boxShadow:
+                          "inset 2px 2px 0px #4b5563, inset -2px -2px 0px #ffffff",
                         cursor: isFormEnabled ? "text" : "not-allowed",
                         color: isFormEnabled ? "#000000" : "#666666",
                       }}
@@ -536,31 +528,22 @@ const handleDown = () => {
                       onChange={(e) => {
                         setFormData({ ...formData, name: e.target.value });
                       }}
-                      onFocus={(e) => {
-                        if (isFormEnabled) {
-                          e.target.style.border = "1px solid #4a90e2";
-                        }
-                      }}
-                      onBlur={(e) => {
-                        if (isFormEnabled) {
-                          e.target.style.border = "1px solid #a8c8ec";
-                        }
-                      }}
                     />
                     {filteredSuggestions.length > 0 && (
                       <div
                         ref={dropdownRef}
-                        className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded shadow-lg max-h-60 overflow-y-auto"
-                      >
+                        className="absolute z-10 w-full mt-1 bg-[#f5f6f5] shadow-[inset_2px_2px_0px_#ffffff,inset_-2px_-2px_0px_#4b5563] rounded max-h-60 overflow-y-auto"
+                        style={{
+                          border: "2px solid #8c8c8c",
+                        }}>
                         {filteredSuggestions.map((role) => (
                           <div
                             key={role.roleId}
-                            className="px-3 py-2 text-sm hover:bg-blue-100 cursor-pointer"
-                            onClick={() => handleSelectSuggestion(role)}
-                          >
+                            className="px-3 py-2 text-sm hover:bg-[#c6d8f0] cursor-pointer"
+                            onClick={() => handleSelectSuggestion(role)}>
                             {role.name}
                             {role.description && (
-                              <p className="text-xs text-gray-500">
+                              <p className="text-xs text-[#003087]">
                                 {role.description}
                               </p>
                             )}
@@ -571,19 +554,16 @@ const handleDown = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-bold text-[#003087] mb-1">
                       Description
                     </label>
                     <textarea
                       disabled={!isFormEnabled}
-                      className="w-full px-3 py-2 text-sm resize-none"
+                      className="w-full px-3 py-2 text-sm bg-white rounded focus:outline-none focus:ring-2 focus:ring-[#0052cc] disabled:bg-[#d8d8d8] resize-none"
                       style={{
-                        border: "1px solid #a8c8ec",
-                        borderRadius: "2px",
-                        background: isFormEnabled
-                          ? "linear-gradient(180deg, #ffffff 0%, #f0f8ff 100%)"
-                          : "linear-gradient(180deg, #f5f5f5 0%, #e8e8e8 100%)",
-                        outline: "none",
+                        border: "2px solid #8c8c8c",
+                        boxShadow:
+                          "inset 2px 2px 0px #4b5563, inset -2px -2px 0px #ffffff",
                         height: "60px",
                         cursor: isFormEnabled ? "text" : "not-allowed",
                         color: isFormEnabled ? "#000000" : "#666666",
@@ -595,26 +575,32 @@ const handleDown = () => {
                           description: e.target.value,
                         })
                       }
-                      onFocus={(e) => {
-                        if (isFormEnabled) {
-                          e.target.style.border = "1px solid #4a90e2";
-                        }
-                      }}
-                      onBlur={(e) => {
-                        if (isFormEnabled) {
-                          e.target.style.border = "1px solid #a8c8ec";
-                        }
-                      }}
                     />
                   </div>
 
                   {error && (
-                    <div className="text-red-600 text-sm bg-red-50 p-2 rounded border border-red-200">
+                    <div
+                      className="p-3 text-sm text-[#a40000] rounded"
+                      style={{
+                        background:
+                          "linear-gradient(180deg, #ffe6e6 0%, #ffd1d1 100%)",
+                        border: "2px solid #8c8c8c",
+                        boxShadow:
+                          "inset 2px 2px 0px #ffffff, inset -2px -2px 0px #4b5563",
+                      }}>
                       {error}
                     </div>
                   )}
                   {message && (
-                    <div className="text-green-600 text-sm bg-green-50 p-2 rounded border border-green-200">
+                    <div
+                      className="p-3 text-sm text-[#006600] rounded"
+                      style={{
+                        background:
+                          "linear-gradient(180deg, #e6ffe6 0%, #d1ffd1 100%)",
+                        border: "2px solid #8c8c8c",
+                        boxShadow:
+                          "inset 2px 2px 0px #ffffff, inset -2px -2px 0px #4b5563",
+                      }}>
                       {message}
                     </div>
                   )}
@@ -623,14 +609,15 @@ const handleDown = () => {
                     type="button"
                     disabled={isCreating || !isFormEnabled}
                     onClick={isEditing ? handleUpdateRole : handleCreateRole}
-                    className="px-6 py-2 text-sm font-medium text-white disabled:opacity-50 transition-all duration-150"
+                    className="px-6 py-2 text-sm font-medium text-white rounded transition-all duration-150"
                     style={{
                       background:
                         isCreating || !isFormEnabled
                           ? "linear-gradient(180deg, #cccccc 0%, #999999 100%)"
                           : "linear-gradient(180deg, #4a90e2 0%, #2e5cb8 100%)",
-                      border: "1px solid #2e5cb8",
-                      borderRadius: "3px",
+                      border: "2px solid #2e5cb8",
+                      boxShadow:
+                        "inset 1px 1px 0px #ffffff, inset -1px -1px 0px #2e5cb8",
                       cursor:
                         isCreating || !isFormEnabled
                           ? "not-allowed"
@@ -640,21 +627,26 @@ const handleDown = () => {
                       if (!isCreating && isFormEnabled) {
                         (e.target as HTMLButtonElement).style.background =
                           "linear-gradient(180deg, #2e5cb8 0%, #4a90e2 100%)";
+                        (e.target as HTMLButtonElement).style.boxShadow =
+                          "inset 2px 2px 0px #4b5563, inset -2px -2px 0px #ffffff";
                       }
                     }}
                     onMouseUp={(e) => {
                       if (!isCreating && isFormEnabled) {
                         (e.target as HTMLButtonElement).style.background =
                           "linear-gradient(180deg, #4a90e2 0%, #2e5cb8 100%)";
+                        (e.target as HTMLButtonElement).style.boxShadow =
+                          "inset 1px 1px 0px #ffffff, inset -1px -1px 0px #2e5cb8";
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (!isCreating && isFormEnabled) {
                         (e.target as HTMLButtonElement).style.background =
                           "linear-gradient(180deg, #4a90e2 0%, #2e5cb8 100%)";
+                        (e.target as HTMLButtonElement).style.boxShadow =
+                          "inset 1px 1px 0px #ffffff, inset -1px -1px 0px #2e5cb8";
                       }
-                    }}
-                  >
+                    }}>
                     {isCreating
                       ? "Creating..."
                       : isEditing
@@ -665,47 +657,45 @@ const handleDown = () => {
               </div>
 
               {isSearchPopupOpen && (
-                <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
+                <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
                   <div
-                    className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full"
+                    className="p-6 rounded-lg max-w-md w-full shadow-[inset_2px_2px_0px_#ffffff,inset_-2px_-2px_0px_#4b5563]"
                     style={{
                       background:
-                        "linear-gradient(180deg, #ffffff 0%, #f0f8ff 100%)",
-                      border: "1px solid #4a90e2",
-                    }}
-                  >
-                    <h2 className="text-base font-bold mb-4 text-gray-800">
+                        "linear-gradient(180deg, #f5f6f5 0%, #e0e1e0 100%)",
+                      border: "2px solid #8c8c8c",
+                    }}>
+                    <h2 className="text-base font-bold mb-4 text-[#003087]">
                       Search Roles
                     </h2>
                     <input
                       type="text"
                       placeholder="Search roles..."
-                      className="w-full px-3 py-2 text-sm mb-4"
+                      className="w-full px-3 py-2 text-sm bg-white rounded focus:outline-none focus:ring-2 focus:ring-[#0052cc]"
                       style={{
-                        border: "1px solid #a8c8ec",
-                        borderRadius: "2px",
-                        background:
-                          "linear-gradient(180deg, #ffffff 0%, #f0f8ff 100%)",
-                        outline: "none",
+                        border: "2px solid #8c8c8c",
+                        boxShadow:
+                          "inset 2px 2px 0px #4b5563, inset -2px -2px 0px #ffffff",
                       }}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
-                    <div className="max-h-60 overflow-y-auto">
+                    <div className="max-h-60 overflow-y-auto mt-4">
                       {filteredRoles.length === 0 ? (
-                        <p className="text-sm text-gray-500 italic">
+                        <p className="text-sm text-[#003087] italic">
                           No roles found
                         </p>
                       ) : (
                         filteredRoles.map((role) => (
                           <div
                             key={role.roleId}
-                            className="px-3 py-2 text-sm hover:bg-blue-100 cursor-pointer"
-                            onClick={() => handleSearchSelect(role)}
-                          >
-                            <p className="font-semibold">{role.name}</p>
+                            className="px-3 py-2 text-sm hover:bg-[#c6d8f0] cursor-pointer"
+                            onClick={() => handleSearchSelect(role)}>
+                            <p className="font-semibold text-[#003087]">
+                              {role.name}
+                            </p>
                             {role.description && (
-                              <p className="text-xs text-gray-600">
+                              <p className="text-xs text-[#003087]">
                                 {role.description}
                               </p>
                             )}
@@ -715,14 +705,32 @@ const handleDown = () => {
                     </div>
                     <button
                       onClick={() => setIsSearchPopupOpen(false)}
-                      className="mt-4 px-4 py-2 text-sm font-medium text-white"
+                      className="mt-4 px-4 py-2 text-sm font-medium text-white rounded"
                       style={{
                         background:
                           "linear-gradient(180deg, #4a90e2 0%, #2e5cb8 100%)",
-                        border: "1px solid #2e5cb8",
-                        borderRadius: "3px",
+                        border: "2px solid #2e5cb8",
+                        boxShadow:
+                          "inset 1px 1px 0px #ffffff, inset -1px -1px 0px #2e5cb8",
                       }}
-                    >
+                      onMouseDown={(e) => {
+                        (e.target as HTMLButtonElement).style.background =
+                          "linear-gradient(180deg, #2e5cb8 0%, #4a90e2 100%)";
+                        (e.target as HTMLButtonElement).style.boxShadow =
+                          "inset 2px 2px 0px #4b5563, inset -2px -2px 0px #ffffff";
+                      }}
+                      onMouseUp={(e) => {
+                        (e.target as HTMLButtonElement).style.background =
+                          "linear-gradient(180deg, #4a90e2 0%, #2e5cb8 100%)";
+                        (e.target as HTMLButtonElement).style.boxShadow =
+                          "inset 1px 1px 0px #ffffff, inset -1px -1px 0px #2e5cb8";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.target as HTMLButtonElement).style.background =
+                          "linear-gradient(180deg, #4a90e2 0%, #2e5cb8 100%)";
+                        (e.target as HTMLButtonElement).style.boxShadow =
+                          "inset 1px 1px 0px #ffffff, inset -1px -1px 0px #2e5cb8";
+                      }}>
                       Close
                     </button>
                   </div>
@@ -730,39 +738,49 @@ const handleDown = () => {
               )}
 
               {isAuditPopupOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div
+                  className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+                  onClick={() => setIsAuditPopupOpen(false)} // Close on backdrop click
+                >
                   <div
-                    className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full"
+                    className="p-6 rounded-lg max-w-lg w-full shadow-[inset_2px_2px_0px_#ffffff,inset_-2px_-2px_0px_#4b5563]"
                     style={{
                       background:
-                        "linear-gradient(180deg, #ffffff 0%, #f0f8ff 100%)",
-                      border: "1px solid #4a90e2",
+                        "linear-gradient(180deg, #f5f6f5 0%, #e0e1e0 100%)",
+                      border: "2px solid #8c8c8c",
                     }}
+                    onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
                   >
-                    <h2 className="text-base font-bold mb-4 text-gray-800">
+                    <h2 className="text-base font-bold mb-4 text-[#003087]">
                       Audit Logs for Role
                     </h2>
                     <div className="max-h-60 overflow-y-auto">
                       {auditLogs.length === 0 ? (
-                        <p className="text-sm text-gray-500 italic">
+                        <p className="text-sm text-[#003087] italic">
                           No audit logs found
                         </p>
                       ) : (
                         auditLogs.map((log) => (
                           <div
                             key={log.auditId}
-                            className="p-3 mb-2 border border-gray-200 rounded"
-                          >
-                            <p className="text-sm font-semibold text-gray-800">
+                            className="p-3 mb-2 border rounded"
+                            style={{
+                              border: "2px solid #8c8c8c",
+                              background:
+                                "linear-gradient(180deg, #ffffff 0%, #f0f8ff 100%)",
+                              boxShadow:
+                                "inset 1px 1px 0px #ffffff, inset -1px -1px 0px #4b5563",
+                            }}>
+                            <p className="text-sm font-semibold text-[#003087]">
                               Action: {log.action}
                             </p>
-                            <p className="text-xs text-gray-600">
+                            <p className="text-xs text-[#003087]">
                               By: {log.performedBy}
                             </p>
-                            <p className="text-xs text-gray-600">
+                            <p className="text-xs text-[#003087]">
                               When: {new Date(log.timestamp).toLocaleString()}
                             </p>
-                            <p className="text-xs text-gray-600">
+                            <p className="text-xs text-[#003087]">
                               Changes:
                               {log.action === "CREATE" ? (
                                 <ul className="list-disc ml-4">
@@ -803,14 +821,32 @@ const handleDown = () => {
                     </div>
                     <button
                       onClick={() => setIsAuditPopupOpen(false)}
-                      className="mt-4 px-4 py-2 text-sm font-medium text-white"
+                      className="mt-4 px-4 py-2 text-sm font-medium text-white rounded"
                       style={{
                         background:
                           "linear-gradient(180deg, #4a90e2 0%, #2e5cb8 100%)",
-                        border: "1px solid #2e5cb8",
-                        borderRadius: "3px",
+                        border: "2px solid #2e5cb8",
+                        boxShadow:
+                          "inset 1px 1px 0px #ffffff, inset -1px -1px 0px #2e5cb8",
                       }}
-                    >
+                      onMouseDown={(e) => {
+                        (e.target as HTMLButtonElement).style.background =
+                          "linear-gradient(180deg, #2e5cb8 0%, #4a90e2 100%)";
+                        (e.target as HTMLButtonElement).style.boxShadow =
+                          "inset 2px 2px 0px #4b5563, inset -2px -2px 0px #ffffff";
+                      }}
+                      onMouseUp={(e) => {
+                        (e.target as HTMLButtonElement).style.background =
+                          "linear-gradient(180deg, #4a90e2 0%, #2e5cb8 100%)";
+                        (e.target as HTMLButtonElement).style.boxShadow =
+                          "inset 1px 1px 0px #ffffff, inset -1px -1px 0px #2e5cb8";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.target as HTMLButtonElement).style.background =
+                          "linear-gradient(180deg, #4a90e2 0%, #2e5cb8 100%)";
+                        (e.target as HTMLButtonElement).style.boxShadow =
+                          "inset 1px 1px 0px #ffffff, inset -1px -1px 0px #2e5cb8";
+                      }}>
                       Close
                     </button>
                   </div>

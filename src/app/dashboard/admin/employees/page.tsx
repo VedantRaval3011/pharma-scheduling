@@ -12,7 +12,7 @@ import { NavItem } from "@/types";
 interface AuditLog {
   action: string;
   timestamp: string;
-  userId: string; // This is the performedBy field (user who made the change)
+  userId: string;
   details: {
     message?: string;
     changes?: {
@@ -27,11 +27,10 @@ interface AuditLog {
     name?: string;
     deletedEmployeeId?: string;
     deletedUserId?: string;
-    [key: string]: any; // Index signature for additional properties
+    [key: string]: any;
   };
 }
 
-// Types
 interface FormData {
   employeeId: string;
   userId: string;
@@ -64,47 +63,18 @@ interface Company {
   locations: Location[];
 }
 
-interface UserData {
-  userId: string;
-  companies: Company[];
-  role?: string;
-  email?: string;
-}
-
 interface EmployeeRecord {
   employeeId: string;
   userId: string;
   name: string;
   companyRoles: string[];
   companyId: string;
-  locations: Location[]; // Explicitly define as an array
+  locations: Location[];
   moduleAccess: {
     modulePath: string;
     moduleName: string;
     permissions: string[];
   }[];
-}
-
-interface AuditLog {
-  action: string;
-  timestamp: string;
-  userId: string; // This is the performedBy field (user who made the change)
-  details: {
-    message?: string;
-    changes?: {
-      field: string;
-      oldValue: any;
-      newValue: any;
-      dataType: string;
-    }[];
-    performedBy?: string;
-    employeeId?: string;
-    userId?: string;
-    name?: string;
-    deletedEmployeeId?: string;
-    deletedUserId?: string;
-    [key: string]: any;
-  };
 }
 
 export default function AdminDashboard() {
@@ -147,7 +117,6 @@ export default function AdminDashboard() {
   const [filteredAuditLogs, setFilteredAuditLogs] = useState<AuditLog[]>([]);
   const [selectedEmployeeIndex, setSelectedEmployeeIndex] =
     useState<number>(-1);
-
   const [currentPage, setCurrentPage] = useState(1);
   const logsPerPage = 10;
 
@@ -161,8 +130,6 @@ export default function AdminDashboard() {
     dateRange: string
   ) => {
     let filtered = [...auditLogs];
-
-    // Apply search query
     if (query.trim()) {
       const lowerQuery = query.toLowerCase();
       filtered = filtered.filter((log) => {
@@ -174,13 +141,9 @@ export default function AdminDashboard() {
         );
       });
     }
-
-    // Apply action filter
     if (action) {
       filtered = filtered.filter((log) => log.action === action);
     }
-
-    // Apply date range filter
     if (dateRange) {
       const now = new Date();
       let startDate: Date;
@@ -202,12 +165,10 @@ export default function AdminDashboard() {
       }
       filtered = filtered.filter((log) => new Date(log.timestamp) >= startDate);
     }
-
     setFilteredAuditLogs(filtered);
-    setCurrentPage(1); // Reset to first page when filters change
+    setCurrentPage(1);
   };
 
-  // Calculate pagination values
   const totalPages = Math.ceil(filteredAuditLogs.length / logsPerPage);
   const indexOfLastLog = currentPage * logsPerPage;
   const indexOfFirstLog = indexOfLastLog - logsPerPage;
@@ -218,8 +179,6 @@ export default function AdminDashboard() {
       a.userId.localeCompare(b.userId)
     );
     setSortedEmployees(sorted);
-
-    // Update current sorted index if we have a current employee
     if (currentEmployeeIndex >= 0) {
       const currentEmployee = employees[currentEmployeeIndex];
       const sortedIndex = sorted.findIndex(
@@ -236,26 +195,25 @@ export default function AdminDashboard() {
           fetch("/api/admin/company-roles"),
           fetch("/api/admin/create-employee"),
         ]);
-
         const rolesData = await rolesRes.json();
         const employeesData = await employeesRes.json();
-
         if (rolesRes.ok) {
+          console.log("Fetched roles:", rolesData.data); // Debug log
           setAvailableRoles(rolesData.data || []);
         } else {
           setError(rolesData.error || "Failed to fetch roles");
         }
-
         if (employeesRes.ok) {
+          console.log("Fetched employees:", employeesData.data); // Debug log
           setEmployees(employeesData.data || []);
         } else {
           setError(employeesData.error || "Failed to fetch employees");
         }
-      } catch {
+      } catch (error) {
+        console.error("Error fetching data:", error);
         setError("An error occurred while fetching data");
       }
     };
-
     if (session?.user?.id) {
       fetchData();
     }
@@ -280,8 +238,6 @@ export default function AdminDashboard() {
     setMessage("");
     setCurrentEmployeeIndex(-1);
     setCompanies(session?.user?.companies || []);
-
-    // Focus on userId field
     setTimeout(() => {
       if (userIdInputRef.current) {
         userIdInputRef.current.focus();
@@ -295,14 +251,12 @@ export default function AdminDashboard() {
       setShowSuggestions(false);
       return;
     }
-
     try {
       const res = await fetch(
         `/api/admin/employees?userIdQuery=${encodeURIComponent(query)}`
       );
       const data = await res.json();
       if (res.ok && data.data) {
-        // Extract userIds from the response
         const suggestions = data.data.map((emp: any) => emp.userId);
         setUserIdSuggestions(suggestions);
         setShowSuggestions(suggestions.length > 0);
@@ -316,25 +270,19 @@ export default function AdminDashboard() {
   const renderAuditDetails = (details: any) => {
     if (!details)
       return <span className="text-gray-500">No details available</span>;
-
     return (
       <div className="space-y-2">
-        {/* Message */}
         {details.message && (
           <div className="text-sm font-medium text-gray-900">
             {details.message}
           </div>
         )}
-
-        {/* Performed By */}
         {details.performedBy && (
           <div className="text-xs text-gray-600">
             <span className="font-medium">Performed by:</span>{" "}
             {details.performedByName || details.performedBy}
           </div>
         )}
-
-        {/* Changes for UPDATE actions - Only show if there are actual changes */}
         {details.changes && details.changes.length > 0 && (
           <div className="mt-2">
             <div className="text-xs font-medium text-gray-700 mb-1">
@@ -343,16 +291,14 @@ export default function AdminDashboard() {
             </div>
             <div className="space-y-1">
               {details.changes.map((change: any, index: number) => {
-                // Only render if values are actually different
                 if (change.oldValue === change.newValue) {
                   return null;
                 }
-
                 return (
                   <div
                     key={index}
                     className="text-xs bg-gray-50 p-2 rounded border"
-                  >
+                    style={{ border: "1px inset #c0c0c0" }}>
                     <div className="font-medium text-gray-800 capitalize">
                       {change.field.replace(/([A-Z])/g, " $1").trim()}:
                     </div>
@@ -377,14 +323,14 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
-
-        {/* Created Fields for CREATE actions */}
         {details.createdFields && (
           <div className="mt-2">
             <div className="text-xs font-medium text-gray-700 mb-1">
               Created with:
             </div>
-            <div className="text-xs bg-green-50 p-2 rounded border">
+            <div
+              className="text-xs bg-green-50 p-2 rounded border"
+              style={{ border: "1px inset #c0c0c0" }}>
               {Object.entries(details.createdFields).map(
                 ([key, value]: [string, any]) => (
                   <div key={key} className="mb-1">
@@ -402,14 +348,14 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
-
-        {/* Deleted Data for DELETE actions */}
         {details.deletedData && (
           <div className="mt-2">
             <div className="text-xs font-medium text-gray-700 mb-1">
               Deleted data:
             </div>
-            <div className="text-xs bg-red-50 p-2 rounded border">
+            <div
+              className="text-xs bg-red-50 p-2 rounded border"
+              style={{ border: "1px inset #c0c0c0" }}>
               {Object.entries(details.deletedData).map(
                 ([key, value]: [string, any]) => (
                   <div key={key} className="mb-1">
@@ -427,8 +373,6 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
-
-        {/* Timestamp */}
         {details.timestamp && (
           <div className="text-xs text-gray-500 mt-2">
             {new Date(details.timestamp).toLocaleString()}
@@ -440,20 +384,16 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (!formData.companyId) return;
-
     const selectedCompany = session?.user?.companies?.find(
       (c) => c.companyId === formData.companyId
     );
-
     if (selectedCompany) {
       const validLocationIds = formData.locationIds.filter((locId) =>
         selectedCompany.locations.some((loc) => loc.locationId === locId)
       );
-
       if (validLocationIds.length === 0 && selectedCompany.locations[0]) {
         validLocationIds.push(selectedCompany.locations[0].locationId);
       }
-
       setFormData((prev) => ({
         ...prev,
         locationIds: validLocationIds,
@@ -463,9 +403,7 @@ export default function AdminDashboard() {
 
   const fetchUserData = async (userId: string) => {
     if (!userId) return;
-
     console.log("🔍 Fetching user data for:", userId);
-
     try {
       let newFormData: FormData = {
         employeeId: "",
@@ -477,8 +415,6 @@ export default function AdminDashboard() {
         locationIds: [],
         moduleAccess: [],
       };
-
-      // Fetch user data
       const userRes = await fetch(`/api/user/${encodeURIComponent(userId)}`);
       const userData = await userRes.json();
       if (userRes.ok && userData.user) {
@@ -490,90 +426,68 @@ export default function AdminDashboard() {
       } else {
         setError(userData.error || "Failed to fetch user data");
       }
-
-      // Fetch employee data
       const employeeRes = await fetch(
         `/api/admin/employees?userId=${encodeURIComponent(userId)}`
       );
       const employeeData = await employeeRes.json();
-
       console.log("📊 Employee data response:", employeeData);
-
       if (employeeRes.ok && employeeData.data) {
         const employee = employeeData.data;
-
         console.log("👤 Employee object:", employee);
-
-        // Extract companyId from companies array (take the first company)
         const employeeCompanyId =
           employee.companies && employee.companies.length > 0
             ? employee.companies[0].companyId
             : "";
-
         console.log(
           "🏢 Employee company ID from companies array:",
           employeeCompanyId
         );
-
-        // Extract locationIds from the first company's locations
         const employeeLocationIds =
           employee.companies && employee.companies.length > 0
             ? (employee.companies[0].locations || []).map(
                 (loc: any) => loc.locationId
               )
             : [];
-
         console.log(
           "📍 Employee location IDs from companies array:",
           employeeLocationIds
         );
-
+        // Validate companyRoles against availableRoles
+        const validRoles =
+          employee.companyRoles?.filter((role: string) =>
+            availableRoles.some((r) => r.roleId === role)
+          ) || [];
         newFormData = {
           ...newFormData,
           employeeId: employee.employeeId || uuidv4(),
           password: "",
           name: employee.name || newFormData.name,
-          companyRoles:
-            employee.companyRoles?.map((role: any) =>
-              typeof role === "object" ? role.roleId : role
-            ) || [],
+          companyRoles: validRoles,
           companyId: employeeCompanyId,
           locationIds: employeeLocationIds,
           moduleAccess: employee.moduleAccess || [],
         };
-
         console.log("📋 New form data after employee fetch:", newFormData);
-
-        // Validate and fix locationIds based on the selected company
         const selectedCompany = session?.user?.companies?.find(
           (c) => c.companyId === employeeCompanyId
         );
-
         console.log("🏢 Selected company:", selectedCompany);
-
         if (selectedCompany) {
-          // Filter locationIds to only include locations that exist in the selected company
           let validLocationIds = newFormData.locationIds.filter((locId) =>
             selectedCompany.locations.some((loc) => loc.locationId === locId)
           );
-
-          // If no valid locations found, use the first location of the company
           if (
             validLocationIds.length === 0 &&
             selectedCompany.locations.length > 0
           ) {
             validLocationIds = [selectedCompany.locations[0].locationId];
           }
-
           newFormData.locationIds = validLocationIds;
           console.log("📍 Valid location IDs:", validLocationIds);
         }
-
-        // Update employees array
         const existingIndex = employees.findIndex(
           (emp) => emp.userId === userId
         );
-
         if (existingIndex !== -1) {
           setCurrentEmployeeIndex(existingIndex);
           const sortedIndex = sortedEmployees.findIndex(
@@ -614,7 +528,6 @@ export default function AdminDashboard() {
         }
       } else {
         console.log("❌ No employee data found, using fallback");
-        // Fallback only if no employee data found
         newFormData = {
           ...newFormData,
           companyId: session?.user?.companies?.[0]?.companyId || "",
@@ -624,17 +537,12 @@ export default function AdminDashboard() {
             ) || [],
         };
       }
-
       console.log("✅ Final form data before setState:", newFormData);
-
-      // Set form data once with all the correct values
       setFormData(newFormData);
       setIsEditable(true);
     } catch (error) {
       console.error("Error fetching user data:", error);
       setError("Failed to fetch user data");
-
-      // Fallback form data on error
       setFormData((prev) => ({
         ...prev,
         userId: userId,
@@ -662,7 +570,6 @@ export default function AdminDashboard() {
       }
       return;
     }
-
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
@@ -699,10 +606,34 @@ export default function AdminDashboard() {
 
   const handleSave = async () => {
     if (!isEditable) return;
-
     const form = document.querySelector("form");
     if (!form) {
       setError("Form not found");
+      return;
+    }
+
+    // Refresh available roles before validation
+    try {
+      const rolesRes = await fetch("/api/admin/company-roles");
+      const rolesData = await rolesRes.json();
+      if (rolesRes.ok) {
+        setAvailableRoles(rolesData.data || []);
+      } else {
+        setError(rolesData.error || "Failed to fetch roles");
+        return;
+      }
+    } catch {
+      setError("An error occurred while fetching roles");
+      return;
+    }
+
+    // Validate company roles
+    const validRoleIds = availableRoles.map((role) => role.roleId);
+    const invalidRoles = formData.companyRoles.filter(
+      (roleId) => !validRoleIds.includes(roleId)
+    );
+    if (invalidRoles.length > 0) {
+      setError(`Invalid roles selected: ${invalidRoles.join(", ")}`);
       return;
     }
 
@@ -711,8 +642,6 @@ export default function AdminDashboard() {
       const method = currentEmployeeIndex >= 0 ? "PUT" : "POST";
       const newEmployeeId =
         currentEmployeeIndex >= 0 ? formData.employeeId : uuidv4();
-
-      // Ensure userId is set
       const updatedFormData = {
         ...formData,
         employeeId: newEmployeeId,
@@ -720,32 +649,17 @@ export default function AdminDashboard() {
         companyRoles: formData.companyRoles || [],
         locationIds: formData.locationIds || [],
       };
-
-      // Validate required fields before proceeding
       if (!updatedFormData.employeeId || !updatedFormData.userId) {
-        console.error("Missing required fields in updatedFormData:", {
-          employeeId: updatedFormData.employeeId,
-          userId: updatedFormData.userId,
-        });
         setError("Cannot save employee: Missing employeeId or userId");
         return;
       }
-
-      console.log("updatedFormData before API call:", updatedFormData);
-
-      // Update formData state
       setFormData(updatedFormData);
-
-      // Make API call to save employee
       const res = await fetch("/api/admin/create-employee", {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updatedFormData),
       });
-
       const data = await res.json();
-      console.log("API response data:", data);
-
       if (res.ok) {
         const isUpdate = currentEmployeeIndex >= 0;
         setMessage(
@@ -753,8 +667,6 @@ export default function AdminDashboard() {
             ? "Employee updated successfully!"
             : "Employee created successfully!"
         );
-
-        // Update employees state
         const employeeData = {
           ...updatedFormData,
           locations:
@@ -762,7 +674,6 @@ export default function AdminDashboard() {
               updatedFormData.locationIds.includes(loc.locationId)
             ) || [],
         };
-
         setEmployees((prev) => {
           const newEmployees = [...prev];
           if (isUpdate) {
@@ -772,8 +683,6 @@ export default function AdminDashboard() {
           }
           return newEmployees;
         });
-
-        // Log audit with validated data
         await logAudit(isUpdate ? "UPDATE" : "CREATE", {
           formData: updatedFormData,
           employeeId: updatedFormData.employeeId,
@@ -781,17 +690,12 @@ export default function AdminDashboard() {
           name: updatedFormData.name || "Unknown",
           ...data,
         });
-
-        // Reset form after audit logging
         handleAddNew();
       } else {
         setError(data.error || "Failed to save employee");
       }
     } catch (error) {
-      console.error("Error in handleSave:", {
-        message: error instanceof Error ? error.message : "Unknown error",
-        stack: error instanceof Error ? error.stack : undefined,
-      });
+      console.error("Error in handleSave:", error);
       setError("An error occurred while saving employee");
     } finally {
       setIsCreating(false);
@@ -805,27 +709,20 @@ export default function AdminDashboard() {
       newValue: any;
       dataType: string;
     }[] = [];
-
-    // Helper function to normalize values (handle null, undefined, empty string consistently)
     const normalizeValue = (value: any): any => {
       if (value === null || value === undefined || value === "") {
         return null;
       }
       return value;
     };
-
-    // Helper function for deep array comparison
     const arraysEqual = (arr1: any[], arr2: any[]): boolean => {
       if (arr1.length !== arr2.length) return false;
       const sorted1 = [...arr1].sort();
       const sorted2 = [...arr2].sort();
       return JSON.stringify(sorted1) === JSON.stringify(sorted2);
     };
-
-    // Check userId
     const oldUserId = normalizeValue(oldData.userId);
     const newUserId = normalizeValue(newData.userId);
-
     if (oldUserId !== newUserId) {
       changes.push({
         field: "userId",
@@ -834,11 +731,8 @@ export default function AdminDashboard() {
         dataType: "string",
       });
     }
-
-    // Check name
     const oldName = normalizeValue(oldData.name);
     const newName = normalizeValue(newData.name);
-
     if (oldName !== newName) {
       changes.push({
         field: "name",
@@ -847,11 +741,8 @@ export default function AdminDashboard() {
         dataType: "string",
       });
     }
-
-    // Check company ID with proper comparison
     const oldCompanyId = normalizeValue(oldData.companyId);
     const newCompanyId = normalizeValue(newData.companyId);
-
     if (oldCompanyId !== newCompanyId) {
       const oldCompanyName = oldCompanyId
         ? companies.find((c) => c.companyId === oldCompanyId)?.name ||
@@ -861,8 +752,6 @@ export default function AdminDashboard() {
         ? companies.find((c) => c.companyId === newCompanyId)?.name ||
           newCompanyId
         : "None";
-
-      // Only log if there's an actual change in company names
       if (oldCompanyName !== newCompanyName) {
         changes.push({
           field: "company",
@@ -872,11 +761,8 @@ export default function AdminDashboard() {
         });
       }
     }
-
-    // Check company roles with proper array comparison
-    const oldRoles = (oldData.companyRoles || []).filter((role) => role); // Remove falsy values
+    const oldRoles = (oldData.companyRoles || []).filter((role) => role);
     const newRoles = (newData.companyRoles || []).filter((role) => role);
-
     if (!arraysEqual(oldRoles, newRoles)) {
       const oldRoleNames =
         oldRoles.length > 0
@@ -885,7 +771,6 @@ export default function AdminDashboard() {
                 availableRoles.find((r) => r.roleId === roleId)?.name || roleId
             )
           : ["None"];
-
       const newRoleNames =
         newRoles.length > 0
           ? newRoles.map(
@@ -893,7 +778,6 @@ export default function AdminDashboard() {
                 availableRoles.find((r) => r.roleId === roleId)?.name || roleId
             )
           : ["None"];
-
       changes.push({
         field: "companyRoles",
         oldValue: oldRoleNames,
@@ -901,8 +785,6 @@ export default function AdminDashboard() {
         dataType: "array",
       });
     }
-
-    // Check locations with proper comparison
     const oldLocationIds = (oldData.locations || [])
       .map((loc) => loc?.locationId)
       .filter((id) => id);
@@ -937,15 +819,12 @@ export default function AdminDashboard() {
         });
       }
     }
-
-    // Check module access
     const oldModules = (oldData.moduleAccess || [])
       .map((m) => m.moduleName)
       .filter((name) => name);
     const newModules = (newData.moduleAccess || [])
       .map((m) => m.moduleName)
       .filter((name) => name);
-
     if (!arraysEqual(oldModules, newModules)) {
       changes.push({
         field: "moduleAccess",
@@ -954,7 +833,6 @@ export default function AdminDashboard() {
         dataType: "array",
       });
     }
-
     return changes;
   };
 
@@ -982,30 +860,20 @@ export default function AdminDashboard() {
 
   const handleUp = async () => {
     if (sortedEmployees.length === 0) return;
-
-    // Check if input is currently disabled (read-only mode)
     const wasDisabled = !isEditable;
-
     let newIndex;
     if (currentSortedIndex <= 0) {
-      newIndex = sortedEmployees.length - 1; // Wrap to last employee
+      newIndex = sortedEmployees.length - 1;
     } else {
       newIndex = currentSortedIndex - 1;
     }
-
     const employee = sortedEmployees[newIndex];
     setCurrentSortedIndex(newIndex);
-
-    // Find the original index in the unsorted array
     const originalIndex = employees.findIndex(
       (emp) => emp.employeeId === employee.employeeId
     );
     setCurrentEmployeeIndex(originalIndex);
-
-    // Fetch and populate the form with employee data
     await fetchUserData(employee.userId);
-
-    // Restore the disabled state if it was disabled before navigation
     if (wasDisabled) {
       setIsEditable(false);
     }
@@ -1013,30 +881,20 @@ export default function AdminDashboard() {
 
   const handleDown = async () => {
     if (sortedEmployees.length === 0) return;
-
-    // Check if input is currently disabled (read-only mode)
     const wasDisabled = !isEditable;
-
     let newIndex;
     if (currentSortedIndex >= sortedEmployees.length - 1) {
-      newIndex = 0; // Wrap to first employee
+      newIndex = 0;
     } else {
       newIndex = currentSortedIndex + 1;
     }
-
     const employee = sortedEmployees[newIndex];
     setCurrentSortedIndex(newIndex);
-
-    // Find the original index in the unsorted array
     const originalIndex = employees.findIndex(
       (emp) => emp.employeeId === employee.employeeId
     );
     setCurrentEmployeeIndex(originalIndex);
-
-    // Fetch and populate the form with employee data
     await fetchUserData(employee.userId);
-
-    // Restore the disabled state if it was disabled before navigation
     if (wasDisabled) {
       setIsEditable(false);
     }
@@ -1048,18 +906,17 @@ export default function AdminDashboard() {
       setSelectedEmployeeIndex(-1);
       return;
     }
-
     const filtered = employees.filter(
       (emp) =>
         emp.name.toLowerCase().includes(query.toLowerCase()) ||
         emp.userId.toLowerCase().includes(query.toLowerCase())
     );
     setFilteredEmployees(filtered);
-    setSelectedEmployeeIndex(-1); // Reset selection when filtering
+    setSelectedEmployeeIndex(-1);
   };
 
   const handleSearch = () => {
-    setFilteredEmployees(employees); // Show all employees initially
+    setFilteredEmployees(employees);
     setSelectedEmployeeIndex(-1);
     setSearchQuery("");
     setShowSearchModal(true);
@@ -1073,10 +930,8 @@ export default function AdminDashboard() {
       setError("Please select an employee from the list");
       return;
     }
-
     try {
       const selectedEmployee = filteredEmployees[selectedEmployeeIndex];
-      // Populate the form with selected employee data
       await fetchUserData(selectedEmployee.userId);
       setShowSearchModal(false);
       setSearchQuery("");
@@ -1100,14 +955,11 @@ export default function AdminDashboard() {
       setError("No employee selected for deletion");
       return;
     }
-
     const employee = employees[currentEmployeeIndex];
     if (!employee.employeeId || !employee.userId) {
       setError("Cannot delete: Employee data incomplete");
       return;
     }
-
-    // Confirm deletion
     if (
       !confirm(
         `Are you sure you want to delete employee ${employee.name} (${employee.userId})? This will also delete associated user and audit log records.`
@@ -1115,12 +967,10 @@ export default function AdminDashboard() {
     ) {
       return;
     }
-
     try {
       setIsCreating(true);
       setError("");
       setMessage("");
-
       const res = await fetch(
         `/api/admin/delete-employee/${encodeURIComponent(employee.userId)}`,
         {
@@ -1128,9 +978,7 @@ export default function AdminDashboard() {
           headers: { "Content-Type": "application/json" },
         }
       );
-
       const data = await res.json();
-
       if (res.ok) {
         setEmployees((prev) =>
           prev.filter((_, i) => i !== currentEmployeeIndex)
@@ -1156,46 +1004,35 @@ export default function AdminDashboard() {
       console.log("Action:", action);
       console.log("Additional data:", additionalData);
       console.log("Form data:", formData);
-
-      // Check if session exists first
       if (!session?.user?.id) {
         console.error("No user session found");
         setError("Cannot log audit: No user session");
         return;
       }
-
-      // Get the performedBy information from session
       const performedBy = session.user.userId || "unknown-user";
-      // Use name from session if available, otherwise use userId
       const performedByName =
         session.user.userId || session.user.userId || "Unknown User";
-
       let auditDetails: any = {
         performedBy: performedBy,
         performedByName: performedByName,
         timestamp: new Date().toISOString(),
       };
-
       let employeeIdToUse: string;
       let userIdToUse: string;
-
       switch (action) {
         case "CREATE":
           const createFormData = additionalData.formData || formData;
-
           console.log("CREATE audit - checking form data:", {
             hasAdditionalFormData: !!additionalData.formData,
             createFormData: createFormData,
             globalFormData: formData,
           });
-
           if (!createFormData.employeeId || !createFormData.userId) {
             console.error("Missing required fields for CREATE audit", {
               employeeId: createFormData.employeeId,
               userId: createFormData.userId,
               createFormData: createFormData,
             });
-
             if (additionalData.employeeId && additionalData.userId) {
               employeeIdToUse = additionalData.employeeId;
               userIdToUse = additionalData.userId;
@@ -1210,13 +1047,11 @@ export default function AdminDashboard() {
             employeeIdToUse = createFormData.employeeId;
             userIdToUse = createFormData.userId;
           }
-
           const companyName =
             createFormData.companyId && companies?.length > 0
               ? companies.find((c) => c.companyId === createFormData.companyId)
                   ?.name || createFormData.companyId
               : "None";
-
           const roleNames =
             createFormData.companyRoles?.length > 0 &&
             availableRoles?.length > 0
@@ -1226,7 +1061,6 @@ export default function AdminDashboard() {
                     roleId
                 )
               : ["None"];
-
           const locationNames =
             createFormData.locationIds?.length > 0 &&
             availableLocations?.length > 0
@@ -1236,7 +1070,6 @@ export default function AdminDashboard() {
                       ?.name || locId
                 )
               : ["None"];
-
           auditDetails = {
             ...auditDetails,
             message: `Employee record created by ${performedByName}`,
@@ -1255,7 +1088,6 @@ export default function AdminDashboard() {
             ),
           };
           break;
-
         case "UPDATE":
           if (
             currentEmployeeIndex < 0 ||
@@ -1269,7 +1101,6 @@ export default function AdminDashboard() {
             setError("Cannot log audit: No employee selected");
             return;
           }
-
           const originalEmployee = employees[currentEmployeeIndex];
           if (!originalEmployee.employeeId || !originalEmployee.userId) {
             console.error("Employee data missing required fields", {
@@ -1279,10 +1110,8 @@ export default function AdminDashboard() {
             setError("Cannot log audit: Employee data incomplete");
             return;
           }
-
           employeeIdToUse = originalEmployee.employeeId;
           userIdToUse = originalEmployee.userId;
-
           let changes = [];
           try {
             changes = detectChanges(originalEmployee, formData);
@@ -1292,12 +1121,10 @@ export default function AdminDashboard() {
               { field: "unknown", oldValue: "unknown", newValue: "unknown" },
             ];
           }
-
           if (changes.length === 0) {
             console.log("No changes detected, skipping audit log");
             return;
           }
-
           auditDetails = {
             ...auditDetails,
             message: `Employee record updated by ${performedByName} - ${changes.length} field(s) changed`,
@@ -1313,7 +1140,6 @@ export default function AdminDashboard() {
             ),
           };
           break;
-
         case "DELETE":
           if (
             currentEmployeeIndex < 0 ||
@@ -1327,7 +1153,6 @@ export default function AdminDashboard() {
             setError("Cannot log audit: No employee selected");
             return;
           }
-
           const deletedEmployee = employees[currentEmployeeIndex];
           if (!deletedEmployee.employeeId || !deletedEmployee.userId) {
             console.error("Employee data missing required fields", {
@@ -1337,16 +1162,13 @@ export default function AdminDashboard() {
             setError("Cannot log audit: Employee data incomplete");
             return;
           }
-
           employeeIdToUse = deletedEmployee.employeeId;
           userIdToUse = deletedEmployee.userId;
-
           const deletedCompanyName =
             deletedEmployee.companyId && companies?.length > 0
               ? companies.find((c) => c.companyId === deletedEmployee.companyId)
                   ?.name || deletedEmployee.companyId
               : "None";
-
           const deletedRoleNames =
             deletedEmployee.companyRoles?.length > 0 &&
             availableRoles?.length > 0
@@ -1356,12 +1178,10 @@ export default function AdminDashboard() {
                     roleId
                 )
               : ["None"];
-
           const deletedLocationNames =
             deletedEmployee.locations?.length > 0
               ? deletedEmployee.locations.map((loc) => loc.name)
               : ["None"];
-
           auditDetails = {
             ...auditDetails,
             message: `Employee record deleted by ${performedByName}`,
@@ -1381,19 +1201,14 @@ export default function AdminDashboard() {
           };
           break;
       }
-
       const requestBody = {
         action,
         employeeId: employeeIdToUse,
         userId: userIdToUse,
         details: auditDetails,
       };
-
-      console.log("Request body being sent:", requestBody);
-
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       try {
         const res = await fetch("/api/admin/audit", {
           method: "POST",
@@ -1401,11 +1216,8 @@ export default function AdminDashboard() {
           body: JSON.stringify(requestBody),
           signal: controller.signal,
         });
-
         clearTimeout(timeoutId);
-
         console.log("Audit log response status:", res.status);
-
         if (res.ok) {
           const responseData = await res.json();
           console.log("Audit log response data:", responseData);
@@ -1417,7 +1229,6 @@ export default function AdminDashboard() {
             console.error("Failed to parse error response:", parseError);
             errorData = { error: "Failed to parse error response" };
           }
-
           console.error("Failed to log audit:", {
             status: res.status,
             statusText: res.statusText,
@@ -1428,7 +1239,6 @@ export default function AdminDashboard() {
         }
       } catch (fetchError: unknown) {
         clearTimeout(timeoutId);
-
         if (
           fetchError instanceof DOMException &&
           fetchError.name === "AbortError"
@@ -1441,7 +1251,6 @@ export default function AdminDashboard() {
         }
         return;
       }
-
       console.log("=== END AUDIT LOG ===");
     } catch (error) {
       console.error("Error logging audit:", {
@@ -1451,12 +1260,10 @@ export default function AdminDashboard() {
         errorType: Object.prototype.toString.call(error),
         errorConstructor: error?.constructor?.name,
       });
-
       if (error && typeof error === "object") {
         console.error("Error object keys:", Object.keys(error));
         console.error("Error object:", error);
       }
-
       setError("An error occurred while logging audit");
     }
   };
@@ -1464,19 +1271,15 @@ export default function AdminDashboard() {
   const handleAudit = async () => {
     if (currentEmployeeIndex >= 0) {
       try {
-        const searchValue = employees[currentEmployeeIndex].employeeId; // Use employeeId for audit query
+        const searchValue = employees[currentEmployeeIndex].employeeId;
         console.log("Fetching audit logs for employeeId:", searchValue);
-
         const res = await fetch(
           `/api/admin/audit?employeeId=${encodeURIComponent(searchValue)}`
         );
         console.log("Response status:", res.status);
-
         if (res.ok) {
           const data = await res.json();
           console.log("Response data:", data);
-
-          // Ensure data is an array and normalize the structure
           const logs = Array.isArray(data) ? data : data.data || [];
           const normalizedLogs = logs.map((log: any) => ({
             action: log.action,
@@ -1495,14 +1298,11 @@ export default function AdminDashboard() {
               name: log.details?.name || "Unknown",
             },
           }));
-
           console.log("Processed logs:", normalizedLogs);
-
           setAuditLogs(normalizedLogs);
           setFilteredAuditLogs(normalizedLogs);
           setShowAuditModal(true);
           setCurrentPage(1);
-
           setSearchQuery("");
           setFilterAction("");
           setFilterDateRange("");
@@ -1526,10 +1326,11 @@ export default function AdminDashboard() {
           <head>
             <title>Employee Details</title>
             <style>
-              body { font-family: Arial, sans-serif; padding: 20px; }
-              h1 { text-align: center; }
+              body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; }
+              h1 { text-align: center; font-size: 18px; }
               .details { margin: 20px 0; }
-              .details div { margin: 5px 0; }
+              .details div { margin: 8px 0; font-size: 14px; }
+              strong { font-weight: 600; }
             </style>
           </head>
           <body>
@@ -1589,8 +1390,8 @@ export default function AdminDashboard() {
     items.forEach(traverse);
     return modules;
   };
+
   const availableModules = () => {
-    const { data: session } = useSession();
     const userRole = session?.user?.role || "employee";
     return getAllModules(adminEmployeeNavData, userRole).filter(
       (item): item is { path: string; label: string } =>
@@ -1637,7 +1438,6 @@ export default function AdminDashboard() {
 
   const handleSearchKeyDown = (e: React.KeyboardEvent) => {
     if (filteredEmployees.length === 0) return;
-
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
@@ -1668,681 +1468,563 @@ export default function AdminDashboard() {
   return (
     <ProtectedRoute allowedRoles={["admin", "employee"]}>
       <div
-        className="min-h-screen"
+        className="min-h-screen flex"
         style={{
           background: "linear-gradient(135deg, #f0f0f0 0%, #d8d8d8 100%)",
-          fontFamily: "Segoe UI, Tahoma, Geneva, Verdana, sans-serif",
-        }}
-      >
+          fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+        }}>
+        {/* Left Sidebar for Toolbar */}
         <div
-          className="bg-white shadow-sm border-b"
+          style={{
+            borderRight: "2px outset #c0c0c0",
+            background: "linear-gradient(to bottom, #f0f0f0 0%, #e0e0e0 100%)",
+          }}>
+          <WindowsToolbar
+            modulePath="/dashboard/admin/employees"
+            onAddNew={handleAddNew}
+            onSave={handleSave}
+            onClear={handleClear}
+            onExit={handleExit}
+            onUp={handleUp}
+            onDown={handleDown}
+            onSearch={handleSearch}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onAudit={handleAudit}
+            onPrint={handlePrint}
+            onHelp={handleHelp}
+          />
+        </div>
+
+        {/* Main Content */}
+        <div
+          className="flex justify-between items-center w-full pl-16"
           style={{
             background:
-              "linear-gradient(to bottom, #e9f3ff 0%, #d0e7ff 50%, #b0d1ff 100%)",
-            border: "1px outset #c0c0c0",
-          }}
-        ></div>
+              "linear-gradient(180deg, #e4f2ff 0%, #d1e7fe 50%, #b6d6ff 100%)",
+            fontFamily: "Segoe UI, Tahoma, Geneva, Verdana, sans-serif",
+          }}>
+          <div className="flex-1 p-6">
+            <div
+              className="w-full shadow-[inset_2px_2px_0px_#ffffff,inset_-2px_-2px_0px_#4b5563] rounded-lg"
+              style={{
+                background:
+                  "linear-gradient(to bottom, #f5f6f5 0%, #e0e1e0 100%)",
+                border: "2px solid #8c8c8c",
+              }}>
+              {/* Tabbed Header */}
+              <div
+                className="border-b-2 border-[#8c8c8c] bg-gradient-to-r from-[#c6d8f0] to-[#ffffff] px-4 py-2 flex items-center"
+                style={{
+                  boxShadow:
+                    "inset 1px 1px 0px #ffffff, inset -1px -1px 0px #8c8c8c",
+                }}>
+                <h2 className="text-lg font-bold text-[#003087]">
+                  Employee Management
+                </h2>
+              </div>
 
-        <WindowsToolbar
-          modulePath="/dashboard/admin/employees"
-          onAddNew={handleAddNew}
-          onSave={handleSave}
-          onClear={handleClear}
-          onExit={handleExit}
-          onUp={handleUp}
-          onDown={handleDown}
-          onSearch={handleSearch}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onAudit={handleAudit}
-          onPrint={handlePrint}
-          onHelp={handleHelp}
-        />
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div
-            className="rounded-lg shadow p-6"
-            style={{
-              background:
-                "linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)",
-              border: "1px outset #c0c0c0",
-            }}
-          >
-            <h2 className="text-lg font-semibold mb-6">Employee Management</h2>
-            <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700">
-                  User ID *
-                </label>
-                <input
-                  type="text"
-                  ref={userIdInputRef}
-                  required
-                  disabled={!isEditable}
-                  className="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none disabled:bg-gray-100"
-                  style={{
-                    border: "1px inset #c0c0c0",
-                    background: isEditable ? "#ffffff" : "#f0f0f0",
-                    fontFamily: "Segoe UI, Tahoma, Geneva, Verdana, sans-serif",
-                  }}
-                  value={formData.userId}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setFormData({ ...formData, userId: value });
-                    fetchUserIdSuggestions(value);
-                  }}
-                  onKeyDown={handleUserIdKeyDown}
-                  onBlur={() => {
-                    // Delay hiding suggestions to allow click selection
-                    setTimeout(() => {
-                      setShowSuggestions(false);
-                      setSelectedSuggestionIndex(-1);
-                    }, 200);
-                  }}
-                  autoComplete="off"
-                />
-
-                {/* Suggestions dropdown */}
-                {showSuggestions && userIdSuggestions.length > 0 && (
-                  <div
-                    className="absolute z-10 w-full bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto"
-                    style={{
-                      border: "1px solid #c0c0c0",
-                      top: "100%",
-                      marginTop: "2px",
-                    }}
-                  >
-                    {userIdSuggestions.map((suggestion, index) => (
-                      <div
-                        key={suggestion}
-                        className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${
-                          index === selectedSuggestionIndex ? "bg-blue-100" : ""
-                        }`}
-                        onClick={() => {
+              {/* Form */}
+              <form onSubmit={(e) => e.preventDefault()} className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* General Information */}
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <label className="block text-sm font-bold text-[#003087] mb-1">
+                        User ID *
+                      </label>
+                      <input
+                        type="text"
+                        ref={userIdInputRef}
+                        required
+                        disabled={!isEditable}
+                        className="w-full px-3 py-2 text-sm border bg-white rounded focus:outline-none focus:ring-2 focus:ring-[#0052cc] disabled:bg-[#d8d8d8]"
+                        style={{
+                          border: "2px solid #8c8c8c",
+                          boxShadow:
+                            "inset 2px 2px 0px #4b5563, inset -2px -2px 0px #ffffff",
+                        }}
+                        value={formData.userId}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setFormData({ ...formData, userId: value });
+                          fetchUserIdSuggestions(value);
+                        }}
+                        onKeyDown={handleUserIdKeyDown}
+                        onBlur={() => {
+                          setTimeout(() => {
+                            setShowSuggestions(false);
+                            setSelectedSuggestionIndex(-1);
+                          }, 200);
+                        }}
+                        autoComplete="off"
+                      />
+                      {showSuggestions && userIdSuggestions.length > 0 && (
+                        <div
+                          className="absolute z-10 w-full bg-[#f5f6f5] shadow-[inset_2px_2px_0px_#ffffff,inset_-2px_-2px_0px_#4b5563] max-h-48 overflow-y-auto rounded"
+                          style={{
+                            border: "2px solid #8c8c8c",
+                            top: "100%",
+                            marginTop: "4px",
+                          }}>
+                          {userIdSuggestions.map((suggestion, index) => (
+                            <div
+                              key={suggestion}
+                              className={`px-3 py-2 cursor-pointer text-sm ${
+                                index === selectedSuggestionIndex
+                                  ? "bg-[#0052cc] text-white"
+                                  : "hover:bg-[#c6d8f0]"
+                              }`}
+                              onClick={() => {
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  userId: suggestion,
+                                }));
+                                setShowSuggestions(false);
+                                fetchUserData(suggestion);
+                              }}>
+                              {suggestion}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-[#003087] mb-1">
+                        Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        disabled={!isEditable}
+                        minLength={6}
+                        className="w-full px-3 py-2 text-sm border bg-white rounded focus:outline-none focus:ring-2 focus:ring-[#0052cc] disabled:bg-[#d8d8d8]"
+                        style={{
+                          border: "2px solid #8c8c8c",
+                          boxShadow:
+                            "inset 2px 2px 0px #4b5563, inset -2px -2px 0px #ffffff",
+                        }}
+                        value={formData.name}
+                        onChange={(e) =>
+                          setFormData({ ...formData, name: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-[#003087] mb-1">
+                        Password *
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        disabled={!isEditable}
+                        minLength={6}
+                        className="w-full px-3 py-2 text-sm border bg-white rounded focus:outline-none focus:ring-2 focus:ring-[#0052cc] disabled:bg-[#d8d8d8]"
+                        style={{
+                          border: "2px solid #8c8c8c",
+                          boxShadow:
+                            "inset 2px 2px 0px #4b5563, inset -2px -2px 0px #ffffff",
+                        }}
+                        value={formData.password}
+                        onChange={(e) =>
+                          setFormData({ ...formData, password: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-[#003087] mb-1">
+                        Company *
+                      </label>
+                      <select
+                        required
+                        disabled={!isEditable}
+                        className="w-full px-3 py-2 text-sm border bg-white rounded focus:outline-none focus:ring-2 focus:ring-[#0052cc] disabled:bg-[#d8d8d8]"
+                        style={{
+                          border: "2px solid #8c8c8c",
+                          boxShadow:
+                            "inset 2px 2px 0px #4b5563, inset -2px -2px 0px #ffffff",
+                        }}
+                        value={formData.companyId}
+                        onChange={(e) => {
+                          const newCompanyId = e.target.value;
                           setFormData((prev) => ({
                             ...prev,
-                            userId: suggestion,
+                            companyId: newCompanyId,
+                            locationIds:
+                              session?.user?.companies
+                                ?.find((c) => c.companyId === newCompanyId)
+                                ?.locations?.map(
+                                  (loc: Location) => loc.locationId
+                                ) || [],
                           }));
-                          setShowSuggestions(false);
-                          fetchUserData(suggestion);
-                        }}
-                      >
-                        {suggestion}
-                      </div>
-                    ))}
+                        }}>
+                        <option value="" disabled>
+                          Select a company
+                        </option>
+                        {companies.map((company) => (
+                          <option
+                            key={company.companyId}
+                            value={company.companyId}>
+                            {company.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                )}
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  disabled={!isEditable}
-                  minLength={6}
-                  className="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none disabled:bg-gray-100"
-                  style={{
-                    border: "1px inset #c0c0c0",
-                    background: isEditable ? "#ffffff" : "#f0f0f0",
-                    fontFamily: "Segoe UI, Tahoma, Geneva, Verdana, sans-serif",
-                  }}
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Password *
-                </label>
-                <input
-                  type="password"
-                  required
-                  disabled={!isEditable}
-                  minLength={6}
-                  className="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none disabled:bg-gray-100"
-                  style={{
-                    border: "1px inset #c0c0c0",
-                    background: isEditable ? "#ffffff" : "#f0f0f0",
-                    fontFamily: "Segoe UI, Tahoma, Geneva, Verdana, sans-serif",
-                  }}
-                  value={formData.password}
-                  onChange={(e) =>
-                    setFormData({ ...formData, password: e.target.value })
-                  }
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Company *
-                </label>
-                <select
-                  required
-                  disabled={!isEditable}
-                  className="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none disabled:bg-gray-100"
-                  style={{
-                    border: "1px inset #c0c0c0",
-                    background: isEditable ? "#ffffff" : "#f0f0f0",
-                    fontFamily: "Segoe UI, Tahoma, Geneva, Verdana, sans-serif",
-                  }}
-                  value={formData.companyId}
-                  onChange={(e) => {
-                    const newCompanyId = e.target.value;
-                    // Update companyId and reset locationIds to the new company's locations
-                    setFormData((prev) => ({
-                      ...prev,
-                      companyId: newCompanyId,
-                      locationIds:
-                        session?.user?.companies
-                          ?.find((c) => c.companyId === newCompanyId)
-                          ?.locations?.map((loc: Location) => loc.locationId) ||
-                        [],
-                    }));
-                  }}
-                >
-                  <option value="" disabled>
-                    Select a company
-                  </option>
-                  {companies.map((company) => (
-                    <option key={company.companyId} value={company.companyId}>
-                      {company.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Company Roles
-                </label>
-                <div className="mt-2 space-y-2">
-                  {availableRoles.map((role) => (
-                    <div key={role.roleId} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id={role.roleId}
-                        disabled={!isEditable}
-                        checked={formData.companyRoles.includes(role.roleId)}
-                        onChange={() => toggleRole(role.roleId)}
-                        className="h-4 w-4 text-blue-600 border-gray-300 rounded disabled:bg-gray-100"
-                        style={{ border: "1px inset #c0c0c0" }}
-                      />
-                      <label
-                        htmlFor={role.roleId}
-                        className="ml-2 text-sm text-gray-900"
-                      >
-                        {role.name}{" "}
-                        {role.description && (
-                          <span className="text-gray-500">
-                            ({role.description})
-                          </span>
-                        )}
+                  {/* Roles */}
+                  <div className="space-y-4">
+                    <div
+                      className="p-4 rounded"
+                      style={{
+                        border: "2px solid #8c8c8c",
+                        background:
+                          "linear-gradient(to bottom, #f5f6f5 0%, #e0e1e0 100%)",
+                        boxShadow:
+                          "inset 2px 2px 0px #ffffff, inset -2px -2px 0px #4b5563",
+                      }}>
+                      <label className="block text-sm font-bold text-[#003087] mb-3">
+                        Company Roles
                       </label>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {availableRoles.map((role) => (
+                          <div key={role.roleId} className="flex items-center">
+                            <input
+                              type="checkbox"
+                              id={role.roleId}
+                              disabled={!isEditable}
+                              checked={formData.companyRoles.includes(
+                                role.roleId
+                              )}
+                              onChange={() => toggleRole(role.roleId)}
+                              className="h-4 w-4 text-[#0052cc] border-[#8c8c8c] rounded focus:ring-[#0052cc] disabled:opacity-50"
+                              style={{ border: "2px solid #8c8c8c" }}
+                            />
+                            <label
+                              htmlFor={role.roleId}
+                              className="ml-2 text-sm text-[#003087]">
+                              {role.name}{" "}
+                              {role.description && (
+                                <span className="text-gray-500">
+                                  ({role.description})
+                                </span>
+                              )}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Locations
-                </label>
-                <div className="mt-2 space-y-2">
-                  {availableLocations.map((loc) => (
-                    <div key={loc.locationId} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id={loc.locationId}
-                        disabled={!isEditable}
-                        checked={formData.locationIds.includes(loc.locationId)}
-                        onChange={() => toggleLocation(loc.locationId)}
-                        className="h-4 w-4 text-blue-600 border-gray-300 rounded disabled:bg-gray-100"
-                        style={{ border: "1px inset #c0c0c0" }}
-                      />
-                      <label
-                        htmlFor={loc.locationId}
-                        className="ml-2 text-sm text-gray-900"
-                      >
-                        {loc.name}
+                  {/* Locations and Modules */}
+                  <div className="space-y-4">
+                    <div
+                      className="p-4 rounded"
+                      style={{
+                        border: "2px solid #8c8c8c",
+                        background:
+                          "linear-gradient(to bottom, #f5f6f5 0%, #e0e1e0 100%)",
+                        boxShadow:
+                          "inset 2px 2px 0px #ffffff, inset -2px -2px 0px #4b5563",
+                      }}>
+                      <label className="block text-sm font-bold text-[#003087] mb-3">
+                        Locations
                       </label>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {availableLocations.map((loc) => (
+                          <div
+                            key={loc.locationId}
+                            className="flex items-center">
+                            <input
+                              type="checkbox"
+                              id={loc.locationId}
+                              disabled={!isEditable}
+                              checked={formData.locationIds.includes(
+                                loc.locationId
+                              )}
+                              onChange={() => toggleLocation(loc.locationId)}
+                              className="h-4 w-4 text-[#0052cc] border-[#8c8c8c] rounded focus:ring-[#0052cc] disabled:opacity-50"
+                              style={{ border: "2px solid #8c8c8c" }}
+                            />
+                            <label
+                              htmlFor={loc.locationId}
+                              className="ml-2 text-sm text-[#003087]">
+                              {loc.name}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Module Access
-                </label>
-                <div className="mt-2 space-y-2">
-                  {availableModules().map((mod, id) => (
-                    <div key={id} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id={mod.path}
-                        disabled={!isEditable}
-                        checked={formData.moduleAccess.some(
-                          (m) => m.modulePath === mod.path
-                        )}
-                        onChange={() => toggleModule(mod.path, mod.label)}
-                        className="h-4 w-4 text-blue-600 border-gray-300 rounded disabled:bg-gray-100"
-                        style={{ border: "1px inset #c0c0c0" }}
-                      />
-                      <label
-                        htmlFor={mod.path}
-                        className="ml-2 text-sm text-gray-900"
-                      >
-                        {mod.label}
+                    <div
+                      className="p-4 rounded"
+                      style={{
+                        border: "2px solid #8c8c8c",
+                        background:
+                          "linear-gradient(to bottom, #f5f6f5 0%, #e0e1e0 100%)",
+                        boxShadow:
+                          "inset 2px 2px 0px #ffffff, inset -2px -2px 0px #4b5563",
+                      }}>
+                      <label className="block text-sm font-bold text-[#003087] mb-3">
+                        Module Access
                       </label>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {availableModules().map((mod, id) => (
+                          <div key={id} className="flex items-center">
+                            <input
+                              type="checkbox"
+                              id={mod.path}
+                              disabled={!isEditable}
+                              checked={formData.moduleAccess.some(
+                                (m) => m.modulePath === mod.path
+                              )}
+                              onChange={() => toggleModule(mod.path, mod.label)}
+                              className="h-4 w-4 text-[#0052cc] border-[#8c8c8c] rounded focus:ring-[#0052cc] disabled:opacity-50"
+                              style={{ border: "2px solid #8c8c8c" }}
+                            />
+                            <label
+                              htmlFor={mod.path}
+                              className="ml-2 text-sm text-[#003087]">
+                              {mod.label}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
+                  </div>
                 </div>
-              </div>
 
-              {error && <div className="text-red-600 text-sm">{error}</div>}
-              {message && (
-                <div className="text-green-600 text-sm">{message}</div>
-              )}
-            </form>
+                {/* Status Messages */}
+                <div className="mt-6 space-y-2">
+                  {error && (
+                    <div
+                      className="p-3 text-sm text-[#a40000] rounded"
+                      style={{
+                        background:
+                          "linear-gradient(to bottom, #ffe6e6 0%, #ffd1d1 100%)",
+                        border: "2px solid #8c8c8c",
+                        boxShadow:
+                          "inset 2px 2px 0px #ffffff, inset -2px -2px 0px #4b5563",
+                      }}>
+                      {error}
+                    </div>
+                  )}
+                  {message && (
+                    <div
+                      className="p-3 text-sm text-[#006600] rounded"
+                      style={{
+                        background:
+                          "linear-gradient(to bottom, #e6ffe6 0%, #d1ffd1 100%)",
+                        border: "2px solid #8c8c8c",
+                        boxShadow:
+                          "inset 2px 2px 0px #ffffff, inset -2px -2px 0px #4b5563",
+                      }}>
+                      {message}
+                    </div>
+                  )}
+                </div>
+              </form>
+            </div>
           </div>
         </div>
 
         {/* Search Modal */}
         {showSearchModal && (
-          <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0  bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
             <div
-              className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[80vh] overflow-hidden"
+              className="bg-white w-full max-w-4xl max-h-[80vh] overflow-hidden"
               style={{
-                border: "1px outset #c0c0c0",
+                border: "2px outset #c0c0c0",
                 background:
                   "linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)",
-              }}
-            >
-              <h2 className="text-lg font-semibold mb-4">Search Employees</h2>
-
-              {/* Search Input */}
-              <div className="mb-4">
-                <input
-                  type="text"
-                  placeholder="Search by name or user ID... (Use arrow keys to navigate, Enter to select)"
-                  className="w-full px-3 py-2 border rounded-md"
-                  style={{
-                    border: "1px inset #c0c0c0",
-                    background: "#ffffff",
-                  }}
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    filterEmployees(e.target.value);
-                  }}
-                  onKeyDown={handleSearchKeyDown}
-                  autoFocus
-                />
-              </div>
-
-              {/* Employee List */}
+              }}>
               <div
-                className="mb-4 max-h-96 overflow-y-auto border rounded-md"
-                style={{ border: "1px inset #c0c0c0" }}
-              >
-                <table className="w-full">
-                  <thead
-                    style={{
-                      background: "#f0f0f0",
-                      position: "sticky",
-                      top: 0,
-                    }}
-                  >
-                    <tr>
-                      <th className="text-left p-2 border-b">User ID</th>
-                      <th className="text-left p-2 border-b">Name</th>
-                      <th className="text-left p-2 border-b">Roles</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredEmployees.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={4}
-                          className="text-center p-4 text-gray-500"
-                        >
-                          {searchQuery
-                            ? "No employees found matching your search"
-                            : "No employees available"}
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredEmployees.map((employee, index) => (
-                        <tr
-                          key={employee.employeeId}
-                          className={`border-b hover:bg-blue-50 cursor-pointer ${
-                            selectedEmployeeIndex === index ? "bg-blue-200" : ""
-                          }`}
-                          onClick={() => setSelectedEmployeeIndex(index)}
-                        >
-                          <td className="p-2 font-mono text-sm">
-                            {employee.userId}
-                          </td>
-                          <td className="p-2">{employee.name}</td>
-
-                          <td className="p-2">
-                            {employee.companyRoles
-                              .map((roleId) => {
-                                const role = availableRoles.find(
-                                  (r) => r.roleId === roleId
-                                );
-                                return role?.name;
-                              })
-                              .filter(Boolean)
-                              .join(", ") || "None"}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Selected Employee Info */}
-              {selectedEmployeeIndex >= 0 &&
-                filteredEmployees[selectedEmployeeIndex] && (
-                  <div
-                    className="mb-4 p-3 bg-blue-50 rounded-md border"
-                    style={{ border: "1px inset #c0c0c0" }}
-                  >
-                    <h3 className="font-semibold text-sm mb-2">
-                      Selected Employee:
-                    </h3>
-                    <p className="text-sm">
-                      <strong>User ID:</strong>{" "}
-                      {filteredEmployees[selectedEmployeeIndex].userId} |
-                      <strong> Name:</strong>{" "}
-                      {filteredEmployees[selectedEmployeeIndex].name}
-                    </p>
-                  </div>
-                )}
-
-              {/* Action Buttons */}
-              <div className="flex justify-end space-x-2">
-                <button
-                  onClick={handleImplementQuery}
-                  disabled={selectedEmployeeIndex === -1}
-                  className={`px-4 py-2 rounded-md ${
-                    selectedEmployeeIndex === -1
-                      ? "opacity-50 cursor-not-allowed"
-                      : ""
-                  }`}
-                  style={{
-                    background:
-                      "linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)",
-                    border: "1px outset #c0c0c0",
-                  }}
-                >
-                  Select Employee
-                </button>
+                className="px-4 py-2 flex justify-between items-center"
+                style={{
+                  background:
+                    "linear-gradient(to bottom, #000080 0%, #1084d0 100%)",
+                  borderBottom: "2px outset #c0c0c0",
+                  color: "white",
+                }}>
+                <span className="text-sm font-medium">Search Employees</span>
                 <button
                   onClick={() => {
                     setShowSearchModal(false);
                     setSearchQuery("");
                     setSelectedEmployeeIndex(-1);
                   }}
-                  className="px-4 py-2 rounded-md"
+                  className="w-6 h-6 flex items-center justify-center text-sm"
                   style={{
                     background:
                       "linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)",
-                    border: "1px outset #c0c0c0",
-                  }}
-                >
-                  Cancel
+                    border: "2px outset #c0c0c0",
+                  }}>
+                  ×
                 </button>
+              </div>
+              <div className="p-4">
+                <div className="mb-4">
+                  <input
+                    type="text"
+                    placeholder="Search by name or user ID..."
+                    className="w-full px-3 py-2 text-sm border"
+                    style={{
+                      border: "2px inset #c0c0c0",
+                      background: "#ffffff",
+                    }}
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      filterEmployees(e.target.value);
+                    }}
+                    onKeyDown={handleSearchKeyDown}
+                    autoFocus
+                  />
+                </div>
+                <div
+                  className="mb-4 max-h-96 overflow-y-auto"
+                  style={{ border: "2px inset #c0c0c0" }}>
+                  <table className="w-full text-sm">
+                    <thead
+                      style={{
+                        background:
+                          "linear-gradient(to bottom, #f0f0f0 0%, #e0e0e0 100%)",
+                        position: "sticky",
+                        top: 0,
+                      }}>
+                      <tr>
+                        <th className="text-left p-2 border-b border-gray-400">
+                          User ID
+                        </th>
+                        <th className="text-left p-2 border-b border-gray-400">
+                          Name
+                        </th>
+                        <th className="text-left p-2 border-b border-gray-400">
+                          Roles
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredEmployees.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={3}
+                            className="text-center p-4 text-gray-500">
+                            {searchQuery
+                              ? "No employees found matching your search"
+                              : "No employees available"}
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredEmployees.map((employee, index) => (
+                          <tr
+                            key={employee.employeeId}
+                            className={`border-b border-gray-300 hover:bg-blue-50 cursor-pointer ${
+                              selectedEmployeeIndex === index
+                                ? "bg-blue-200"
+                                : ""
+                            }`}
+                            onClick={() => setSelectedEmployeeIndex(index)}>
+                            <td className="p-2 font-mono">{employee.userId}</td>
+                            <td className="p-2">{employee.name}</td>
+                            <td className="p-2">
+                              {employee.companyRoles
+                                .map((roleId) => {
+                                  const role = availableRoles.find(
+                                    (r) => r.roleId === roleId
+                                  );
+                                  return role?.name;
+                                })
+                                .filter(Boolean)
+                                .join(", ") || "None"}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {selectedEmployeeIndex >= 0 &&
+                  filteredEmployees[selectedEmployeeIndex] && (
+                    <div
+                      className="mb-4 p-3"
+                      style={{
+                        border: "2px inset #c0c0c0",
+                        background:
+                          "linear-gradient(to bottom, #e6f3ff 0%, #cce9ff 100%)",
+                      }}>
+                      <h3 className="font-semibold text-sm mb-2">
+                        Selected Employee:
+                      </h3>
+                      <p className="text-sm">
+                        <strong>User ID:</strong>{" "}
+                        {filteredEmployees[selectedEmployeeIndex].userId} |
+                        <strong> Name:</strong>{" "}
+                        {filteredEmployees[selectedEmployeeIndex].name}
+                      </p>
+                    </div>
+                  )}
+                <div className="flex justify-end space-x-2">
+                  <button
+                    onClick={handleImplementQuery}
+                    disabled={selectedEmployeeIndex === -1}
+                    className={`px-4 py-2 text-sm ${
+                      selectedEmployeeIndex === -1
+                        ? "opacity-50 cursor-not-allowed"
+                        : ""
+                    }`}
+                    style={{
+                      background:
+                        "linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)",
+                      border: "2px outset #c0c0c0",
+                    }}>
+                    Select Employee
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowSearchModal(false);
+                      setSearchQuery("");
+                      setSelectedEmployeeIndex(-1);
+                    }}
+                    className="px-4 py-2 text-sm"
+                    style={{
+                      background:
+                        "linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)",
+                      border: "2px outset #c0c0c0",
+                    }}>
+                    Cancel
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         )}
-
         {/* Audit Log Modal */}
         {showAuditModal && (
-          <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
             <div
-              className="bg-white rounded-lg p-6 w-full max-w-5xl max-h-[90vh] overflow-y-auto"
+              className="bg-white w-full max-w-5xl max-h-[90vh] overflow-hidden"
               style={{
-                border: "1px solid #ccc",
+                border: "2px outset #c0c0c0",
                 background:
-                  "linear-gradient(to bottom, #f9f9f9 0%, #eaeaea 100%)",
-              }}
-            >
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-gray-800">Audit Log</h2>
-                <div className="text-sm text-gray-600">
+                  "linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)",
+              }}>
+              <div
+                className="px-4 py-2 flex justify-between items-center"
+                style={{
+                  background:
+                    "linear-gradient(to bottom, #000080 0%, #1084d0 100%)",
+                  borderBottom: "2px outset #c0c0c0",
+                  color: "white",
+                }}>
+                <div className="flex items-center space-x-4">
+                  <span className="text-sm font-medium">Audit Log</span>
                   {currentEmployeeIndex >= 0 && (
-                    <>
+                    <span className="text-sm">
                       Employee: {employees[currentEmployeeIndex].name} (
                       {employees[currentEmployeeIndex].userId})
-                    </>
+                    </span>
                   )}
                 </div>
-              </div>
-
-              {/* Search and Filters */}
-              <div className="mb-6 p-4 bg-gray-50 rounded-md border border-gray-300">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Search Input */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Search Logs
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Search by action, user ID, or details..."
-                      className="w-full px-3 py-2 border rounded-md"
-                      style={{
-                        border: "1px inset #c0c0c0",
-                        background: "#ffffff",
-                      }}
-                      value={searchQuery}
-                      onChange={(e) => {
-                        setSearchQuery(e.target.value);
-                        filterAuditLogs(
-                          e.target.value,
-                          filterAction,
-                          filterDateRange
-                        );
-                      }}
-                    />
-                  </div>
-
-                  {/* Action Filter */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Filter by Action
-                    </label>
-                    <select
-                      className="w-full px-3 py-2 border rounded-md"
-                      style={{
-                        border: "1px inset #c0c0c0",
-                        background: "#ffffff",
-                      }}
-                      value={filterAction}
-                      onChange={(e) => {
-                        setFilterAction(e.target.value);
-                        filterAuditLogs(
-                          searchQuery,
-                          e.target.value,
-                          filterDateRange
-                        );
-                      }}
-                    >
-                      <option value="">All Actions</option>
-                      <option value="CREATE">Create</option>
-                      <option value="UPDATE">Update</option>
-                      <option value="DELETE">Delete</option>
-                    </select>
-                  </div>
-
-                  {/* Date Range Filter */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Filter by Date Range
-                    </label>
-                    <select
-                      className="w-full px-3 py-2 border rounded-md"
-                      style={{
-                        border: "1px inset #c0c0c0",
-                        background: "#ffffff",
-                      }}
-                      value={filterDateRange}
-                      onChange={(e) => {
-                        setFilterDateRange(e.target.value);
-                        filterAuditLogs(
-                          searchQuery,
-                          filterAction,
-                          e.target.value
-                        );
-                      }}
-                    >
-                      <option value="">All Dates</option>
-                      <option value="today">Today</option>
-                      <option value="week">Last 7 Days</option>
-                      <option value="month">Last 30 Days</option>
-                      <option value="year">Last Year</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Audit Log Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full table-auto border-collapse border border-gray-300">
-                  <thead>
-                    <tr className="bg-gray-100 text-sm font-semibold text-gray-700">
-                      <th className="p-3 text-left border border-gray-300 w-20">
-                        Action
-                      </th>
-                      <th className="p-3 text-left border border-gray-300 w-40">
-                        Timestamp
-                      </th>
-                      <th className="p-3 text-left border border-gray-300 w-24">
-                        User
-                      </th>
-                      <th className="p-3 text-left border border-gray-300">
-                        Details
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currentLogs.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={4}
-                          className="p-6 text-center text-gray-500 border border-gray-300"
-                        >
-                          No audit logs found for this employee
-                        </td>
-                      </tr>
-                    ) : (
-                      currentLogs.map((log, index) => (
-                        <tr
-                          key={index}
-                          className="border-b hover:bg-gray-50 transition duration-100"
-                        >
-                          <td className="p-3 align-top border border-gray-300">
-                            <span
-                              className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                                log.action === "CREATE"
-                                  ? "bg-green-100 text-green-800"
-                                  : log.action === "UPDATE"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : "bg-red-100 text-red-800"
-                              }`}
-                            >
-                              {log.action}
-                            </span>
-                          </td>
-                          <td className="p-3 align-top border border-gray-300 text-sm text-gray-600">
-                            <div>
-                              {new Date(log.timestamp).toLocaleDateString()}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {new Date(log.timestamp).toLocaleTimeString()}
-                            </div>
-                          </td>
-                          <td className="p-3 align-top border border-gray-300 text-sm text-gray-600">
-                            {log.details.userId}
-                          </td>
-                          <td className="p-3 align-top border border-gray-300">
-                            {renderAuditDetails(log.details)}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Enhanced Pagination */}
-              <div
-                className="flex justify-between items-center mt-4 pt-4 
-      border-t border-gray-300"
-              >
-                <div className="text-sm text-gray-600">
-                  Showing{" "}
-                  {currentLogs.length > 0
-                    ? (currentPage - 1) * logsPerPage + 1
-                    : 0}
-                  –
-                  {Math.min(
-                    currentPage * logsPerPage,
-                    filteredAuditLogs.length
-                  )}{" "}
-                  of {filteredAuditLogs.length} entries
-                </div>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
-                    className="px-2 py-1 text-sm rounded-md bg-gray-200 disabled:opacity-50"
-                  >
-                    First
-                  </button>
-                  <button
-                    onClick={() =>
-                      setCurrentPage((prev) => Math.max(1, prev - 1))
-                    }
-                    disabled={currentPage === 1}
-                    className="px-3 py-1 text-sm rounded-md bg-gray-200 disabled:opacity-50"
-                  >
-                    Previous
-                  </button>
-                  <span className="text-sm text-gray-600">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <button
-                    onClick={() =>
-                      setCurrentPage((prev) => Math.min(totalPages, prev + 1))
-                    }
-                    disabled={currentPage === totalPages}
-                    className="px-3 py-1 text-sm rounded-md bg-gray-200 disabled:opacity-50"
-                  >
-                    Next
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
-                    className="px-2 py-1 text-sm rounded-md bg-gray-200 disabled:opacity-50"
-                  >
-                    Last
-                  </button>
-                </div>
-              </div>
-
-              {/* Close Button */}
-              <div className="mt-6 flex justify-end">
                 <button
                   onClick={() => {
                     setShowAuditModal(false);
@@ -2352,92 +2034,213 @@ export default function AdminDashboard() {
                     setFilteredAuditLogs(auditLogs);
                     setCurrentPage(1);
                   }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
-                >
-                  Close
+                  className="w-6 h-6 flex items-center justify-center text-sm"
+                  style={{
+                    background:
+                      "linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)",
+                    border: "2px outset #c0c0c0",
+                  }}>
+                  ❌
                 </button>
+              </div>
+              <div
+                className="p-4 overflow-y-auto"
+                style={{ maxHeight: "calc(90vh - 100px)" }}>
+                <div
+                  className="mb-6 p-4"
+                  style={{
+                    border: "2px inset #c0c0c0",
+                    background:
+                      "linear-gradient(to bottom, #f8f8f8 0%, #f0f0f0 100%)",
+                  }}>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Search Logs
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Search by action, user ID, or details..."
+                        className="w-full px-3 py-2 text-sm border"
+                        style={{
+                          border: "2px inset #c0c0c0",
+                          background: "#ffffff",
+                        }}
+                        value={searchQuery}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          filterAuditLogs(
+                            e.target.value,
+                            filterAction,
+                            filterDateRange
+                          );
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Filter by Action
+                      </label>
+                      <select
+                        className="w-full px-3 py-2 text-sm border"
+                        style={{
+                          border: "2px inset #c0c0c0",
+                          background: "#ffffff",
+                        }}
+                        value={filterAction}
+                        onChange={(e) => {
+                          setFilterAction(e.target.value);
+                          filterAuditLogs(
+                            searchQuery,
+                            e.target.value,
+                            filterDateRange
+                          );
+                        }}>
+                        <option value="">All Actions</option>
+                        <option value="CREATE">Create</option>
+                        <option value="UPDATE">Update</option>
+                        <option value="DELETE">Delete</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Filter by Date Range
+                      </label>
+                      <select
+                        className="w-full px-3 py-2 text-sm border"
+                        style={{
+                          border: "2px inset #c0c0c0",
+                          background: "#ffffff",
+                        }}
+                        value={filterDateRange}
+                        onChange={(e) => {
+                          setFilterDateRange(e.target.value);
+                          filterAuditLogs(
+                            searchQuery,
+                            filterAction,
+                            e.target.value
+                          );
+                        }}>
+                        <option value="">All Dates</option>
+                        <option value="today">Today</option>
+                        <option value="week">Last 7 Days</option>
+                        <option value="month">Last 30 Days</option>
+                        <option value="year">Last Year</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  className="overflow-x-auto"
+                  style={{ border: "2px inset #c0c0c0" }}>
+                  <table className="w-full table-auto text-sm">
+                    <thead>
+                      <tr
+                        style={{
+                          background:
+                            "linear-gradient(to bottom, #f0f0f0 0%, #e0e0e0 100%)",
+                        }}>
+                        <th className="p-3 text-left border-r border-gray-400 w-20">
+                          Action
+                        </th>
+                        <th className="p-3 text-left border-r border-gray-400 w-40">
+                          Timestamp
+                        </th>
+                        <th className="p-3 text-left border-r border-gray-400 w-24">
+                          User
+                        </th>
+                        <th className="p-3 text-left">Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {currentLogs.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={4}
+                            className="p-6 text-center text-gray-500">
+                            No audit logs found for this employee
+                          </td>
+                        </tr>
+                      ) : (
+                        currentLogs.map((log, index) => (
+                          <tr
+                            key={index}
+                            className="border-b border-gray-300 hover:bg-blue-50">
+                            <td className="p-3 border-r border-gray-300">
+                              {log.action}
+                            </td>
+                            <td className="p-3 border-r border-gray-300">
+                              {new Date(log.timestamp).toLocaleString()}
+                            </td>
+                            <td className="p-3 border-r border-gray-300">
+                              {log.details.performedByName || log.userId}
+                            </td>
+                            <td className="p-3">
+                              {renderAuditDetails(log.details)}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="flex justify-between items-center mt-4 px-4">
+                    <div className="text-sm text-gray-600">
+                      Showing {indexOfFirstLog + 1} to{" "}
+                      {Math.min(indexOfLastLog, filteredAuditLogs.length)} of{" "}
+                      {filteredAuditLogs.length} logs
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() =>
+                          setCurrentPage((prev) => Math.max(prev - 1, 1))
+                        }
+                        disabled={currentPage === 1}
+                        className={`px-3 py-1 text-sm ${
+                          currentPage === 1
+                            ? "opacity-50 cursor-not-allowed"
+                            : ""
+                        }`}
+                        style={{
+                          background:
+                            "linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)",
+                          border: "2px outset #c0c0c0",
+                        }}>
+                        Previous
+                      </button>
+                      <span className="text-sm text-gray-600">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <button
+                        onClick={() =>
+                          setCurrentPage((prev) =>
+                            Math.min(prev + 1, totalPages)
+                          )
+                        }
+                        disabled={currentPage === totalPages}
+                        className={`px-3 py-1 text-sm ${
+                          currentPage === totalPages
+                            ? "opacity-50 cursor-not-allowed"
+                            : ""
+                        }`}
+                        style={{
+                          background:
+                            "linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)",
+                          border: "2px outset #c0c0c0",
+                        }}>
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         )}
 
-        {/* Help Modal */}
-        {showHelpModal && (
-          <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
-            <div
-              className="bg-white rounded-lg p-6 w-full max-w-md"
-              style={{
-                border: "1px outset #c0c0c0",
-                background:
-                  "linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)",
-              }}
-            >
-              <h2 className="text-lg font-semibold mb-4">Toolbox Help</h2>
-              <div className="space-y-2">
-                <p>
-                  <strong>Add New (F1):</strong> Starts a new employee record
-                  and focuses on the user ID field
-                </p>
-                <p>
-                  <strong>Save (F2):</strong> Saves the current form data
-                  (creates or updates)
-                </p>
-                <p>
-                  <strong>Clear (F3):</strong> Resets all form fields to empty
-                </p>
-                <p>
-                  <strong>Exit (F4):</strong> Returns to the dashboard
-                </p>
-                <p>
-                  <strong>Up (F5):</strong> Navigates to the previous employee
-                  record
-                </p>
-                <p>
-                  <strong>Down (F6):</strong> Navigates to the next employee
-                  record
-                </p>
-                <p>
-                  <strong>Search (F7):</strong> Opens the search interface
-                </p>
-                <p>
-                  <strong>Implement Query (F8):</strong> Executes a wildcard
-                  search
-                </p>
-                <p>
-                  <strong>Edit (F9):</strong> Enables editing for the current
-                  record
-                </p>
-                <p>
-                  <strong>Delete (F10):</strong> Deletes the current employee
-                  record
-                </p>
-                <p>
-                  <strong>Audit (F11):</strong> Shows the audit log for the
-                  current employee
-                </p>
-                <p>
-                  <strong>Print (F12):</strong> Prints the current form data
-                </p>
-                <p>
-                  <strong>Help (Ctrl+H):</strong> Shows this help information
-                </p>
-              </div>
-              <div className="flex justify-end mt-4">
-                <button
-                  onClick={() => setShowHelpModal(false)}
-                  className="px-4 py-2 rounded-md"
-                  style={{
-                    background:
-                      "linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 100%)",
-                    border: "1px outset #c0c0c0",
-                  }}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Help Modal and any other modals can go here */}
       </div>
     </ProtectedRoute>
   );
