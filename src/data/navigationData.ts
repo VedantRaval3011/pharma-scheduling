@@ -107,9 +107,9 @@ export const adminEmployeeNavData: NavItem[] = [
             path: "/dashboard/admin/role-assignment",
           },
           {
-            label: "Role Creation",
-            description: "Create new roles with specific permissions",
-            path: "/dashboard/admin/roles/create",
+            label: "Series Master",
+            description: "Create and manage series for various purposes",
+            path: "/dashboard/admin/series-master",
           },
           {
             label: "Change Password",
@@ -148,11 +148,15 @@ export const adminEmployeeNavData: NavItem[] = [
         ],
       },
       {
-        label: "Master Column",
+        label: "Column Master",
         path: "/dashboard/columns",
       },
+       {
+        label: "Prefix/Suffix Master",
+        path: "/dashboard/prefixAndSuffix",
+      },
       {
-        label: "Master Make",
+        label: "Make Master",
         path: "/dashboard/make-master",
       },
       {

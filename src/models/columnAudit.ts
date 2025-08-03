@@ -1,13 +1,20 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+interface IAuditChange {
+  field: string;
+  from: any;
+  to: any;
+}
+
 interface IColumnAudit extends Document {
   action: string;
   userId: string;
   module: string;
   companyId: string;
   locationId: string;
-  changes: any;
+  changes: IAuditChange[];
   timestamp: Date;
+  columnCode?: string;
 }
 
 const ColumnAuditSchema = new Schema<IColumnAudit>({
@@ -16,8 +23,9 @@ const ColumnAuditSchema = new Schema<IColumnAudit>({
   module: { type: String, required: true },
   companyId: { type: String, required: true },
   locationId: { type: String, required: true },
-  changes: { type: Schema.Types.Mixed, required: true },
-  timestamp: { type: Date, default: Date.now }, 
+  changes: [{ field: String, from: Schema.Types.Mixed, to: Schema.Types.Mixed }],
+  timestamp: { type: Date, default: Date.now },
+  columnCode: { type: String }
 });
 
 export default mongoose.models.ColumnAudit || mongoose.model<IColumnAudit>('ColumnAudit', ColumnAuditSchema);

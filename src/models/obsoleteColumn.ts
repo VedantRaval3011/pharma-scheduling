@@ -1,4 +1,3 @@
-// models/column.ts
 import mongoose, { Schema, Document } from 'mongoose';
 
 interface IColumnDescription {
@@ -17,7 +16,7 @@ interface IColumnDescription {
   isObsolete: boolean;
 }
 
-interface IColumn extends Document {
+interface IObsoleteColumn extends Document {
   columnCode: string;
   descriptions: IColumnDescription[];
   companyId: string;
@@ -37,10 +36,10 @@ const ColumnDescriptionSchema = new Schema<IColumnDescription>({
   installationDate: { type: String, required: true },
   usePrefix: { type: Boolean, default: false },
   useSuffix: { type: Boolean, default: false },
-  isObsolete: { type: Boolean, default: false }, // Default to false for active columns
+  isObsolete: { type: Boolean, default: true },
 }, { _id: false });
 
-const ColumnSchema = new Schema<IColumn>({
+const ObsoleteColumnSchema = new Schema<IObsoleteColumn>({
   columnCode: { 
     type: String, 
     required: true, 
@@ -64,12 +63,12 @@ const ColumnSchema = new Schema<IColumn>({
   toObject: { virtuals: true }
 });
 
-ColumnSchema.index(
+ObsoleteColumnSchema.index(
   { columnCode: 1, companyId: 1, locationId: 1 }, 
   { unique: true }
 );
 
-ColumnSchema.pre('save', function(next) {
+ObsoleteColumnSchema.pre('save', function(next) {
   if (this.columnCode) {
     this.columnCode = this.columnCode.trim();
   }
@@ -114,4 +113,4 @@ ColumnSchema.pre('save', function(next) {
   next();
 });
 
-export default mongoose.models.Column || mongoose.model<IColumn>('Column', ColumnSchema);
+export default mongoose.models.ObsoleteColumn || mongoose.model<IObsoleteColumn>('ObsoleteColumn', ObsoleteColumnSchema);

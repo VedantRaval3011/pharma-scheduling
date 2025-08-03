@@ -587,7 +587,7 @@ function MakeMaster() {
   return (
     <div className="min-h-screen bg-gray-100">
       <WindowsToolbar
-        modulePath="/column/make"
+        modulePath="/dashboard/make-master"
         onAddNew={handleAddNew}
         onSave={handleSave}
         onClear={handleClear}

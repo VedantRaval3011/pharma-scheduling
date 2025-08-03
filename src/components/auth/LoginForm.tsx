@@ -1,6 +1,6 @@
 "use client";
 import debounce from "lodash.debounce";
-import { signIn } from "next-auth/react";
+import { signIn, signOut } from "next-auth/react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, useCallback, useEffect } from "react";
@@ -34,7 +34,6 @@ export default function LoginForm() {
   const [userExists, setUserExists] = useState(false);
   const router = useRouter();
 
-  
   const fetchUserCompanies = useCallback(
     debounce(async (userId: string) => {
       if (!userId || userId.length < 3) {
@@ -47,6 +46,8 @@ export default function LoginForm() {
         }));
         setCompanies([]);
         setUserExists(false);
+        localStorage.removeItem("companyId");
+        localStorage.removeItem("locationId");
         return;
       }
 
@@ -63,7 +64,7 @@ export default function LoginForm() {
         const data = await response.json();
 
         if (response.ok) {
-          setCompanies(data.user?.companies || []); // Updated to data.user.companies
+          setCompanies(data.user?.companies || []);
           setUserExists(true);
           setFormData((prev) => ({
             ...prev,
@@ -84,6 +85,8 @@ export default function LoginForm() {
             locationId: "",
             location: "",
           }));
+          localStorage.removeItem("companyId");
+          localStorage.removeItem("locationId");
         }
       } catch (err) {
         setError(
@@ -98,6 +101,8 @@ export default function LoginForm() {
         }));
         setCompanies([]);
         setUserExists(false);
+        localStorage.removeItem("companyId");
+        localStorage.removeItem("locationId");
       } finally {
         setIsCompanyLoading(false);
       }
@@ -181,6 +186,12 @@ export default function LoginForm() {
       locationId: "",
       location: "",
     });
+    if (e.target.value) {
+      localStorage.setItem("companyId", e.target.value);
+    } else {
+      localStorage.removeItem("companyId");
+    }
+    localStorage.removeItem("locationId");
   };
 
   const handleLocationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -195,7 +206,14 @@ export default function LoginForm() {
       locationId: e.target.value,
       location: selectedLocation?.name || "",
     });
+    if (e.target.value) {
+      localStorage.setItem("locationId", e.target.value);
+    } else {
+      localStorage.removeItem("locationId");
+    }
   };
+
+  
 
   const resetForm = () => {
     setFormData({
@@ -211,6 +229,8 @@ export default function LoginForm() {
     setEnterCount(0);
     setCompanies([]);
     setUserExists(false);
+    localStorage.removeItem("companyId");
+    localStorage.removeItem("locationId");
   };
 
   const getAvailableLocations = () => {
@@ -365,7 +385,7 @@ export default function LoginForm() {
                   </option>
                   {companies.map((company) => (
                     <option key={company.companyId} value={company.companyId}>
-                      {company.name} 
+                      {company.name}
                     </option>
                   ))}
                 </select>
@@ -415,7 +435,7 @@ export default function LoginForm() {
                       key={location.locationId}
                       value={location.locationId}
                     >
-                      {location.name} 
+                      {location.name}
                     </option>
                   ))}
                 </select>
