@@ -1,4 +1,3 @@
-// api/admin/column/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import Column from "@/models/column";
@@ -101,9 +100,10 @@ export async function POST(req: NextRequest) {
 
     // Check if column code already exists
     const existingColumn = await Column.findOne({
-      columnCode: body.columnCode,
       companyId,
       locationId,
+      columnCode: body.columnCode,
+      "descriptions.columnId": { $in: body.descriptions.map((d: any) => d.columnId) },
     });
     console.log("Existing column check:", !!existingColumn);
 
@@ -145,6 +145,8 @@ export async function POST(req: NextRequest) {
           installationDate: desc.installationDate || "",
           usePrefix: !!desc.usePrefix,
           useSuffix: !!desc.useSuffix,
+          usePrefixForNewCode: !!desc.usePrefixForNewCode, // Added
+          useSuffixForNewCode: !!desc.useSuffixForNewCode, // Added
           isObsolete: !!desc.isObsolete,
         };
       }),
@@ -340,6 +342,16 @@ export async function POST(req: NextRequest) {
           to: desc.useSuffix,
         },
         {
+          field: `descriptions[${index}].usePrefixForNewCode`, // Added
+          from: undefined,
+          to: desc.usePrefixForNewCode,
+        },
+        {
+          field: `descriptions[${index}].useSuffixForNewCode`, // Added
+          from: undefined,
+          to: desc.useSuffixForNewCode,
+        },
+        {
           field: `descriptions[${index}].isObsolete`,
           from: undefined,
           to: desc.isObsolete,
@@ -372,11 +384,12 @@ export async function POST(req: NextRequest) {
     console.error("Error stack:", error.stack);
 
     if (error.code === 11000) {
-      console.log("Duplicate key error");
+      console.log("Duplicate key error - but this shouldn't happen for columnCode anymore");
+      const duplicatedField = Object.keys(error.keyValue)[0];
       return NextResponse.json(
         {
           success: false,
-          error: "Column code already exists",
+          error: `Duplicate value for field: ${duplicatedField}`,
         },
         { status: 400 }
       );
@@ -428,7 +441,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "Company ID, Location ID, and Column ID are required",
+          error: "Company ID,f Location ID, and Column ID are required",
         },
         { status: 400 }
       );
@@ -453,57 +466,65 @@ export async function PUT(req: NextRequest) {
       "descriptions"
     );
 
-    const formattedBody = {
-      columnCode: body.columnCode.trim(),
-      descriptions: body.descriptions.map((desc: any, index: number) => {
-        const isExistingDesc = index < oldColumn.descriptions.length;
-        const originalDesc = isExistingDesc ? oldColumn.descriptions[index] : null;
+    // Check for duplicate columnCode (excluding the current column)
+    if (body.columnCode && body.columnCode !== oldColumn.columnCode) {
+      const existingColumn = await Column.findOne({
+        columnCode: body.columnCode,
+        companyId,
+        locationId,
+        _id: { $ne: id },
+        "descriptions.columnId": { $in: body.descriptions.map((d: any) => d.columnId) },
+      });
 
-        if (isExistingDesc) {
-          console.log(`Preserving existing description ${index} data`);
-          return {
-            prefix: desc.prefix?.trim() || originalDesc.prefix || "",
-            carbonType: desc.carbonType?.trim() || originalDesc.carbonType || "",
-            linkedCarbonType: desc.linkedCarbonType?.trim() || originalDesc.linkedCarbonType || "",
-            innerDiameter: desc.innerDiameter === "" || desc.innerDiameter == null
-              ? originalDesc.innerDiameter || 0
-              : Number(desc.innerDiameter),
-            length: desc.length === "" || desc.length == null
-              ? originalDesc.length || 0
-              : Number(desc.length),
-            particleSize: desc.particleSize === "" || desc.particleSize == null
-              ? originalDesc.particleSize || 0
-              : Number(desc.particleSize),
-            suffix: desc.suffix?.trim() || originalDesc.suffix || "",
-            make: desc.make?.trim() || originalDesc.make || "",
-            columnId: originalDesc.columnId || desc.columnId?.trim() || "",
-            installationDate: originalDesc.installationDate || desc.installationDate || "",
-            usePrefix: desc.usePrefix !== undefined ? !!desc.usePrefix : !!originalDesc.usePrefix,
-            useSuffix: desc.useSuffix !== undefined ? !!desc.useSuffix : !!originalDesc.useSuffix,
-            isObsolete: desc.isObsolete !== undefined ? !!desc.isObsolete : !!originalDesc.isObsolete,
-          };
-        } else {
-          console.log(`Processing new description ${index}`);
-          return {
-            prefix: desc.prefix?.trim() || "",
-            carbonType: desc.carbonType?.trim() || "",
-            linkedCarbonType: desc.linkedCarbonType?.trim() || "",
-            innerDiameter: desc.innerDiameter === "" || desc.innerDiameter == null ? 0 : Number(desc.innerDiameter),
-            length: desc.length === "" || desc.length == null ? 0 : Number(desc.length),
-            particleSize: desc.particleSize === "" || desc.particleSize == null ? 0 : Number(desc.particleSize),
-            suffix: desc.suffix?.trim() || "",
-            make: desc.make?.trim() || "",
-            columnId: desc.columnId?.trim() || "",
-            installationDate: desc.installationDate || "",
-            usePrefix: !!desc.usePrefix,
-            useSuffix: !!desc.useSuffix,
-            isObsolete: !!desc.isObsolete,
-          };
-        }
-      }),
-      companyId,
-      locationId,
+      if (existingColumn) {
+        console.log("Column code already exists:", body.columnCode);
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Column code already exists for this company and location",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const formattedBody = {
+  columnCode: body.columnCode.trim(),
+  descriptions: body.descriptions.map((desc: any, index: number) => {
+    const isExistingDesc = index < oldColumn.descriptions.length;
+    const originalDesc = isExistingDesc ? oldColumn.descriptions[index] : {};
+
+    return {
+      prefix: desc.prefix?.trim() || originalDesc.prefix || "",
+      carbonType: desc.carbonType?.trim() || originalDesc.carbonType || "",
+      linkedCarbonType: desc.linkedCarbonType?.trim() || originalDesc.linkedCarbonType || "",
+      innerDiameter: desc.innerDiameter === "" || desc.innerDiameter == null
+        ? originalDesc.innerDiameter || 0
+        : Number(desc.innerDiameter),
+      length: desc.length === "" || desc.length == null
+        ? originalDesc.length || 0
+        : Number(desc.length),
+      particleSize: desc.particleSize === "" || desc.particleSize == null
+        ? originalDesc.particleSize || 0
+        : Number(desc.particleSize),
+      suffix: desc.suffix?.trim() || originalDesc.suffix || "",
+      make: desc.make?.trim() || originalDesc.make || "",
+      columnId: desc.columnId?.trim() || originalDesc.columnId || "",
+      installationDate: desc.installationDate || originalDesc.installationDate || "",
+      usePrefix: desc.usePrefix !== undefined ? !!desc.usePrefix : !!originalDesc.usePrefix || false,
+      useSuffix: desc.useSuffix !== undefined ? !!desc.useSuffix : !!originalDesc.useSuffix || false,
+      usePrefixForNewCode: desc.usePrefixForNewCode !== undefined 
+        ? !!desc.usePrefixForNewCode 
+        : !!originalDesc.usePrefixForNewCode || false, // Ensure default
+      useSuffixForNewCode: desc.useSuffixForNewCode !== undefined 
+        ? !!desc.useSuffixForNewCode 
+        : !!originalDesc.useSuffixForNewCode || false, // Ensure default
+      isObsolete: desc.isObsolete !== undefined ? !!desc.isObsolete : !!originalDesc.isObsolete || false,
     };
+  }),
+  companyId,
+  locationId,
+};
 
     console.log(
       "Formatted body for validation:",
@@ -659,6 +680,8 @@ export async function PUT(req: NextRequest) {
         "installationDate",
         "usePrefix",
         "useSuffix",
+        "usePrefixForNewCode", // Added
+        "useSuffixForNewCode", // Added
         "isObsolete",
       ];
       fields.forEach((field) => {
@@ -700,6 +723,33 @@ export async function PUT(req: NextRequest) {
   } catch (error: any) {
     console.error("=== PUT /api/admin/column ERROR ===");
     console.error("Error details:", error);
+
+    if (error.code === 11000) {
+      console.log("Duplicate key error detected");
+      const duplicatedField = Object.keys(error.keyValue)[0];
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Duplicate value for field: ${duplicatedField}`,
+        },
+        { status: 400 }
+      );
+    }
+
+    if (error.name === "ValidationError") {
+      console.log("Mongoose validation error:", error.errors);
+      const validationErrors = Object.values(error.errors).map(
+        (err: any) => err.message
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Validation error: ${validationErrors.join(", ")}`,
+        },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
@@ -719,7 +769,7 @@ export async function DELETE(req: NextRequest) {
 
     const companyId = req.nextUrl.searchParams.get("companyId");
     const locationId = req.nextUrl.searchParams.get("locationId");
-    const id = req.nextUrl.searchParams.get("id"); // Changed to query param for consistency
+    const id = req.nextUrl.searchParams.get("id");
 
     if (!companyId || !locationId || !id) {
       return NextResponse.json(

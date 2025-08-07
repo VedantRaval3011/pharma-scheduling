@@ -13,6 +13,8 @@ interface IColumnDescription {
   installationDate: string;
   usePrefix: boolean;
   useSuffix: boolean;
+  usePrefixForNewCode: boolean; // New field
+  useSuffixForNewCode: boolean; // New field
   isObsolete: boolean;
 }
 
@@ -36,6 +38,8 @@ const ColumnDescriptionSchema = new Schema<IColumnDescription>({
   installationDate: { type: String, required: true },
   usePrefix: { type: Boolean, default: false },
   useSuffix: { type: Boolean, default: false },
+  usePrefixForNewCode: { type: Boolean, default: false }, // Added
+  useSuffixForNewCode: { type: Boolean, default: false }, // Added
   isObsolete: { type: Boolean, default: true },
 }, { _id: false });
 

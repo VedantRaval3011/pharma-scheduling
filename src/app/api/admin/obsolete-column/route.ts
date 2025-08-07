@@ -60,9 +60,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   console.log("=== POST /api/admin/obsolete-column START ===");
 
-  let body; // Declare body outside try block for broader scope
-  const companyId = req.nextUrl.searchParams.get("companyId"); // Assign value immediately
-  const locationId = req.nextUrl.searchParams.get("locationId"); // Assign value immediately
+  let body;
+  let formattedDescriptions: any[] = []; // Declare formattedDescriptions here
+  const companyId = req.nextUrl.searchParams.get("companyId");
+  const locationId = req.nextUrl.searchParams.get("locationId");
 
   try {
     const session = await getServerSession(authOptions);
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    body = await req.json(); // Assign value to the already declared body
+    body = await req.json();
 
     console.log("Request params - companyId:", companyId, "locationId:", locationId);
     console.log("Request body:", JSON.stringify(body, null, 2));
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
     console.log("Database connected successfully");
 
     // Validate descriptions
-    const formattedDescriptions = body.descriptions.map((desc: any, index: number) => {
+    formattedDescriptions = body.descriptions.map((desc: any, index: number) => {
       console.log(`Processing description ${index}:`, JSON.stringify(desc, null, 2));
       return {
         prefix: desc.prefix?.trim() || "",
@@ -109,7 +110,9 @@ export async function POST(req: NextRequest) {
         installationDate: desc.installationDate || "",
         usePrefix: !!desc.usePrefix,
         useSuffix: !!desc.useSuffix,
-        isObsolete: true, // Always true for ObsoleteColumn
+        usePrefixForNewCode: !!desc.usePrefixForNewCode, // Added
+        useSuffixForNewCode: !!desc.useSuffixForNewCode, // Added
+        isObsolete: true,
       };
     });
 
@@ -204,14 +207,90 @@ export async function POST(req: NextRequest) {
     console.log("Obsolete column saved successfully with ID:", obsoleteColumn._id);
 
     // Create audit log
-    const changes: ChangeLog[] = formattedDescriptions.map((desc: any, index: number) => ({
-      field: `descriptions[${index}].isObsolete`,
-      from: false,
-      to: true,
-    }));
+    const changes: ChangeLog[] = formattedDescriptions
+      .flatMap((desc: any, index: number) => [
+        {
+          field: `descriptions[${index}].prefix`,
+          from: undefined,
+          to: desc.prefix,
+        },
+        {
+          field: `descriptions[${index}].carbonType`,
+          from: undefined,
+          to: desc.carbonType,
+        },
+        {
+          field: `descriptions[${index}].linkedCarbonType`,
+          from: undefined,
+          to: desc.linkedCarbonType,
+        },
+        {
+          field: `descriptions[${index}].innerDiameter`,
+          from: undefined,
+          to: desc.innerDiameter,
+        },
+        {
+          field: `descriptions[${index}].length`,
+          from: undefined,
+          to: desc.length,
+        },
+        {
+          field: `descriptions[${index}].particleSize`,
+          from: undefined,
+          to: desc.particleSize,
+        },
+        {
+          field: `descriptions[${index}].suffix`,
+          from: undefined,
+          to: desc.suffix,
+        },
+        {
+          field: `descriptions[${index}].make`,
+          from: undefined,
+          to: desc.make,
+        },
+        {
+          field: `descriptions[${index}].columnId`,
+          from: undefined,
+          to: desc.columnId,
+        },
+        {
+          field: `descriptions[${index}].installationDate`,
+          from: undefined,
+          to: desc.installationDate,
+        },
+        {
+          field: `descriptions[${index}].usePrefix`,
+          from: undefined,
+          to: desc.usePrefix,
+        },
+        {
+          field: `descriptions[${index}].useSuffix`,
+          from: undefined,
+          to: desc.useSuffix,
+        },
+        {
+          field: `descriptions[${index}].usePrefixForNewCode`, // Added
+          from: undefined,
+          to: desc.usePrefixForNewCode,
+        },
+        {
+          field: `descriptions[${index}].useSuffixForNewCode`, // Added
+          from: undefined,
+          to: desc.useSuffixForNewCode,
+        },
+        {
+          field: `descriptions[${index}].isObsolete`,
+          from: undefined,
+          to: desc.isObsolete,
+        },
+      ])
+      .filter(
+        (change: ChangeLog) => change.to !== undefined && change.to !== ""
+      );
 
     const audit = new Audit({
-      action: "mark_obsolete",
+      action: "OBSOLETE",
       userId: session.user.userId,
       module: "column",
       companyId,
@@ -229,7 +308,6 @@ export async function POST(req: NextRequest) {
     console.error("Error details:", error);
     if (error.code === 11000) {
       console.log("Duplicate key error, attempting to update existing record");
-      // Handle duplicate key by updating existing record
       try {
         const existingColumn = await ObsoleteColumn.findOne({
           columnCode: body.columnCode,
@@ -238,7 +316,7 @@ export async function POST(req: NextRequest) {
         });
         if (existingColumn) {
           const existingColumnIds = existingColumn.descriptions.map((desc: any) => desc.columnId);
-          const newDescriptions = body.descriptions.filter(
+          const newDescriptions = formattedDescriptions.filter(
             (desc: any) => !existingColumnIds.includes(desc.columnId?.trim())
           );
           if (newDescriptions.length > 0) {

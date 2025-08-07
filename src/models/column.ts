@@ -1,4 +1,3 @@
-// models/column.ts
 import mongoose, { Schema, Document } from 'mongoose';
 
 interface IColumnDescription {
@@ -14,6 +13,8 @@ interface IColumnDescription {
   installationDate: string;
   usePrefix: boolean;
   useSuffix: boolean;
+  usePrefixForNewCode: boolean; // New field
+  useSuffixForNewCode: boolean; // New field
   isObsolete: boolean;
 }
 
@@ -37,7 +38,9 @@ const ColumnDescriptionSchema = new Schema<IColumnDescription>({
   installationDate: { type: String, required: true },
   usePrefix: { type: Boolean, default: false },
   useSuffix: { type: Boolean, default: false },
-  isObsolete: { type: Boolean, default: false }, // Default to false for active columns
+  usePrefixForNewCode: { type: Boolean, default: false }, // Added
+  useSuffixForNewCode: { type: Boolean, default: false }, // Added
+  isObsolete: { type: Boolean, default: false },
 }, { _id: false });
 
 const ColumnSchema = new Schema<IColumn>({
@@ -63,11 +66,6 @@ const ColumnSchema = new Schema<IColumn>({
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
-
-ColumnSchema.index(
-  { columnCode: 1, companyId: 1, locationId: 1 }, 
-  { unique: true }
-);
 
 ColumnSchema.pre('save', function(next) {
   if (this.columnCode) {

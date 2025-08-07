@@ -31,7 +31,6 @@ export async function PUT(req: NextRequest) {
     series.currentNumber += 1;
     const updatedSeries = await series.save();
 
-    // Create audit log
     const audit = new SeriesAudit({
       action: 'update',
       userId: session.user.userId,

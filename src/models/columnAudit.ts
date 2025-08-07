@@ -18,7 +18,7 @@ interface IColumnAudit extends Document {
 }
 
 const ColumnAuditSchema = new Schema<IColumnAudit>({
-  action: { type: String, required: true, enum: ['create', 'update', 'delete'] },
+  action: { type: String, required: true, enum: ['create', 'update', 'delete','OBSOLETE'] },
   userId: { type: String, required: true },
   module: { type: String, required: true },
   companyId: { type: String, required: true },
