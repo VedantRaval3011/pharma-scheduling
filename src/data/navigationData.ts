@@ -139,13 +139,24 @@ export const adminEmployeeNavData: NavItem[] = [
         path: "/dashboard/mobile-phase",
       },
       {
-        label: "Master MFC Methods",
-        children: [
-          {
-            label: "Product Code Master",
-            path: "/dashboard/mfc-methods/product-code-master",
-          },
-        ],
+        label: "MFC Master",
+        path: "/dashboard/mfc-master",
+      },
+      {
+        label: "API Master",
+        path: "/dashboard/api-master",
+      },
+      {
+        label: "Department Master",
+        path: "/dashboard/department-master",
+      },
+      {
+        label: "Test Type Master",
+        path: "/dashboard/test-type-master",
+      },
+      {
+        label: "Pharmacopeial Master",
+        path: "/dashboard/pharmacopeial",
       },
       {
         label: "Column Master",
@@ -160,65 +171,8 @@ export const adminEmployeeNavData: NavItem[] = [
         path: "/dashboard/make-master",
       },
       {
-        label: "Test Master",
-        children: [
-          {
-            label: "Finished Products",
-            children: [
-              {
-                label: "ASSAY",
-                path: "/dashboard/test-master/finished-products/assay",
-              },
-              {
-                label: "Related Substances / Organic Impurity",
-                path: "/dashboard/test-master/finished-products/impurity",
-              },
-            ],
-          },
-          {
-            label: "Bulk Products",
-            children: [
-              {
-                label: "ASSAY",
-                path: "/dashboard/test-master/bulk/assay",
-              },
-            ],
-          },
-          {
-            label: "Stability",
-            children: [
-              {
-                label: "Accelerated Stability",
-                path: "/dashboard/test-master/stability/accelerated",
-              },
-              {
-                label: "Real Time Stability",
-                path: "/dashboard/test-master/stability/realtime",
-              },
-            ],
-          },
-          {
-            label: "Raw Materials",
-            children: [
-              {
-                label: "ASSAY",
-                path: "/dashboard/test-master/raw-materials/assay",
-              },
-              {
-                label: "Related Substances / Organic Impurity",
-                path: "/dashboard/test-master/raw-materials/impurity",
-              },
-            ],
-          },
-          {
-            label: "Analytical Method Validation (AMV)",
-            path: "/dashboard/test-master/amv",
-          },
-          {
-            label: "Process Validation (PV)",
-            path: "/dashboard/test-master/pv",
-          },
-        ],
+        label: "Product Master",
+        path: "/dashboard/product-master",
       },
       {
         label: "Raw Material Master",
