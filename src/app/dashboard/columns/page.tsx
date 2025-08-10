@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import WindowsToolbar from "@/components/layout/ToolBox";
 import { useRouter } from "next/navigation";
@@ -64,19 +64,109 @@ interface Audit {
 }
 
 const carbonTypeMap: { [key: string]: string } = {
-  // C to L mapping
-  C18: "L1",
-  C8: "L7",
   // L to C mapping
   L1: "C18",
+  L2: "C18 core-shell",
+  L3: "Spherical Silica",
+  L4: "Porous silica core",
   L7: "C8",
-  L10: "L10",
-  L20: "L20",
-  L17: "L17",
+  L8: "NH₂",
+  L9: "SCX",
+  L10: "CN",
+  L11: "Phenyl",
+  L12: "SAX",
+  L13: "C1",
+  L14: "SAX",
+  L15: "C6",
+  L17: "SCX resin H⁺ form",
+  L19: "SCX resin Ca²⁺ form",
+  L20: "Diol",
+  L21: "SVDB-polystyrene resin",
+  L22: "PS-SCX",
+  L23: "PM-AQ",
+  L25: "PM-S-EX",
+  L26: "C4",
+  L27: "Large silica",
+  L33: "Dextran-SEC",
+  L34: "SCX resin Pb²⁺ form",
+  L37: "PM-Protein SEC",
+  L38: "PM-Water SEC",
+  L39: "PH-PM resin",
+  L43: "PFP",
+  L55: "SCX polybutadiene-maleic acid",
+  L59: "Protein silica hydrophilic",
+  L68: "Amide HILIC",
+  L78: "RP + WAX",
+  L79: "HSA chiral",
+  L80: "Cellulose chiral",
+  L82: "NH₂–PVA",
+  L83: "SAX latex",
+  L84: "WCX resin",
+  L85: "RP + WCX",
+  L86: "OH-Core",
+  L122: "ZIC-HILIC",
+ 
+  // C to L mapping
+  "C18": "L1",
+  "C18 core-shell": "L2",
+  "Spherical Silica": "L3",
+  "Porous silica core": "L4",
+  "C8": "L7",
+  "NH₂": "L8",
+  "SCX": "L9",
+  "CN": "L10",
+  "Phenyl": "L11",
+  "SAX": "L12",
+  "C1": "L13",
+  "C6": "L15",
+  "SCX resin H⁺ form": "L17",
+  "SCX resin Ca²⁺ form": "L19",
+  "Diol": "L20",
+  "SVDB-polystyrene resin": "L21",
+  "PS-SCX": "L22",
+  "PM-AQ": "L23",
+  "PM-S-EX": "L25",
+  "C4": "L26",
+  "Large silica": "L27",
+  "Dextran-SEC": "L33",
+  "SCX resin Pb²⁺ form": "L34",
+  "PM-Protein SEC": "L37",
+  "PM-Water SEC": "L38",
+  "PH-PM resin": "L39",
+  "PFP": "L43",
+  "SCX polybutadiene-maleic acid": "L55",
+  "Protein silica hydrophilic": "L59",
+  "Amide HILIC": "L68",
+  "RP + WAX": "L78",
+  "HSA chiral": "L79",
+  "Cellulose chiral": "L80",
+  "NH₂–PVA": "L82",
+  "SAX latex": "L83",
+  "WCX resin": "L84",
+  "RP + WCX": "L85",
+  "OH-Core": "L86",
+  "ZIC-HILIC": "L122"
 };
 
-const carbonTypeOptions = ["C18", "C8"];
-const linkedCarbonTypeOptions = ["L1", "L7", "L10", "L20", "L17"];
+const carbonTypeOptions = [
+  "C18", "C18 core-shell", "Spherical Silica", "Porous silica core", "C8", "NH₂",
+  "SCX", "CN", "Phenyl", "SAX", "C1", "C6", "SCX resin H⁺ form",
+  "SCX resin Ca²⁺ form", "Diol", "SVDB-polystyrene resin", "PS-SCX",
+  "PM-AQ", "PM-S-EX", "C4", "Large silica", "Dextran-SEC",
+  "SCX resin Pb²⁺ form", "PM-Protein SEC", "PM-Water SEC", "PH-PM resin",
+  "PFP", "SCX polybutadiene-maleic acid", "Protein silica hydrophilic",
+  "Amide HILIC", "RP + WAX", "HSA chiral", "Cellulose chiral", "NH₂–PVA",
+  "SAX latex", "WCX resin", "RP + WCX", "OH-Core", "ZIC-HILIC"
+];
+
+const linkedCarbonTypeOptions = [
+  "L1", "L2", "L3", "L4", "L7", "L8", "L9", "L10", "L11", "L12", "L13",
+  "L14", "L15", "L17", "L19", "L20", "L21", "L22", "L23", "L25", "L26",
+  "L27", "L33", "L34", "L37", "L38", "L39", "L43", "L55", "L59", "L68",
+  "L78", "L79", "L80", "L82", "L83", "L84", "L85", "L86", "L122"
+];
+
+
 
 export default function MasterColumn() {
   const router = useRouter();
@@ -107,6 +197,7 @@ export default function MasterColumn() {
   const [showObsoleteTable, setShowObsoleteTable] = useState(false);
   const [showDescriptionPopup, setShowDescriptionPopup] = useState(false);
   const [columnCodeFilter, setColumnCodeFilter] = useState("");
+  const [selectedSeriesName, setSelectedSeriesName] = useState<string>("");
   const [linkedCarbonTypeDropdowns, setLinkedCarbonTypeDropdowns] = useState<{
     [key: number]: boolean;
   }>({});
@@ -132,6 +223,7 @@ export default function MasterColumn() {
     dateFrom: "",
     dateTo: "",
   });
+  const [renderKey, setRenderKey] = useState(0);
 
   // Search filters
   const [searchFilters, setSearchFilters] = useState({
@@ -289,306 +381,229 @@ export default function MasterColumn() {
 
   // Fetch data when auth is loaded
   useEffect(() => {
-    if (authLoaded && companyId && locationId) {
-      fetchData();
-    }
-  }, [companyId, locationId, authLoaded]);
+  if (authLoaded && companyId && locationId) {
+    fetchData();
+  }
+}, [companyId, locationId, authLoaded]);
+
 
   const fetchData = async () => {
-    if (!companyId || !locationId) {
-      setError("Missing company or location ID");
-      return;
+  if (!companyId || !locationId) {
+    setError("Missing company or location ID");
+    return;
+  }
+
+  setLoading(true);
+  setError("");
+
+  try {
+    const [
+      columnsRes,
+      obsoleteColumnsRes,
+      makesRes,
+      prefixRes,
+      suffixRes,
+      seriesRes,
+    ] = await Promise.all([
+      fetch(`/api/admin/column?companyId=${companyId}&locationId=${locationId}`, {
+        credentials: "include",
+        headers: { "Cache-Control": "no-cache" }, // Prevent caching
+      }),
+      fetch(`/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`, {
+        credentials: "include",
+        headers: { "Cache-Control": "no-cache" },
+      }),
+      fetch(`/api/admin/column/make?companyId=${companyId}&locationId=${locationId}`, {
+        credentials: "include",
+        headers: { "Cache-Control": "no-cache" },
+      }),
+      fetch(`/api/admin/prefixAndSuffix?type=PREFIX&companyId=${companyId}&locationId=${locationId}`, {
+        credentials: "include",
+        headers: { "Cache-Control": "no-cache" },
+      }),
+      fetch(`/api/admin/prefixAndSuffix?type=SUFFIX&companyId=${companyId}&locationId=${locationId}`, {
+        credentials: "include",
+        headers: { "Cache-Control": "no-cache" },
+      }),
+      fetch(`/api/admin/series?companyId=${companyId}&locationId=${locationId}`, {
+        credentials: "include",
+        headers: { "Cache-Control": "no-cache" },
+      }),
+    ]);
+
+    const responses = [
+      { name: "columns", response: columnsRes },
+      { name: "obsoleteColumns", response: obsoleteColumnsRes },
+      { name: "makes", response: makesRes },
+      { name: "prefix", response: prefixRes },
+      { name: "suffix", response: suffixRes },
+      { name: "series", response: seriesRes },
+    ];
+
+    for (const { name, response } of responses) {
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`${name} API error:`, response.status, response.statusText, errorText);
+        throw new Error(`${name} API error: ${response.statusText}`);
+      }
     }
 
-    setLoading(true);
-    setError("");
+    const [
+      columnsData,
+      obsoleteColumnsData,
+      makesData,
+      prefixData,
+      suffixData,
+      seriesData,
+    ] = await Promise.all([
+      columnsRes.json(),
+      obsoleteColumnsRes.json(),
+      makesRes.json(),
+      prefixRes.json(),
+      suffixRes.json(),
+      seriesRes.json(),
+    ]);
 
-    try {
-      const [
-        columnsRes,
-        obsoleteColumnsRes,
-        makesRes,
-        prefixRes,
-        suffixRes,
-        seriesRes,
-      ] = await Promise.all([
-        fetch(
-          `/api/admin/column?companyId=${companyId}&locationId=${locationId}`,
-          {
-            credentials: "include",
-          }
-        ),
-        fetch(
-          `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`,
-          {
-            credentials: "include",
-          }
-        ),
-        fetch(
-          `/api/admin/column/make?companyId=${companyId}&locationId=${locationId}`,
-          {
-            credentials: "include",
-          }
-        ),
-        fetch(
-          `/api/admin/prefixAndSuffix?type=PREFIX&companyId=${companyId}&locationId=${locationId}`,
-          {
-            credentials: "include",
-          }
-        ),
-        fetch(
-          `/api/admin/prefixAndSuffix?type=SUFFIX&companyId=${companyId}&locationId=${locationId}`,
-          {
-            credentials: "include",
-          }
-        ),
-        fetch(
-          `/api/admin/series?companyId=${companyId}&locationId=${locationId}`,
-          {
-            credentials: "include",
-          }
-        ),
-      ]);
+    if (columnsData.success) {
+      const processedColumns = columnsData.data.map((col: Column) => ({
+        ...col,
+        descriptions: col.descriptions.map((desc: any) => ({
+          ...desc,
+          columnId: desc.columnId || "",
+          installationDate: desc.installationDate || "",
+          linkedCarbonType: desc.linkedCarbonType || carbonTypeMap[desc.carbonType] || "",
+        })),
+      }));
+      console.log("Fetched columns:", JSON.stringify(processedColumns, null, 2));
+      setColumns(processedColumns);
+    } else {
+      setError(`Failed to fetch columns: ${columnsData.error}`);
+    }
 
-      const responses = [
-        { name: "columns", response: columnsRes },
-        { name: "obsoleteColumns", response: obsoleteColumnsRes },
-        { name: "makes", response: makesRes },
-        { name: "prefix", response: prefixRes },
-        { name: "suffix", response: suffixRes },
-        { name: "series", response: seriesRes },
-      ];
+    if (obsoleteColumnsData.success) {
+      const processedObsoleteColumns = obsoleteColumnsData.data.map((col: Column) => ({
+        ...col,
+        descriptions: col.descriptions.map((desc: any) => ({
+          ...desc,
+          columnId: desc.columnId || "",
+          installationDate: desc.installationDate || "",
+          linkedCarbonType: desc.linkedCarbonType || carbonTypeMap[desc.carbonType] || "",
+        })),
+      }));
+      console.log("Fetched obsolete columns:", JSON.stringify(processedObsoleteColumns, null, 2));
+      setObsoleteColumns(processedObsoleteColumns);
+    } else {
+      setError(`Failed to fetch obsolete columns: ${obsoleteColumnsData.error}`);
+    }
 
-      for (const { name, response } of responses) {
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `${name} API error:`,
-            response.status,
-            response.statusText,
-            errorText
-          );
-          throw new Error(`${name} API error: ${response.statusText}`);
-        }
-      }
+    if (makesData.success) {
+      const processedMakes = makesData.data.filter((make: any) => make && make.make?.trim());
+      console.log("Fetched makes:", JSON.stringify(processedMakes, null, 2));
+      setMakes(processedMakes);
+    } else {
+      setError(`Failed to fetch makes: ${makesData.error}`);
+    }
 
-      const [
-        columnsData,
-        obsoleteColumnsData,
-        makesData,
-        prefixData,
-        suffixData,
-        seriesData,
-      ] = await Promise.all([
-        columnsRes.json(),
-        obsoleteColumnsRes.json(),
-        makesRes.json(),
-        prefixRes.json(),
-        suffixRes.json(),
-        seriesRes.json(),
-      ]);
-
-      if (columnsData.success) {
-        const processedColumns = columnsData.data.map((col: Column) => ({
-          ...col,
-          descriptions: col.descriptions.map((desc: any) => ({
-            ...desc,
-            columnId: desc.columnId || "",
-            installationDate: desc.installationDate || "",
-            linkedCarbonType:
-              desc.linkedCarbonType || carbonTypeMap[desc.carbonType] || "",
-          })),
+    if (prefixData.success && Array.isArray(prefixData.data)) {
+      const processedPrefixes = prefixData.data
+        .filter((item: any) => item && item.name?.trim())
+        .map((item: any) => ({
+          _id: item._id,
+          value: item.name,
         }));
-        setColumns(processedColumns);
-      } else {
-        setError(`Failed to fetch columns: ${columnsData.error}`);
-      }
-
-      if (obsoleteColumnsData.success) {
-        const processedObsoleteColumns = obsoleteColumnsData.data.map(
-          (col: Column) => ({
-            ...col,
-            descriptions: col.descriptions.map((desc: any) => ({
-              ...desc,
-              columnId: desc.columnId || "",
-              installationDate: desc.installationDate || "",
-              linkedCarbonType:
-                desc.linkedCarbonType || carbonTypeMap[desc.carbonType] || "",
-            })),
-          })
-        );
-        setObsoleteColumns(processedObsoleteColumns);
-      } else {
-        setError(
-          `Failed to fetch obsolete columns: ${obsoleteColumnsData.error}`
-        );
-      }
-
-      if (makesData.success) {
-        setMakes(
-          makesData.data.filter((make: any) => make && make.make?.trim())
-        );
-      } else {
-        setError(`Failed to fetch makes: ${makesData.error}`);
-      }
-
-      if (prefixData.success && Array.isArray(prefixData.data)) {
-        const processedPrefixes = prefixData.data
-          .filter((item: any) => item && item.name?.trim())
-          .map((item: any) => ({
-            _id: item._id,
-            value: item.name,
-          }));
-        setPrefixes(processedPrefixes);
-      } else {
-        setPrefixes([]);
-      }
-
-      if (suffixData.success && Array.isArray(suffixData.data)) {
-        const processedSuffixes = suffixData.data
-          .filter((item: any) => item && item.name?.trim())
-          .map((item: any) => ({
-            _id: item._id,
-            value: item.name,
-          }));
-        setSuffixes(processedSuffixes);
-      } else {
-        setSuffixes([]);
-      }
-
-      if (seriesData.success) {
-        setSeries(seriesData.data);
-      } else {
-        setError(`Failed to fetch series: ${seriesData.error}`);
-      }
-    } catch (err: any) {
-      console.error("fetchData error:", err);
-      setError(`Failed to fetch data: ${err.message}`);
-    } finally {
-      setLoading(false);
+      setPrefixes(processedPrefixes);
+    } else {
+      setPrefixes([]);
     }
-  };
 
-  // Replace your existing handleUsePrefixChange function with this:
-  const handleUsePrefixChange = (index: number, checked: boolean) => {
-    console.log(`=== PREFIX CHECKBOX CHANGE: ${checked} ===`);
+    if (suffixData.success && Array.isArray(suffixData.data)) {
+      const processedSuffixes = suffixData.data
+        .filter((item: any) => item && item.name?.trim())
+        .map((item: any) => ({
+          _id: item._id,
+          value: item.name,
+        }));
+      setSuffixes(processedSuffixes);
+    } else {
+      setSuffixes([]);
+    }
 
-    setForm((prev) => {
-      const newDescriptions = [...prev.descriptions];
-      newDescriptions[index] = {
-        ...newDescriptions[index],
-        usePrefix: checked,
-        // Clear prefix value immediately when unchecking
-        prefix: checked ? newDescriptions[index].prefix : "",
-      };
-      return { ...prev, descriptions: newDescriptions };
-    });
+    if (seriesData.success) {
+      setSeries(seriesData.data);
+    } else {
+      setError(`Failed to fetch series: ${seriesData.error}`);
+    }
+  } catch (err: any) {
+    console.error("fetchData error:", err);
+    setError(`Failed to fetch data: ${err.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
-    // Clear any existing error for this field
-    setFormErrors((prev) => ({
-      ...prev,
-      [`usePrefix_${index}`]: "",
-      [`prefix_${index}`]: "",
-    }));
-
-    // Update column code after state change
-    setTimeout(() => {
-      updateColumnCode(index);
-    }, 50);
-  };
   const generateColumnCode = (
     desc: ColumnDescription,
     columns: Column[],
     obsoleteColumns: Column[],
     previousCoreAttributes?: CoreAttributes
   ): string => {
-    console.log("=== ENHANCED COLUMN CODE GENERATION ===");
-    console.log("Description:", JSON.stringify(desc, null, 2));
-    console.log("Previous core attributes:", previousCoreAttributes);
-
     const currentCoreAttributes = getCoreAttributes(desc);
     const coreSpec = createCoreSpec(desc);
     const fullSpec = createFullSpec(desc, true);
 
-    console.log("Current core attributes:", currentCoreAttributes);
-    console.log("Core spec:", coreSpec);
-    console.log("Full spec:", fullSpec);
-    console.log("Use prefix for new code:", desc.usePrefixForNewCode);
-    console.log("Use suffix for new code:", desc.useSuffixForNewCode);
+    const allOtherColumns = [...columns, ...obsoleteColumns].filter(
+      (col) => col._id !== selectedColumnId
+    );
 
-    // If core attributes changed, generate a new column code
-    const coreChanged = previousCoreAttributes
-      ? coreAttributesChanged(currentCoreAttributes, previousCoreAttributes)
-      : false;
+    // --- PRIORITY 1: Exact FULL spec match ---
+    const exactFullMatch = allOtherColumns.find((col) =>
+      col.descriptions.some((d) => createFullSpec(d, true) === fullSpec)
+    );
+    if (exactFullMatch) return exactFullMatch.columnCode;
 
-    console.log("Core attributes changed:", coreChanged);
+    // --- PRIORITY 2: Match based on prefix/suffix rules ---
+    const matchIgnoringPrefixSuffix = allOtherColumns.find((col) =>
+      col.descriptions.some((d) => {
+        if (desc.usePrefixForNewCode || desc.useSuffixForNewCode) {
+          // Prefix/suffix matter → must match full spec including them
+          return createFullSpec(d, true) === fullSpec;
+        } else {
+          // Prefix/suffix ignored → match on core spec only
+          return createCoreSpec(d) === coreSpec;
+        }
+      })
+    );
+    if (matchIgnoringPrefixSuffix) return matchIgnoringPrefixSuffix.columnCode;
 
-    if (coreChanged) {
-      console.log("Core attributes changed - generating new column code");
-      return generateNewColumnCode(columns, obsoleteColumns);
-    }
+    // --- PRIORITY 3: On update, reuse matched core spec from another column ---
+    if (selectedColumnId && previousCoreAttributes) {
+      const coreChanged =
+        currentCoreAttributes.carbonType !==
+          previousCoreAttributes.carbonType ||
+        currentCoreAttributes.innerDiameter !==
+          previousCoreAttributes.innerDiameter ||
+        currentCoreAttributes.length !== previousCoreAttributes.length ||
+        currentCoreAttributes.particleSize !==
+          previousCoreAttributes.particleSize;
 
-    // Determine if we should consider prefix/suffix for uniqueness
-    const shouldUsePrefixSuffixForUniqueness =
-      desc.usePrefixForNewCode || desc.useSuffixForNewCode;
-
-    // Get the current column being edited, if any
-    const currentColumn = selectedColumnId
-      ? [...columns, ...obsoleteColumns].find(
+      if (coreChanged) {
+        const otherCoreMatch = allOtherColumns.find((col) =>
+          col.descriptions.some((d) => createCoreSpec(d) === coreSpec)
+        );
+        if (otherCoreMatch) return otherCoreMatch.columnCode;
+      } else {
+        // Core same → keep original
+        const currentColumn = [...columns, ...obsoleteColumns].find(
           (col) => col._id === selectedColumnId
-        )
-      : null;
-
-    if (shouldUsePrefixSuffixForUniqueness) {
-      console.log(
-        "Checking uniqueness with full spec (including prefix/suffix)"
-      );
-      // Check if a *different* column with the same full spec exists
-      const existingWithFullSpec = [...columns, ...obsoleteColumns].find(
-        (col) =>
-          col._id !== selectedColumnId && // Exclude the current column
-          col.descriptions.some((d) => {
-            const dFullSpec = createFullSpec(d, true);
-            return dFullSpec === fullSpec;
-          })
-      );
-
-      if (existingWithFullSpec) {
-        console.log(
-          "Found existing column with same full spec:",
-          existingWithFullSpec.columnCode
         );
-        return existingWithFullSpec.columnCode;
-      } else {
-        console.log("No other column with full spec - generating new code");
-        return generateNewColumnCode(columns, obsoleteColumns);
-      }
-    } else {
-      console.log(
-        "Checking uniqueness with core spec (excluding prefix/suffix)"
-      );
-      // Check for existing column with same core spec
-      const existingWithCoreSpec = [...columns, ...obsoleteColumns].find(
-        (col) =>
-          col._id !== selectedColumnId && // Exclude the current column
-          col.descriptions.some((d) => {
-            const dCoreSpec = createCoreSpec(d);
-            return dCoreSpec === coreSpec;
-          })
-      );
-
-      if (existingWithCoreSpec) {
-        console.log(
-          "Found existing column with same core spec:",
-          existingWithCoreSpec.columnCode
-        );
-        return existingWithCoreSpec.columnCode;
-      } else {
-        console.log("No other column with core spec - generating new code");
-        return generateNewColumnCode(columns, obsoleteColumns);
+        if (currentColumn) return currentColumn.columnCode;
       }
     }
+
+    // --- PRIORITY 4: Generate new code ---
+    return generateNewColumnCode(columns, obsoleteColumns);
   };
+
   // Helper function to generate new column code
   const generateNewColumnCode = (
     columns: Column[],
@@ -621,47 +636,36 @@ export default function MasterColumn() {
   };
 
   const getNextColumnId = async (seriesId: string) => {
-  try {
-    // Get the selected series to understand the prefix pattern
-    const selectedSeries = series.find((s) => s._id === seriesId);
-    if (!selectedSeries) throw new Error("Series not found");
-    
-    // Find all existing column IDs that match the series prefix pattern
-    const allColumns = [...columns, ...obsoleteColumns];
-    const existingIds = allColumns.flatMap(col => 
-      col.descriptions.map(desc => desc.columnId)
-    ).filter(id => id && id.startsWith(selectedSeries.prefix));
-    
-    // Extract numbers and find the maximum
-    const maxNumber = existingIds.reduce((max, id) => {
-      const match = id.match(new RegExp(`^${selectedSeries.prefix}(\\d+)$`));
-      if (match) {
-        return Math.max(max, parseInt(match[1]) || 0);
-      }
-      return max;
-    }, 0);
-    
-    // Generate next ID
-    const nextNumber = maxNumber + 1;
-    const nextColumnId = `${selectedSeries.prefix}${nextNumber.toString().padStart(selectedSeries.padding, '0')}`;
-    
-    return nextColumnId;
-  } catch (err) {
-    console.error("Error generating next column ID:", err);
-    throw err;
-  }
-};
+    try {
+      // Get the selected series to understand the prefix pattern
+      const selectedSeries = series.find((s) => s._id === seriesId);
+      if (!selectedSeries) throw new Error("Series not found");
 
-  const validateCarbonTypeInput = (
-    value: string,
-    fieldType: "carbon" | "linked"
-  ): boolean => {
-    if (!value.trim()) return true; // Allow empty values
+      // Find all existing column IDs that match the series prefix pattern
+      const allColumns = [...columns, ...obsoleteColumns];
+      const existingIds = allColumns
+        .flatMap((col) => col.descriptions.map((desc) => desc.columnId))
+        .filter((id) => id && id.startsWith(selectedSeries.prefix));
 
-    if (fieldType === "carbon") {
-      return value.startsWith("C") && /^C\d+$/.test(value);
-    } else {
-      return value.startsWith("L") && /^L\d+$/.test(value);
+      // Extract numbers and find the maximum
+      const maxNumber = existingIds.reduce((max, id) => {
+        const match = id.match(new RegExp(`^${selectedSeries.prefix}(\\d+)$`));
+        if (match) {
+          return Math.max(max, parseInt(match[1]) || 0);
+        }
+        return max;
+      }, 0);
+
+      // Generate next ID
+      const nextNumber = maxNumber + 1;
+      const nextColumnId = `${selectedSeries.prefix}${nextNumber
+        .toString()
+        .padStart(selectedSeries.padding, "0")}`;
+
+      return nextColumnId;
+    } catch (err) {
+      console.error("Error generating next column ID:", err);
+      throw err;
     }
   };
 
@@ -728,16 +732,7 @@ export default function MasterColumn() {
   ) => {
     const desc = form.descriptions[index];
 
-    // Skip column code update if editing an existing column
-    if (selectedColumnId) {
-      console.log(
-        "Editing existing column, preserving column code:",
-        form.columnCode
-      );
-      return;
-    }
-
-    // Only generate new column code if all required fields are filled
+    // Always generate column code when all required fields are filled
     if (
       desc.carbonType &&
       desc.innerDiameter &&
@@ -745,11 +740,13 @@ export default function MasterColumn() {
       desc.particleSize
     ) {
       try {
+        // For updates, always pass the previous core attributes
         const newColumnCode = generateColumnCode(
           desc,
           columns,
           obsoleteColumns,
-          previousCoreAttributes
+          previousCoreAttributes ||
+            (selectedColumnId ? getCoreAttributes(desc) : undefined)
         );
 
         if (newColumnCode !== form.columnCode) {
@@ -766,20 +763,6 @@ export default function MasterColumn() {
       } catch (err: any) {
         console.error("Error generating column code:", err);
         setError(err.message);
-      }
-    } else {
-      // Only clear columnCode if it's not a new column with no data
-      if (
-        (form.columnCode && columns.length > 0) ||
-        obsoleteColumns.length > 0
-      ) {
-        console.log("Missing required fields, clearing column code");
-        setForm((prev) => ({ ...prev, columnCode: "" }));
-      } else {
-        console.log(
-          "No data exists, preserving initial column code:",
-          form.columnCode
-        );
       }
     }
   };
@@ -1016,6 +999,20 @@ export default function MasterColumn() {
     setSelectedDescriptionIndex(descIndex);
 
     const desc = column.descriptions[descIndex];
+
+    // Find the series that matches this column's columnId
+    const matchingSeries = series.find((s) =>
+      desc.columnId.startsWith(s.prefix)
+    );
+
+    if (matchingSeries) {
+      setSelectedSeriesId(matchingSeries._id);
+      setSelectedSeriesName(matchingSeries.name);
+    } else {
+      setSelectedSeriesId("");
+      setSelectedSeriesName("");
+    }
+
     setForm({
       columnCode: column.columnCode,
       descriptions: [
@@ -1025,11 +1022,11 @@ export default function MasterColumn() {
           length: desc.length.toString(),
           particleSize: desc.particleSize.toString(),
           linkedCarbonType: carbonTypeMap[desc.carbonType] || "",
-          usePrefix: desc.usePrefix ?? false, // Ensure default value
-          useSuffix: desc.useSuffix ?? false, // Ensure default value
-          usePrefixForNewCode: desc.usePrefixForNewCode ?? false, // Ensure checkbox state
-          useSuffixForNewCode: desc.useSuffixForNewCode ?? false, // Ensure checkbox state
-          isObsolete: desc.isObsolete ?? false, // Ensure checkbox state
+          usePrefix: desc.usePrefix ?? false,
+          useSuffix: desc.useSuffix ?? false,
+          usePrefixForNewCode: desc.usePrefixForNewCode ?? false,
+          useSuffixForNewCode: desc.useSuffixForNewCode ?? false,
+          isObsolete: desc.isObsolete ?? false,
         },
       ],
     });
@@ -1072,10 +1069,11 @@ export default function MasterColumn() {
     // Clear all errors
     setFormErrors({});
 
-    // Reset selection states
+    // Reset selection states including series
     setSelectedColumnId("");
     setSelectedDescriptionIndex(-1);
     setSelectedSeriesId("");
+    setSelectedSeriesName(""); // Add this line
 
     // Clear all form-related states including new dropdown states
     setCarbonTypeDropdowns({});
@@ -1133,101 +1131,94 @@ export default function MasterColumn() {
     };
     console.log("Formatted description for backend:", JSON.stringify(formattedDesc, null, 2));
 
-    let column = null;
     let columnCode = form.columnCode;
     let isNewDescriptionForExistingColumn = false;
 
-    // Fetch existing column if editing
-    if (selectedColumnId && selectedDescriptionIndex >= 0) {
-      const response = await fetch(`/api/admin/column?companyId=${companyId}&locationId=${locationId}`, {
-        credentials: "include",
-      });
-      const data = await response.json();
-
-      if (data.success) {
-        column = data.data.find((col: Column) => col._id === selectedColumnId);
-      }
-
-      if (!column) {
-        console.warn("Selected column not found during edit operation, treating as new column");
-        setSelectedColumnId("");
-        setSelectedDescriptionIndex(-1);
-      } else {
-        columnCode = column.columnCode; // Preserve existing column code
-      }
-    }
-
-    const existingColumn = [...columns, ...obsoleteColumns].find(
-      (col) => col.columnCode.toLowerCase() === columnCode.toLowerCase()
+    const column = [...columns, ...obsoleteColumns].find(
+      (col) => col._id === selectedColumnId
     );
 
-    console.log("Existing column found:", !!existingColumn, existingColumn?._id);
+    console.log("Existing column found:", !!column, column?._id);
 
-    if (formattedDesc.isObsolete) {
-      const obsoleteBody = {
-        columnCode: columnCode,
-        descriptions: [formattedDesc],
-        companyId,
-        locationId,
+    let body;
+    let method;
+    let url = `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
+    let action = "CREATE";
+
+    if (column && selectedDescriptionIndex >= 0) {
+      console.log("UPDATE MODE: Editing existing description");
+
+      const formattedDescForCheck = {
+        ...formattedDesc,
+        columnId: desc.columnId.trim(),
+        installationDate: desc.installationDate,
       };
 
-      const obsoleteResponse = await fetch(`/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(obsoleteBody),
-        credentials: "include",
-      });
+      const updatedColumnCode = generateColumnCode(
+        formattedDescForCheck,
+        columns,
+        obsoleteColumns
+      );
 
-      const obsoleteData = await obsoleteResponse.json();
-      if (!obsoleteData.success) {
-        console.error("Failed to move to obsolete:", obsoleteData.error);
-        throw new Error(obsoleteData.error || "Failed to move column to obsolete table.");
-      }
+      if (updatedColumnCode !== column.columnCode) {
+        console.log("Description needs to be moved to different column:", updatedColumnCode);
 
-      if (column && selectedDescriptionIndex >= 0) {
         const updatedDescriptions = column.descriptions.filter(
-          (_: any, index: number) => index !== selectedDescriptionIndex
+          (_, index) => index !== selectedDescriptionIndex
         );
 
         if (updatedDescriptions.length === 0) {
-          const deleteResponse = await fetch(`/api/admin/column/${selectedColumnId}?companyId=${companyId}&locationId=${locationId}`, {
-            method: "DELETE",
-            credentials: "include",
-          });
+          const deleteResponse = await fetch(
+            `/api/admin/column/${selectedColumnId}?companyId=${companyId}&locationId=${locationId}`,
+            { method: "DELETE", credentials: "include" }
+          );
           const deleteData = await deleteResponse.json();
           if (!deleteData.success) {
             throw new Error(deleteData.error || "Failed to delete column.");
           }
         } else {
-          const updateBody = {
+          const updateCurrentBody = {
             id: selectedColumnId,
             columnCode: column.columnCode,
             descriptions: updatedDescriptions,
           };
-
-          const updateResponse = await fetch(`/api/admin/column?companyId=${companyId}&locationId=${locationId}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(updateBody),
-            credentials: "include",
-          });
-
-          const updateData = await updateResponse.json();
-          if (!updateData.success) {
-            throw new Error(updateData.error || "Failed to update column.");
+          const updateCurrentResponse = await fetch(
+            `/api/admin/column?companyId=${companyId}&locationId=${locationId}`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(updateCurrentBody),
+              credentials: "include",
+            }
+          );
+          const updateCurrentData = await updateCurrentResponse.json();
+          if (!updateCurrentData.success) {
+            throw new Error(updateCurrentData.error || "Failed to update current column.");
           }
         }
-      }
-    } else {
-      let body;
-      let method;
-      let url = `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
-      let action = "CREATE"; // Default to CREATE
 
-      if (column && selectedDescriptionIndex >= 0) {
-        console.log("UPDATE MODE: Editing existing description");
-        const updatedDescriptions = column.descriptions.map((desc: ColumnDescription, index: number) =>
-          index === selectedDescriptionIndex ? formattedDesc : desc
+        const targetColumn = [...columns, ...obsoleteColumns].find(
+          (col) => col.columnCode === updatedColumnCode
+        );
+
+        if (targetColumn) {
+          body = {
+            id: targetColumn._id,
+            columnCode: updatedColumnCode,
+            descriptions: [...targetColumn.descriptions, formattedDesc],
+          };
+          method = "PUT";
+        } else {
+          body = {
+            columnCode: updatedColumnCode,
+            descriptions: [formattedDesc],
+          };
+          method = "POST";
+        }
+      } else {
+        const updatedDescriptions = column.descriptions.map(
+          (desc: ColumnDescription, index: number) =>
+            index === selectedDescriptionIndex ? formattedDesc : desc
         );
         body = {
           id: selectedColumnId,
@@ -1235,16 +1226,27 @@ export default function MasterColumn() {
           descriptions: updatedDescriptions,
         };
         method = "PUT";
-        action = "UPDATE";
-      } else if (existingColumn) {
+      }
+      action = "UPDATE";
+    } else {
+      const existingColumn = [...columns, ...obsoleteColumns].find(
+        (col) => col.columnCode.toLowerCase() === columnCode.toLowerCase()
+      );
+
+      if (existingColumn) {
         console.log("CREATE MODE: Adding new description to existing column");
-        const response = await fetch(`/api/admin/column?companyId=${companyId}&locationId=${locationId}`, {
-          credentials: "include",
-        });
+        const response = await fetch(
+          `/api/admin/column?companyId=${companyId}&locationId=${locationId}`,
+          {
+            credentials: "include",
+          }
+        );
         const data = await response.json();
 
         if (data.success) {
-          const latestColumn = data.data.find((col: Column) => col._id === existingColumn._id);
+          const latestColumn = data.data.find(
+            (col: Column) => col._id === existingColumn._id
+          );
           if (latestColumn) {
             body = {
               id: existingColumn._id,
@@ -1252,7 +1254,7 @@ export default function MasterColumn() {
               descriptions: [...latestColumn.descriptions, formattedDesc],
             };
             method = "PUT";
-            action = "CREATE"; // Explicitly set to CREATE for new description
+            action = "CREATE";
             isNewDescriptionForExistingColumn = true;
           } else {
             console.log("Existing column not found in latest data, creating new column");
@@ -1269,6 +1271,76 @@ export default function MasterColumn() {
         body = { columnCode: columnCode, descriptions: [formattedDesc] };
         method = "POST";
       }
+    }
+
+    if (formattedDesc.isObsolete) {
+      const obsoleteBody = {
+        columnCode: columnCode,
+        descriptions: [formattedDesc],
+        companyId,
+        locationId,
+      };
+
+      const obsoleteResponse = await fetch(
+        `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(obsoleteBody),
+          credentials: "include",
+        }
+      );
+
+      const obsoleteData = await obsoleteResponse.json();
+      if (!obsoleteData.success) {
+        console.error("Failed to move to obsolete:", obsoleteData.error);
+        throw new Error(obsoleteData.error || "Failed to move column to obsolete table.");
+      }
+
+      if (column && selectedDescriptionIndex >= 0) {
+        const updatedDescriptions = column.descriptions.filter(
+          (_, index) => index !== selectedDescriptionIndex
+        );
+
+        if (updatedDescriptions.length === 0) {
+          const deleteResponse = await fetch(
+            `/api/admin/column/${selectedColumnId}?companyId=${companyId}&locationId=${locationId}`,
+            {
+              method: "DELETE",
+              credentials: "include",
+            }
+          );
+          const deleteData = await deleteResponse.json();
+          if (!deleteData.success) {
+            throw new Error(deleteData.error || "Failed to delete column.");
+          }
+        } else {
+          const updateBody = {
+            id: selectedColumnId,
+            columnCode: column.columnCode,
+            descriptions: updatedDescriptions,
+          };
+
+          const updateResponse = await fetch(
+            `/api/admin/column?companyId=${companyId}&locationId=${locationId}`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(updateBody),
+              credentials: "include",
+            }
+          );
+
+          const updateData = await updateResponse.json();
+          if (!updateData.success) {
+            throw new Error(updateData.error || "Failed to update column.");
+          }
+        }
+      }
+    } else {
+      const existingColumn = [...columns, ...obsoleteColumns].find(
+        (col) => col.columnCode.toLowerCase() === columnCode.toLowerCase()
+      );
 
       console.log("Request details:");
       console.log("- Method:", method);
@@ -1291,6 +1363,7 @@ export default function MasterColumn() {
           if (data.error === "Column code already exists" || response.status === 409) {
             console.log("Duplicate column code detected, retrying with new code");
             await fetchData();
+            setRenderKey((prev) => prev + 1);
             const newColumnCode = generateNewColumnCode(columns, obsoleteColumns);
             console.log("New column code generated:", newColumnCode);
             setForm((prev) => ({ ...prev, columnCode: newColumnCode }));
@@ -1313,7 +1386,7 @@ export default function MasterColumn() {
         return data;
       };
 
-      const result = await saveColumn();
+      await saveColumn();
 
       // Log audit entry with correct action
       try {
@@ -1323,26 +1396,29 @@ export default function MasterColumn() {
           userId: localStorage.getItem("userId") || "unknown",
           changes: isNewDescriptionForExistingColumn
             ? Object.keys(formattedDesc).map((key) => ({
-                field: `descriptions[${existingColumn!.descriptions.length}].${key}`, // Use non-null assertion
+                field: `descriptions[${existingColumn!.descriptions.length}].${key}`,
                 from: undefined,
                 to: formattedDesc[key as keyof ColumnDescription],
               }))
-            : [], // No changes recorded for new column creation
+            : [],
           companyId,
           locationId,
         };
         console.log("Audit log body:", JSON.stringify(auditBody, null, 2));
-        await fetch(`/api/admin/column/audit?companyId=${companyId}&locationId=${locationId}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(auditBody),
-          credentials: "include",
-        });
+        await fetch(
+          `/api/admin/column/audit?companyId=${companyId}&locationId=${locationId}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(auditBody),
+            credentials: "include",
+          }
+        );
       } catch (auditErr: any) {
         console.error("Failed to log audit entry:", auditErr);
       }
 
-      if (selectedSeriesId) {
+      if (selectedSeriesId && !selectedColumnId) {
         try {
           console.log("Incrementing series counter for:", selectedSeriesId);
           const incrementResponse = await fetch(
@@ -1359,14 +1435,54 @@ export default function MasterColumn() {
           setError(`Error incrementing series counter: ${err.message}`);
         }
       }
+    }
 
-      // Fetch updated data and ensure form reflects backend state
-      await fetchData();
-      const updatedColumn = [...columns, ...obsoleteColumns].find(
-        (col) => col._id === (column?._id || result.data?._id)
+    // **Refresh data and update selection**
+    console.log("=== REFRESHING DATA AND UPDATING SELECTION ===");
+    await fetchData(); // Ensure data is fetched
+    setRenderKey((prev) => prev + 1);
+
+    // Store the current column code and column ID for finding the updated record
+    const currentColumnCode = form.columnCode;
+    const currentColumnId = form.descriptions[0].columnId;
+
+    console.log("Looking for updated record with:", {
+      currentColumnCode,
+      currentColumnId,
+    });
+
+    // Find the updated column in the refreshed data
+    const allUpdatedColumns = [...columns, ...obsoleteColumns];
+    const updatedColumn = allUpdatedColumns.find(
+      (col) => col.columnCode === currentColumnCode
+    );
+
+    console.log("Found updated column:", !!updatedColumn, updatedColumn?.columnCode);
+
+    if (updatedColumn) {
+      // Find the specific description that matches our saved data
+      const updatedDescIndex = updatedColumn.descriptions.findIndex(
+        (d) => d.columnId === currentColumnId
       );
-      if (updatedColumn) {
-        const updatedDesc = updatedColumn.descriptions[selectedDescriptionIndex] || updatedColumn.descriptions[0];
+
+      console.log("Found updated description at index:", updatedDescIndex);
+
+      if (updatedDescIndex >= 0) {
+        const updatedDesc = updatedColumn.descriptions[updatedDescIndex];
+
+        // Update selection to point to the correct location
+        setSelectedColumnId(updatedColumn._id);
+        setSelectedDescriptionIndex(updatedDescIndex);
+
+        // Find and set the series information for the updated record
+        const matchingSeries = series.find((s) => updatedDesc.columnId.startsWith(s.prefix));
+
+        if (matchingSeries) {
+          setSelectedSeriesId(matchingSeries._id);
+          setSelectedSeriesName(matchingSeries.name);
+        }
+
+        // Update form with fresh data from backend
         setForm({
           columnCode: updatedColumn.columnCode,
           descriptions: [
@@ -1384,8 +1500,42 @@ export default function MasterColumn() {
             },
           ],
         });
+
+        console.log("Selection and form updated successfully");
+      } else {
+        console.log("Could not find matching description, clearing selection");
+        setSelectedColumnId("");
+        setSelectedDescriptionIndex(-1);
+        setSelectedSeriesId("");
+        setSelectedSeriesName("");
       }
+    } else {
+      console.log("Could not find updated column, clearing selection");
+      setSelectedColumnId("");
+      setSelectedDescriptionIndex(-1);
+      setSelectedSeriesId("");
+      setSelectedSeriesName("");
     }
+
+    // Fetch updated makes to ensure new "Make" values are available
+    try {
+      const makesRes = await fetch(
+        `/api/admin/column/make?companyId=${companyId}&locationId=${locationId}`,
+        {
+          credentials: "include",
+        }
+      );
+      const makesData = await makesRes.json();
+      if (makesData.success) {
+        setMakes(makesData.data.filter((make: any) => make && make.make?.trim()));
+      } else {
+        console.error("Failed to fetch updated makes:", makesData.error);
+      }
+    } catch (err: any) {
+      console.error("Error fetching updated makes:", err);
+    }
+
+    console.log("=== SAVE OPERATION COMPLETED SUCCESSFULLY ===");
   } catch (err: any) {
     console.error("Save operation failed:", err);
     setError(`Failed to save column: ${err.message || "An unknown error occurred."}`);
@@ -1417,32 +1567,6 @@ export default function MasterColumn() {
     }, 50);
   };
 
-  const handleColumnCodeFocus = (index: number) => {
-    console.log("=== COLUMN CODE FIELD FOCUSED ===");
-    const desc = form.descriptions[index];
-
-    // If column code is empty but we have enough data to generate it, do so immediately
-    if (
-      !form.columnCode &&
-      desc.carbonType &&
-      desc.innerDiameter &&
-      desc.length &&
-      desc.particleSize
-    ) {
-      console.log("Generating column code on focus...");
-      updateColumnCode(index);
-    } else if (!form.columnCode) {
-      console.log("Cannot generate column code - missing required fields:", {
-        carbonType: !!desc.carbonType,
-        innerDiameter: !!desc.innerDiameter,
-        length: !!desc.length,
-        particleSize: !!desc.particleSize,
-      });
-    } else {
-      console.log("Column code already exists:", form.columnCode);
-    }
-  };
-
   const handleEdit = () => {
     if (selectedColumnId && selectedDescriptionIndex >= 0) {
       const column = [...columns, ...obsoleteColumns].find(
@@ -1450,6 +1574,17 @@ export default function MasterColumn() {
       );
       if (column) {
         const desc = column.descriptions[selectedDescriptionIndex];
+
+        // Find the series that matches this column's columnId
+        const matchingSeries = series.find((s) =>
+          desc.columnId.startsWith(s.prefix)
+        );
+
+        if (matchingSeries) {
+          setSelectedSeriesId(matchingSeries._id);
+          setSelectedSeriesName(matchingSeries.name);
+        }
+
         setForm({
           columnCode: column.columnCode,
           descriptions: [
@@ -1544,39 +1679,6 @@ export default function MasterColumn() {
     }
   };
 
-  const handleBatchDelete = async () => {
-    if (
-      !selectedColumnId ||
-      !confirm(
-        "Are you sure you want to delete the entire column with all its descriptions?"
-      )
-    )
-      return;
-    setLoading(true);
-    try {
-      const response = await fetch(
-        `/api/admin/column/${selectedColumnId}?companyId=${companyId}&locationId=${locationId}`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        }
-      );
-      const data = await response.json();
-      if (data.success) {
-        await fetchData();
-        setSelectedColumnId("");
-        setSelectedDescriptionIndex(-1);
-        handleCloseForm();
-      } else {
-        setError(data.error);
-      }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const fetchAudits = async () => {
     try {
       const response = await fetch(
@@ -1604,7 +1706,10 @@ export default function MasterColumn() {
   };
 
   const navigation = (direction: "up" | "down") => {
-    const currentColumns = showObsoleteTable ? obsoleteColumns : columns;
+    const currentColumns = useMemo(
+  () => filterColumns(showObsoleteTable ? obsoleteColumns : columns),
+  [columns, obsoleteColumns, showObsoleteTable, searchFilters]
+);
     if (!currentColumns.length) return;
 
     let newColumnIndex = currentColumns.findIndex(
@@ -1656,43 +1761,41 @@ export default function MasterColumn() {
 
   // Filter columns based on search criteria
   const filterColumns = (columns: Column[]) => {
-    return columns.filter((column) => {
-      const matchesColumnCode =
-        !searchFilters.columnCode ||
-        column.columnCode
+  return columns.filter((column) => {
+    const matchesColumnCode =
+      !searchFilters.columnCode ||
+      column.columnCode
+        .toLowerCase()
+        .includes(searchFilters.columnCode.toLowerCase());
+
+    const matchesDescription = column.descriptions.some((desc) => {
+      const matchesCarbonType =
+        !searchFilters.carbonType ||
+        desc.carbonType
           .toLowerCase()
-          .includes(searchFilters.columnCode.toLowerCase());
+          .includes(searchFilters.carbonType.toLowerCase());
 
-      const matchesDescription = column.descriptions.some((desc) => {
-        const matchesCarbonType =
-          !searchFilters.carbonType ||
-          desc.carbonType
-            .toLowerCase()
-            .includes(searchFilters.carbonType.toLowerCase());
+      const matchesMake =
+        !searchFilters.make ||
+        desc.make.toLowerCase().includes(searchFilters.make.toLowerCase());
 
-        const matchesMake =
-          !searchFilters.make ||
-          desc.make.toLowerCase().includes(searchFilters.make.toLowerCase());
+      const descString =
+        `${desc.prefix} ${desc.carbonType} ${desc.innerDiameter} x ${desc.length} ${desc.particleSize}µm ${desc.suffix}`.toLowerCase();
+      const matchesDescText =
+        !searchFilters.description ||
+        descString.includes(searchFilters.description.toLowerCase());
 
-        const descString =
-          `${desc.prefix} ${desc.carbonType} ${desc.innerDiameter} x ${desc.length} ${desc.particleSize}µm ${desc.suffix}`.toLowerCase();
-        const matchesDescText =
-          !searchFilters.description ||
-          descString.includes(searchFilters.description.toLowerCase());
-
-        return matchesCarbonType && matchesMake && matchesDescText;
-      });
-
-      return matchesColumnCode && matchesDescription;
+      return matchesCarbonType && matchesMake && matchesDescText;
     });
-  };
+
+    return matchesColumnCode && matchesDescription;
+  });
+};
 
   const currentColumns = filterColumns(
     showObsoleteTable ? obsoleteColumns : columns
   );
-  const filteredAudits = selectedColumnCodeForAudit
-    ? audits.filter((audit) => audit.columnCode === selectedColumnCodeForAudit)
-    : audits;
+  
 
   if (!authLoaded) {
     return (
@@ -1914,7 +2017,7 @@ export default function MasterColumn() {
           </div>
 
           <div className="overflow-x-auto border-2 border-gray-300 rounded-lg shadow-sm">
-            <table className="w-full border-collapse border border-gray-300 bg-white">
+            <table key={renderKey} className="w-full border-collapse border border-gray-300 bg-white">
               <thead>
                 <tr className="bg-gray-100">
                   {[
@@ -2279,7 +2382,7 @@ export default function MasterColumn() {
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-[#003087] mb-1">
-                          Prefix 
+                          Prefix
                         </label>
                         <select
                           value={desc.prefix}
@@ -2633,7 +2736,7 @@ export default function MasterColumn() {
                           ))}
                         </select>
                       </div>
-                      {!selectedColumnId && (
+                      {!selectedColumnId ? (
                         <div>
                           <label className="block text-xs font-medium text-[#003087] mb-1">
                             Series
@@ -2661,6 +2764,21 @@ export default function MasterColumn() {
                               {formErrors[`columnId_${index}`]}
                             </p>
                           )}
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-xs font-medium text-[#003087] mb-1">
+                            Series (Read-only)
+                          </label>
+                          <input
+                            type="text"
+                            value={selectedSeriesName || "Unknown Series"}
+                            className="border-2 border-gray-300 rounded-lg p-2 w-full bg-gray-100 text-xs opacity-60"
+                            readOnly
+                          />
+                          <p className="text-xs text-gray-600 mt-1">
+                            Column ID: {desc.columnId}
+                          </p>
                         </div>
                       )}
                     </div>

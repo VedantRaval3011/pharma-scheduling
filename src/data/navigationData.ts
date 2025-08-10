@@ -171,6 +171,10 @@ export const adminEmployeeNavData: NavItem[] = [
         path: "/dashboard/make-master",
       },
       {
+        label: "Detector Type Master",
+        path: "/dashboard/detector-type-master",
+      },
+      {
         label: "Product Master",
         path: "/dashboard/product-master",
       },
