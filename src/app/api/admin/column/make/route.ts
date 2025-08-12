@@ -3,6 +3,66 @@ import connectDB from '@/lib/db';
 import Make from '@/models/make';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import Pusher from 'pusher';
+
+// Initialize Pusher client - optimized for performance
+const pusher = new Pusher({
+  appId: process.env.PUSHER_APP_ID!,
+  key: process.env.PUSHER_KEY!,
+  secret: process.env.PUSHER_SECRET!,
+  cluster: process.env.PUSHER_CLUSTER!,
+  useTLS: true
+});
+
+
+// Types for better TypeScript support
+interface PusherEventData {
+  action: 'create' | 'update' | 'delete';
+  type: 'make';
+  data: {
+    id: string;
+    name: string;
+    description?: string;
+    oldName?: string;
+    oldDescription?: string;
+  };
+  timestamp: string;
+  companyId: string;
+  locationId: string;
+}
+
+// Helper function to send Pusher notification - optimized for minimal latency
+async function sendPusherNotification(
+  action: 'create' | 'update' | 'delete',
+  type: 'make',
+  data: any,
+  companyId: string,
+  locationId: string
+): Promise<void> {
+  try {
+    // Use specific channel per company-location for better performance
+    const channelName = `master-updates-${companyId}-${locationId}`;
+    const eventData: PusherEventData = {
+      action,
+      type,
+      data,
+      timestamp: new Date().toISOString(),
+      companyId,
+      locationId
+    };
+
+    // Non-blocking async call for minimal latency impact
+    pusher.trigger(channelName, 'master-data-update', eventData).catch(error => {
+      console.error('Pusher notification failed:', error);
+      // Don't throw error to avoid breaking the main operation
+    });
+    
+    console.log(`Pusher notification sent: ${action} ${type}`, data);
+  } catch (error) {
+    console.error('Failed to send Pusher notification:', error);
+    // Don't throw error here to avoid breaking the main operation
+  }
+}
 
 // Helper function to validate company data
 function validateCompanyData(data: any) {
@@ -97,11 +157,19 @@ export async function POST(request: NextRequest) {
     const newMake = new Make(makeData);
     const savedMake = await newMake.save();
     
+    // Send Pusher notification for CREATE
+    await sendPusherNotification('create', 'make', {
+      id: savedMake._id.toString(),
+      name: savedMake.make,
+      description: savedMake.description
+    }, companyId, locationId);
+    
     return NextResponse.json(
       { success: true, data: savedMake },
       { status: 201 }
     );
   } catch (error: any) {
+    console.error('POST Make Error:', error);
     return NextResponse.json(
       { success: false, error: 'Server error', details: error.message },
       { status: 500 }
@@ -145,6 +213,7 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({ success: true, data: makes }, { status: 200 });
   } catch (error: any) {
+    console.error('GET Make Error:', error);
     return NextResponse.json(
       { success: false, error: 'Server error', details: error.message },
       { status: 500 }
@@ -220,6 +289,12 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Store old values for comparison
+    const oldMake = {
+      name: existingMake.make,
+      description: existingMake.description
+    };
+
     // Update the make
     const updateData = {
       make: make.trim(),
@@ -240,11 +315,21 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Send Pusher notification for UPDATE
+    await sendPusherNotification('update', 'make', {
+      id: updatedMake._id.toString(),
+      name: updatedMake.make,
+      description: updatedMake.description,
+      oldName: oldMake.name,
+      oldDescription: oldMake.description
+    }, companyId, locationId);
+
     return NextResponse.json(
       { success: true, data: updatedMake },
       { status: 200 }
     );
   } catch (error: any) {
+    console.error('PUT Make Error:', error);
     return NextResponse.json(
       { success: false, error: 'Server error', details: error.message },
       { status: 500 }
@@ -289,7 +374,17 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    // Store make info before deletion
+    const deletedMakeInfo = {
+      id: make._id.toString(),
+      name: make.make,
+      description: make.description
+    };
+
     await Make.findByIdAndDelete(id);
+    
+    // Send Pusher notification for DELETE
+    await sendPusherNotification('delete', 'make', deletedMakeInfo, make.companyId, make.locationId);
     
     return NextResponse.json({
       success: true,
@@ -297,6 +392,7 @@ export async function DELETE(request: NextRequest) {
       deletedMake: { id: make._id, make: make.make },
     });
   } catch (error: any) {
+    console.error('DELETE Make Error:', error);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }

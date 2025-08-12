@@ -1,8 +1,66 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { PrefixSuffix, Audit } from '@/models/PrefixSuffix';
 import connectToDatabase from '@/lib/db';
+import Pusher from 'pusher';
+
+// Initialize Pusher client - optimized for performance
+const pusher = new Pusher({
+  appId: process.env.PUSHER_APP_ID!,
+  key: process.env.PUSHER_KEY!,
+  secret: process.env.PUSHER_SECRET!,
+  cluster: process.env.PUSHER_CLUSTER!,
+  useTLS: true,
+});
+
+// Types for better TypeScript support
+interface PusherEventData {
+  action: 'create' | 'update' | 'delete';
+  type: 'prefix' | 'suffix';
+  data: {
+    id: string;
+    name: string;
+    oldName?: string;
+  };
+  timestamp: string;
+  companyId: string;
+  locationId: string;
+}
+
+// Helper function to send Pusher notification - optimized for minimal latency
+async function sendPusherNotification(
+  action: 'create' | 'update' | 'delete',
+  type: 'prefix' | 'suffix',
+  data: any,
+  companyId: string,
+  locationId: string
+): Promise<void> {
+  try {
+    // Use specific channel per company-location for better performance
+    const channelName = `master-updates-${companyId}-${locationId}`;
+    const eventData: PusherEventData = {
+      action,
+      type,
+      data,
+      timestamp: new Date().toISOString(),
+      companyId,
+      locationId
+    };
+
+    // Non-blocking async call for minimal latency impact
+    pusher.trigger(channelName, 'master-data-update', eventData).catch(error => {
+      console.error('Pusher notification failed:', error);
+      // Don't throw error to avoid breaking the main operation
+    });
+    
+    console.log(`Pusher notification sent: ${action} ${type}`, data);
+  } catch (error) {
+    console.error('Failed to send Pusher notification:', error);
+    // Don't throw error here to avoid breaking the main operation
+  }
+}
 
 // Helper function to validate companyId and locationId against session
 function validateCompanyAndLocation(session: any, companyId: string, locationId: string) {
@@ -139,6 +197,12 @@ export async function POST(request: NextRequest) {
     const item = await PrefixSuffix.create(itemData);
     console.log('Item created successfully:', item);
 
+    // Send Pusher notification for CREATE
+    await sendPusherNotification('create', type.toLowerCase() as 'prefix' | 'suffix', {
+      id: item._id.toString(),
+      name: item.name
+    }, companyId, locationId);
+
     const auditData = {
       action: 'CREATE',
       userId: session.user.id,
@@ -237,6 +301,14 @@ export async function PUT(request: NextRequest) {
     existing.name = name.trim();
     existing.updatedAt = new Date();
     const updatedItem = await existing.save();
+    
+    // Send Pusher notification for UPDATE
+    await sendPusherNotification('update', existing.type.toLowerCase() as 'prefix' | 'suffix', {
+      id: existing._id.toString(),
+      name: existing.name,
+      oldName: oldValue.name
+    }, companyId, locationId);
+    
     console.log('Item updated successfully:', updatedItem);
 
     const auditData = {
@@ -311,6 +383,12 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    // Send Pusher notification for DELETE
+    await sendPusherNotification('delete', item.type.toLowerCase() as 'prefix' | 'suffix', {
+      id: item._id.toString(),
+      name: item.name
+    }, companyId, locationId);
+
     const auditData = {
       action: 'DELETE',
       userId: session.user.id,
@@ -325,17 +403,18 @@ export async function DELETE(request: NextRequest) {
       userAgent: request.headers.get('user-agent') || 'Unknown'
     };
     console.log('Attempting to create audit record:', auditData);
+        // Create audit log
     const audit = await Audit.create(auditData);
     console.log('Audit record created successfully:', audit);
 
-    await PrefixSuffix.deleteOne({ _id: id });
-    console.log('Item deleted successfully:', { id, name: item.name });
+    // Delete the item from the DB
+    await PrefixSuffix.deleteOne({ _id: id, companyId, locationId });
+    console.log(`Item deleted successfully: ${id}`);
 
-    return NextResponse.json({
-      success: true,
-      message: 'Item deleted successfully',
-      deletedItem: { id: item._id, name: item.name }
-    }, { status: 200 });
+    return NextResponse.json(
+      { success: true, message: 'Item deleted successfully' },
+      { status: 200 }
+    );
   } catch (error: any) {
     console.error('DELETE Error:', error);
     return NextResponse.json(

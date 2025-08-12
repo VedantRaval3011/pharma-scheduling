@@ -5,19 +5,18 @@ import WindowsToolbar from "@/components/layout/ToolBox";
 import { useRouter } from "next/navigation";
 
 interface ColumnDescription {
-  prefix: string;
+  prefix: string; // This will now be prefixId
   carbonType: string;
   linkedCarbonType: string;
   innerDiameter: string | number;
   length: string | number;
   particleSize: string | number;
-  suffix: string;
-  make: string;
+  suffix: string; // This will now be suffixId
+  make: string; // This will now be makeId
   columnId: string;
   installationDate: string;
   usePrefix: boolean;
   useSuffix: boolean;
-  // Add new checkboxes for column code generation
   usePrefixForNewCode: boolean;
   useSuffixForNewCode: boolean;
   isObsolete: boolean;
@@ -105,35 +104,35 @@ const carbonTypeMap: { [key: string]: string } = {
   L85: "RP + WCX",
   L86: "OH-Core",
   L122: "ZIC-HILIC",
- 
+
   // C to L mapping
-  "C18": "L1",
+  C18: "L1",
   "C18 core-shell": "L2",
   "Spherical Silica": "L3",
   "Porous silica core": "L4",
-  "C8": "L7",
+  C8: "L7",
   "NH₂": "L8",
-  "SCX": "L9",
-  "CN": "L10",
-  "Phenyl": "L11",
-  "SAX": "L12",
-  "C1": "L13",
-  "C6": "L15",
+  SCX: "L9",
+  CN: "L10",
+  Phenyl: "L11",
+  SAX: "L12",
+  C1: "L13",
+  C6: "L15",
   "SCX resin H⁺ form": "L17",
   "SCX resin Ca²⁺ form": "L19",
-  "Diol": "L20",
+  Diol: "L20",
   "SVDB-polystyrene resin": "L21",
   "PS-SCX": "L22",
   "PM-AQ": "L23",
   "PM-S-EX": "L25",
-  "C4": "L26",
+  C4: "L26",
   "Large silica": "L27",
   "Dextran-SEC": "L33",
   "SCX resin Pb²⁺ form": "L34",
   "PM-Protein SEC": "L37",
   "PM-Water SEC": "L38",
   "PH-PM resin": "L39",
-  "PFP": "L43",
+  PFP: "L43",
   "SCX polybutadiene-maleic acid": "L55",
   "Protein silica hydrophilic": "L59",
   "Amide HILIC": "L68",
@@ -145,28 +144,93 @@ const carbonTypeMap: { [key: string]: string } = {
   "WCX resin": "L84",
   "RP + WCX": "L85",
   "OH-Core": "L86",
-  "ZIC-HILIC": "L122"
+  "ZIC-HILIC": "L122",
 };
 
 const carbonTypeOptions = [
-  "C18", "C18 core-shell", "Spherical Silica", "Porous silica core", "C8", "NH₂",
-  "SCX", "CN", "Phenyl", "SAX", "C1", "C6", "SCX resin H⁺ form",
-  "SCX resin Ca²⁺ form", "Diol", "SVDB-polystyrene resin", "PS-SCX",
-  "PM-AQ", "PM-S-EX", "C4", "Large silica", "Dextran-SEC",
-  "SCX resin Pb²⁺ form", "PM-Protein SEC", "PM-Water SEC", "PH-PM resin",
-  "PFP", "SCX polybutadiene-maleic acid", "Protein silica hydrophilic",
-  "Amide HILIC", "RP + WAX", "HSA chiral", "Cellulose chiral", "NH₂–PVA",
-  "SAX latex", "WCX resin", "RP + WCX", "OH-Core", "ZIC-HILIC"
+  "C18",
+  "C18 core-shell",
+  "Spherical Silica",
+  "Porous silica core",
+  "C8",
+  "NH₂",
+  "SCX",
+  "CN",
+  "Phenyl",
+  "SAX",
+  "C1",
+  "C6",
+  "SCX resin H⁺ form",
+  "SCX resin Ca²⁺ form",
+  "Diol",
+  "SVDB-polystyrene resin",
+  "PS-SCX",
+  "PM-AQ",
+  "PM-S-EX",
+  "C4",
+  "Large silica",
+  "Dextran-SEC",
+  "SCX resin Pb²⁺ form",
+  "PM-Protein SEC",
+  "PM-Water SEC",
+  "PH-PM resin",
+  "PFP",
+  "SCX polybutadiene-maleic acid",
+  "Protein silica hydrophilic",
+  "Amide HILIC",
+  "RP + WAX",
+  "HSA chiral",
+  "Cellulose chiral",
+  "NH₂–PVA",
+  "SAX latex",
+  "WCX resin",
+  "RP + WCX",
+  "OH-Core",
+  "ZIC-HILIC",
 ];
 
 const linkedCarbonTypeOptions = [
-  "L1", "L2", "L3", "L4", "L7", "L8", "L9", "L10", "L11", "L12", "L13",
-  "L14", "L15", "L17", "L19", "L20", "L21", "L22", "L23", "L25", "L26",
-  "L27", "L33", "L34", "L37", "L38", "L39", "L43", "L55", "L59", "L68",
-  "L78", "L79", "L80", "L82", "L83", "L84", "L85", "L86", "L122"
+  "L1",
+  "L2",
+  "L3",
+  "L4",
+  "L7",
+  "L8",
+  "L9",
+  "L10",
+  "L11",
+  "L12",
+  "L13",
+  "L14",
+  "L15",
+  "L17",
+  "L19",
+  "L20",
+  "L21",
+  "L22",
+  "L23",
+  "L25",
+  "L26",
+  "L27",
+  "L33",
+  "L34",
+  "L37",
+  "L38",
+  "L39",
+  "L43",
+  "L55",
+  "L59",
+  "L68",
+  "L78",
+  "L79",
+  "L80",
+  "L82",
+  "L83",
+  "L84",
+  "L85",
+  "L86",
+  "L122",
 ];
-
-
 
 export default function MasterColumn() {
   const router = useRouter();
@@ -381,165 +445,449 @@ export default function MasterColumn() {
 
   // Fetch data when auth is loaded
   useEffect(() => {
-  if (authLoaded && companyId && locationId) {
-    fetchData();
-  }
-}, [companyId, locationId, authLoaded]);
-
+    if (authLoaded && companyId && locationId) {
+      fetchData();
+    }
+  }, [companyId, locationId, authLoaded]);
 
   const fetchData = async () => {
-  if (!companyId || !locationId) {
-    setError("Missing company or location ID");
-    return;
-  }
+    console.log("=== FETCH DATA START ===");
+    console.log("Auth data:", { companyId, locationId });
 
-  setLoading(true);
-  setError("");
+    if (!companyId || !locationId) {
+      console.error("Missing auth data:", { companyId, locationId });
+      setError("Missing company or location ID");
+      return;
+    }
 
-  try {
-    const [
-      columnsRes,
-      obsoleteColumnsRes,
-      makesRes,
-      prefixRes,
-      suffixRes,
-      seriesRes,
-    ] = await Promise.all([
-      fetch(`/api/admin/column?companyId=${companyId}&locationId=${locationId}`, {
-        credentials: "include",
-        headers: { "Cache-Control": "no-cache" }, // Prevent caching
-      }),
-      fetch(`/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`, {
-        credentials: "include",
-        headers: { "Cache-Control": "no-cache" },
-      }),
-      fetch(`/api/admin/column/make?companyId=${companyId}&locationId=${locationId}`, {
-        credentials: "include",
-        headers: { "Cache-Control": "no-cache" },
-      }),
-      fetch(`/api/admin/prefixAndSuffix?type=PREFIX&companyId=${companyId}&locationId=${locationId}`, {
-        credentials: "include",
-        headers: { "Cache-Control": "no-cache" },
-      }),
-      fetch(`/api/admin/prefixAndSuffix?type=SUFFIX&companyId=${companyId}&locationId=${locationId}`, {
-        credentials: "include",
-        headers: { "Cache-Control": "no-cache" },
-      }),
-      fetch(`/api/admin/series?companyId=${companyId}&locationId=${locationId}`, {
-        credentials: "include",
-        headers: { "Cache-Control": "no-cache" },
-      }),
-    ]);
+    setLoading(true);
+    setError("");
 
-    const responses = [
-      { name: "columns", response: columnsRes },
-      { name: "obsoleteColumns", response: obsoleteColumnsRes },
-      { name: "makes", response: makesRes },
-      { name: "prefix", response: prefixRes },
-      { name: "suffix", response: suffixRes },
-      { name: "series", response: seriesRes },
-    ];
+    try {
+      console.log("=== MAKING API CALLS ===");
 
-    for (const { name, response } of responses) {
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`${name} API error:`, response.status, response.statusText, errorText);
-        throw new Error(`${name} API error: ${response.statusText}`);
+      const [
+        columnsRes,
+        obsoleteColumnsRes,
+        makesRes,
+        prefixRes,
+        suffixRes,
+        seriesRes,
+      ] = await Promise.all([
+        fetch(
+          `/api/admin/column?companyId=${companyId}&locationId=${locationId}`,
+          {
+            credentials: "include",
+            headers: { "Cache-Control": "no-cache" },
+          }
+        ),
+        fetch(
+          `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`,
+          {
+            credentials: "include",
+            headers: { "Cache-Control": "no-cache" },
+          }
+        ),
+        fetch(
+          `/api/admin/column/make?companyId=${companyId}&locationId=${locationId}`,
+          {
+            credentials: "include",
+            headers: { "Cache-Control": "no-cache" },
+          }
+        ),
+        fetch(
+          `/api/admin/prefixAndSuffix?type=PREFIX&companyId=${companyId}&locationId=${locationId}`,
+          {
+            credentials: "include",
+            headers: { "Cache-Control": "no-cache" },
+          }
+        ),
+        fetch(
+          `/api/admin/prefixAndSuffix?type=SUFFIX&companyId=${companyId}&locationId=${locationId}`,
+          {
+            credentials: "include",
+            headers: { "Cache-Control": "no-cache" },
+          }
+        ),
+        fetch(
+          `/api/admin/series?companyId=${companyId}&locationId=${locationId}`,
+          {
+            credentials: "include",
+            headers: { "Cache-Control": "no-cache" },
+          }
+        ),
+      ]);
+
+      console.log("=== API RESPONSE STATUS ===");
+      const responses = [
+        { name: "columns", response: columnsRes },
+        { name: "obsoleteColumns", response: obsoleteColumnsRes },
+        { name: "makes", response: makesRes },
+        { name: "prefix", response: prefixRes },
+        { name: "suffix", response: suffixRes },
+        { name: "series", response: seriesRes },
+      ];
+
+      // Log all response statuses and headers
+      for (const { name, response } of responses) {
+        console.log(`${name} API:`, {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+          headers: Object.fromEntries(response.headers.entries()),
+          url: response.url,
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`${name} API error:`, {
+            status: response.status,
+            statusText: response.statusText,
+            errorText,
+            url: response.url,
+          });
+          throw new Error(`${name} API error: ${response.statusText}`);
+        }
       }
-    }
 
-    const [
-      columnsData,
-      obsoleteColumnsData,
-      makesData,
-      prefixData,
-      suffixData,
-      seriesData,
-    ] = await Promise.all([
-      columnsRes.json(),
-      obsoleteColumnsRes.json(),
-      makesRes.json(),
-      prefixRes.json(),
-      suffixRes.json(),
-      seriesRes.json(),
-    ]);
+      console.log("=== PARSING JSON RESPONSES ===");
 
-    if (columnsData.success) {
-      const processedColumns = columnsData.data.map((col: Column) => ({
-        ...col,
-        descriptions: col.descriptions.map((desc: any) => ({
-          ...desc,
-          columnId: desc.columnId || "",
-          installationDate: desc.installationDate || "",
-          linkedCarbonType: desc.linkedCarbonType || carbonTypeMap[desc.carbonType] || "",
-        })),
-      }));
-      console.log("Fetched columns:", JSON.stringify(processedColumns, null, 2));
-      setColumns(processedColumns);
-    } else {
-      setError(`Failed to fetch columns: ${columnsData.error}`);
-    }
+      const [
+        columnsData,
+        obsoleteColumnsData,
+        makesData,
+        prefixData,
+        suffixData,
+        seriesData,
+      ] = await Promise.all([
+        columnsRes.json(),
+        obsoleteColumnsRes.json(),
+        makesRes.json(),
+        prefixRes.json(),
+        suffixRes.json(),
+        seriesRes.json(),
+      ]);
 
-    if (obsoleteColumnsData.success) {
-      const processedObsoleteColumns = obsoleteColumnsData.data.map((col: Column) => ({
-        ...col,
-        descriptions: col.descriptions.map((desc: any) => ({
-          ...desc,
-          columnId: desc.columnId || "",
-          installationDate: desc.installationDate || "",
-          linkedCarbonType: desc.linkedCarbonType || carbonTypeMap[desc.carbonType] || "",
-        })),
-      }));
-      console.log("Fetched obsolete columns:", JSON.stringify(processedObsoleteColumns, null, 2));
-      setObsoleteColumns(processedObsoleteColumns);
-    } else {
-      setError(`Failed to fetch obsolete columns: ${obsoleteColumnsData.error}`);
-    }
+      console.log("=== RAW API RESPONSES ===");
+      console.log(
+        "Raw columns response:",
+        JSON.stringify(columnsData, null, 2)
+      );
+      console.log(
+        "Raw obsolete columns response:",
+        JSON.stringify(obsoleteColumnsData, null, 2)
+      );
+      console.log("Raw makes response:", JSON.stringify(makesData, null, 2));
+      console.log(
+        "Raw prefixes response:",
+        JSON.stringify(prefixData, null, 2)
+      );
+      console.log(
+        "Raw suffixes response:",
+        JSON.stringify(suffixData, null, 2)
+      );
+      console.log("Raw series response:", JSON.stringify(seriesData, null, 2));
 
-    if (makesData.success) {
-      const processedMakes = makesData.data.filter((make: any) => make && make.make?.trim());
-      console.log("Fetched makes:", JSON.stringify(processedMakes, null, 2));
-      setMakes(processedMakes);
-    } else {
-      setError(`Failed to fetch makes: ${makesData.error}`);
-    }
+      // Process MAKES first (highest priority for debugging)
+      console.log("=== PROCESSING MAKES ===");
+      if (makesData.success) {
+        console.log("Makes data structure:", {
+          isArray: Array.isArray(makesData.data),
+          length: makesData.data?.length,
+          firstItem: makesData.data?.[0],
+          sampleItems: makesData.data?.slice(0, 3),
+        });
 
-    if (prefixData.success && Array.isArray(prefixData.data)) {
-      const processedPrefixes = prefixData.data
-        .filter((item: any) => item && item.name?.trim())
-        .map((item: any) => ({
-          _id: item._id,
-          value: item.name,
-        }));
-      setPrefixes(processedPrefixes);
-    } else {
-      setPrefixes([]);
-    }
+        const processedMakes = makesData.data.filter((make: any) => {
+          const isValid = make && make.make?.trim() && make._id;
+          console.log("Make validation:", {
+            make,
+            isValid,
+            hasId: !!make?._id,
+            hasName: !!make?.make,
+            nameTrimmed: make?.make?.trim(),
+          });
+          return isValid;
+        });
 
-    if (suffixData.success && Array.isArray(suffixData.data)) {
-      const processedSuffixes = suffixData.data
-        .filter((item: any) => item && item.name?.trim())
-        .map((item: any) => ({
-          _id: item._id,
-          value: item.name,
-        }));
-      setSuffixes(processedSuffixes);
-    } else {
-      setSuffixes([]);
-    }
+        console.log(
+          "Processed makes:",
+          JSON.stringify(processedMakes, null, 2)
+        );
+        console.log("Makes count:", {
+          original: makesData.data?.length,
+          processed: processedMakes.length,
+        });
+        setMakes(processedMakes);
+      } else {
+        console.error("Makes API failed:", makesData.error);
+        setError(`Failed to fetch makes: ${makesData.error}`);
+      }
 
-    if (seriesData.success) {
-      setSeries(seriesData.data);
-    } else {
-      setError(`Failed to fetch series: ${seriesData.error}`);
+      // Process PREFIXES
+      console.log("=== PROCESSING PREFIXES ===");
+      if (prefixData.success && Array.isArray(prefixData.data)) {
+        console.log("Prefixes data structure:", {
+          isArray: Array.isArray(prefixData.data),
+          length: prefixData.data.length,
+          firstItem: prefixData.data[0],
+          sampleItems: prefixData.data.slice(0, 3),
+        });
+
+        const processedPrefixes = prefixData.data
+          .filter((item: any) => {
+            const isValid = item && item.name?.trim() && item._id;
+            console.log("Prefix validation:", {
+              item,
+              isValid,
+              hasId: !!item?._id,
+              hasName: !!item?.name,
+              nameTrimmed: item?.name?.trim(),
+            });
+            return isValid;
+          })
+          .map((item: any) => ({
+            _id: item._id,
+            value: item.name,
+          }));
+
+        console.log(
+          "Processed prefixes:",
+          JSON.stringify(processedPrefixes, null, 2)
+        );
+        console.log("Prefixes count:", {
+          original: prefixData.data.length,
+          processed: processedPrefixes.length,
+        });
+        setPrefixes(processedPrefixes);
+      } else {
+        console.error("Prefixes API failed or invalid data:", {
+          success: prefixData.success,
+          isArray: Array.isArray(prefixData.data),
+          data: prefixData.data,
+          error: prefixData.error,
+        });
+        setPrefixes([]);
+      }
+
+      // Process SUFFIXES
+      console.log("=== PROCESSING SUFFIXES ===");
+      if (suffixData.success && Array.isArray(suffixData.data)) {
+        console.log("Suffixes data structure:", {
+          isArray: Array.isArray(suffixData.data),
+          length: suffixData.data.length,
+          firstItem: suffixData.data[0],
+          sampleItems: suffixData.data.slice(0, 3),
+        });
+
+        const processedSuffixes = suffixData.data
+          .filter((item: any) => {
+            const isValid = item && item.name?.trim() && item._id;
+            console.log("Suffix validation:", {
+              item,
+              isValid,
+              hasId: !!item?._id,
+              hasName: !!item?.name,
+              nameTrimmed: item?.name?.trim(),
+            });
+            return isValid;
+          })
+          .map((item: any) => ({
+            _id: item._id,
+            value: item.name,
+          }));
+
+        console.log(
+          "Processed suffixes:",
+          JSON.stringify(processedSuffixes, null, 2)
+        );
+        console.log("Suffixes count:", {
+          original: suffixData.data.length,
+          processed: processedSuffixes.length,
+        });
+        setSuffixes(processedSuffixes);
+      } else {
+        console.error("Suffixes API failed or invalid data:", {
+          success: suffixData.success,
+          isArray: Array.isArray(suffixData.data),
+          data: suffixData.data,
+          error: suffixData.error,
+        });
+        setSuffixes([]);
+      }
+
+      console.log("=== PROCESSING COLUMNS ===");
+      if (columnsData.success) {
+        console.log("Columns data structure:", {
+          isArray: Array.isArray(columnsData.data),
+          length: columnsData.data?.length,
+          firstColumn: columnsData.data?.[0],
+          firstColumnDescriptions: columnsData.data?.[0]?.descriptions,
+        });
+
+        const processedColumns = columnsData.data.map((col: Column) => {
+          const processedCol = {
+            ...col,
+            descriptions: col.descriptions.map((desc: any) => {
+              const processedDesc = {
+                ...desc,
+                columnId: desc.columnId || "",
+                installationDate: desc.installationDate || "",
+                linkedCarbonType:
+                  desc.linkedCarbonType || carbonTypeMap[desc.carbonType] || "",
+
+                // FIXED: Handle nested object structure properly
+                make: desc.makeId?._id || desc.make || "",
+                prefix: desc.prefixId?._id || desc.prefix || "",
+                suffix: desc.suffixId?._id || desc.suffix || "",
+
+                // Keep original nested objects for reference if needed
+                makeObj: desc.makeId || null,
+                prefixObj: desc.prefixId || null,
+                suffixObj: desc.suffixId || null,
+              };
+
+              console.log("Column description processing:", {
+                original: {
+                  makeId: desc.makeId,
+                  prefixId: desc.prefixId,
+                  suffixId: desc.suffixId,
+                  make: desc.make,
+                  prefix: desc.prefix,
+                  suffix: desc.suffix,
+                },
+                processed: {
+                  make: processedDesc.make,
+                  prefix: processedDesc.prefix,
+                  suffix: processedDesc.suffix,
+                },
+                types: {
+                  makeType: typeof processedDesc.make,
+                  prefixType: typeof processedDesc.prefix,
+                  suffixType: typeof processedDesc.suffix,
+                },
+              });
+
+              return processedDesc;
+            }),
+          };
+
+          console.log("Processed column:", {
+            columnCode: processedCol.columnCode,
+            descriptionsCount: processedCol.descriptions.length,
+            sampleDescription: processedCol.descriptions[0],
+          });
+
+          return processedCol;
+        });
+
+        console.log(
+          "Final processed columns:",
+          JSON.stringify(processedColumns, null, 2)
+        );
+        console.log("Columns summary:", {
+          totalColumns: processedColumns.length,
+          totalDescriptions: processedColumns.reduce(
+            (sum: number, col: { descriptions: ColumnDescription[] }) =>
+              sum + col.descriptions.length,
+            0
+          ),
+        });
+        setColumns(processedColumns);
+      } else {
+        console.error("Columns API failed:", columnsData.error);
+        setError(`Failed to fetch columns: ${columnsData.error}`);
+      }
+
+      // Apply the same fix to OBSOLETE COLUMNS processing:
+      console.log("=== PROCESSING OBSOLETE COLUMNS ===");
+      if (obsoleteColumnsData.success) {
+        console.log("Obsolete columns data structure:", {
+          isArray: Array.isArray(obsoleteColumnsData.data),
+          length: obsoleteColumnsData.data?.length,
+        });
+
+        const processedObsoleteColumns = obsoleteColumnsData.data.map(
+          (col: Column) => ({
+            ...col,
+            descriptions: col.descriptions.map((desc: any) => ({
+              ...desc,
+              columnId: desc.columnId || "",
+              installationDate: desc.installationDate || "",
+              linkedCarbonType:
+                desc.linkedCarbonType || carbonTypeMap[desc.carbonType] || "",
+
+              // FIXED: Handle nested object structure properly
+              make: desc.makeId?._id || desc.make || "",
+              prefix: desc.prefixId?._id || desc.prefix || "",
+              suffix: desc.suffixId?._id || desc.suffix || "",
+
+              // Keep original nested objects for reference if needed
+              makeObj: desc.makeId || null,
+              prefixObj: desc.prefixId || null,
+              suffixObj: desc.suffixId || null,
+            })),
+          })
+        );
+
+        console.log(
+          "Processed obsolete columns:",
+          JSON.stringify(processedObsoleteColumns, null, 2)
+        );
+        setObsoleteColumns(processedObsoleteColumns);
+      } else {
+        console.error(
+          "Obsolete columns API failed:",
+          obsoleteColumnsData.error
+        );
+        setError(
+          `Failed to fetch obsolete columns: ${obsoleteColumnsData.error}`
+        );
+      }
+
+      // Process SERIES
+      console.log("=== PROCESSING SERIES ===");
+      if (seriesData.success) {
+        console.log("Series data:", JSON.stringify(seriesData.data, null, 2));
+        setSeries(seriesData.data);
+      } else {
+        console.error("Series API failed:", seriesData.error);
+        setError(`Failed to fetch series: ${seriesData.error}`);
+      }
+
+      console.log("=== FINAL STATE SUMMARY ===");
+      console.log("State will be set to:", {
+        makesCount: makesData.success
+          ? makesData.data?.filter((m: any) => m && m.make?.trim() && m._id)
+              .length
+          : 0,
+        prefixesCount: prefixData.success
+          ? prefixData.data?.filter((p: any) => p && p.name?.trim() && p._id)
+              .length
+          : 0,
+        suffixesCount: suffixData.success
+          ? suffixData.data?.filter((s: any) => s && s.name?.trim() && s._id)
+              .length
+          : 0,
+        columnsCount: columnsData.success ? columnsData.data?.length : 0,
+        obsoleteColumnsCount: obsoleteColumnsData.success
+          ? obsoleteColumnsData.data?.length
+          : 0,
+        seriesCount: seriesData.success ? seriesData.data?.length : 0,
+      });
+    } catch (err: any) {
+      console.error("=== FETCH DATA ERROR ===");
+      console.error("Error details:", {
+        message: err.message,
+        stack: err.stack,
+        name: err.name,
+      });
+      setError(`Failed to fetch data: ${err.message}`);
+    } finally {
+      console.log("=== FETCH DATA COMPLETE ===");
+      setLoading(false);
     }
-  } catch (err: any) {
-    console.error("fetchData error:", err);
-    setError(`Failed to fetch data: ${err.message}`);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const generateColumnCode = (
     desc: ColumnDescription,
@@ -765,6 +1113,33 @@ export default function MasterColumn() {
         setError(err.message);
       }
     }
+  };
+
+  const getMakeName = (makeId: string | undefined) => {
+    if (!makeId) return "-";
+    if (makes.length === 0) return "Loading...";
+    const make = makes.find(
+      (m) => m._id.toString().trim() === makeId.toString().trim()
+    );
+    return make?.make || `Unknown Make (${makeId})`;
+  };
+
+  const getPrefixName = (prefixId: string | undefined) => {
+    if (!prefixId) return "-";
+    if (prefixes.length === 0) return "Loading...";
+    const prefix = prefixes.find(
+      (p) => p._id.toString().trim() === prefixId.toString().trim()
+    );
+    return prefix?.value || `Unknown Prefix (${prefixId})`;
+  };
+
+  const getSuffixName = (suffixId: string | undefined) => {
+    if (!suffixId) return "-";
+    if (suffixes.length === 0) return "Loading...";
+    const suffix = suffixes.find(
+      (s) => s._id.toString().trim() === suffixId.toString().trim()
+    );
+    return suffix?.value || `Unknown Suffix (${suffixId})`;
   };
 
   const handleCarbonTypeKeyDown = (
@@ -1084,466 +1459,248 @@ export default function MasterColumn() {
     console.log("Form state reset completed");
   };
 
+  // 1. Fix the formattedDesc creation in handleSave function
+  // Replace your existing handleSave function with this fixed version
   const handleSave = async () => {
-  console.log("=== SAVE OPERATION START ===");
-  console.log("Form state:", JSON.stringify(form, null, 2));
-  console.log("Selected series ID:", selectedSeriesId);
-  console.log("Selected column ID:", selectedColumnId);
-  console.log("Selected description index:", selectedDescriptionIndex);
+    console.log("=== SAVE OPERATION START ===");
+    console.log("Form state:", JSON.stringify(form, null, 2));
 
-  if (!validateForm()) {
-    console.log("Form validation failed");
-    return;
-  }
-
-  setLoading(true);
-  setError("");
-
-  try {
-    const desc = form.descriptions[0];
-    console.log("Description to save:", JSON.stringify(desc, null, 2));
-
-    // Validate required fields
-    if (!desc.columnId?.trim()) {
-      const errorMsg = "Column ID is required. Please select a series to generate a Column ID.";
-      console.error("Validation error:", errorMsg);
-      throw new Error(errorMsg);
+    // Validate form
+    if (!validateForm()) {
+      console.log("Form validation failed");
+      setError("Please correct the form errors before saving.");
+      return;
     }
 
-    if (!desc.installationDate) {
-      const errorMsg = "Installation Date is required.";
-      console.error("Validation error:", errorMsg);
-      throw new Error(errorMsg);
-    }
+    setLoading(true);
+    setError("");
 
-    const formattedDesc = {
-      ...desc,
-      innerDiameter: Number(desc.innerDiameter),
-      length: Number(desc.length),
-      particleSize: Number(desc.particleSize),
-      columnId: desc.columnId.trim(),
-      installationDate: desc.installationDate,
-      isObsolete: !!desc.isObsolete,
-      usePrefix: !!desc.usePrefix,
-      useSuffix: !!desc.useSuffix,
-      usePrefixForNewCode: !!desc.usePrefixForNewCode,
-      useSuffixForNewCode: !!desc.useSuffixForNewCode,
-    };
-    console.log("Formatted description for backend:", JSON.stringify(formattedDesc, null, 2));
+    try {
+      const desc = form.descriptions[0];
+      console.log("Description to save:", JSON.stringify(desc, null, 2));
 
-    let columnCode = form.columnCode;
-    let isNewDescriptionForExistingColumn = false;
+      // Validate required fields
+      if (!desc.columnId?.trim()) {
+        const errorMsg =
+          "Column ID is required. Please select a series to generate a Column ID.";
+        console.error("Validation error:", errorMsg);
+        throw new Error(errorMsg);
+      }
 
-    const column = [...columns, ...obsoleteColumns].find(
-      (col) => col._id === selectedColumnId
-    );
+      if (!desc.installationDate) {
+        const errorMsg = "Installation Date is required.";
+        console.error("Validation error:", errorMsg);
+        throw new Error(errorMsg);
+      }
 
-    console.log("Existing column found:", !!column, column?._id);
-
-    let body;
-    let method;
-    let url = `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
-    let action = "CREATE";
-
-    if (column && selectedDescriptionIndex >= 0) {
-      console.log("UPDATE MODE: Editing existing description");
-
-      const formattedDescForCheck = {
-        ...formattedDesc,
+      // Format description for backend
+      const formattedDesc = {
+        ...desc,
+        innerDiameter: Number(desc.innerDiameter),
+        length: Number(desc.length),
+        particleSize: Number(desc.particleSize),
         columnId: desc.columnId.trim(),
         installationDate: desc.installationDate,
+        isObsolete: !!desc.isObsolete,
+        usePrefix: !!desc.usePrefix,
+        useSuffix: !!desc.useSuffix,
+        usePrefixForNewCode: !!desc.usePrefixForNewCode,
+        useSuffixForNewCode: !!desc.useSuffixForNewCode,
+        makeId: desc.make, // Ensure this is the ID
+        prefixId: desc.prefix || undefined, // Ensure this is the ID or undefined
+        suffixId: desc.suffix || undefined, // Ensure this is the ID or undefined
       };
 
-      const updatedColumnCode = generateColumnCode(
-        formattedDescForCheck,
-        columns,
-        obsoleteColumns
+      console.log(
+        "Formatted description for backend:",
+        JSON.stringify(formattedDesc, null, 2)
       );
 
-      if (updatedColumnCode !== column.columnCode) {
-        console.log("Description needs to be moved to different column:", updatedColumnCode);
-
-        const updatedDescriptions = column.descriptions.filter(
-          (_, index) => index !== selectedDescriptionIndex
-        );
-
-        if (updatedDescriptions.length === 0) {
-          const deleteResponse = await fetch(
-            `/api/admin/column/${selectedColumnId}?companyId=${companyId}&locationId=${locationId}`,
-            { method: "DELETE", credentials: "include" }
-          );
-          const deleteData = await deleteResponse.json();
-          if (!deleteData.success) {
-            throw new Error(deleteData.error || "Failed to delete column.");
-          }
-        } else {
-          const updateCurrentBody = {
-            id: selectedColumnId,
-            columnCode: column.columnCode,
-            descriptions: updatedDescriptions,
-          };
-          const updateCurrentResponse = await fetch(
-            `/api/admin/column?companyId=${companyId}&locationId=${locationId}`,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(updateCurrentBody),
-              credentials: "include",
-            }
-          );
-          const updateCurrentData = await updateCurrentResponse.json();
-          if (!updateCurrentData.success) {
-            throw new Error(updateCurrentData.error || "Failed to update current column.");
-          }
-        }
-
-        const targetColumn = [...columns, ...obsoleteColumns].find(
-          (col) => col.columnCode === updatedColumnCode
-        );
-
-        if (targetColumn) {
-          body = {
-            id: targetColumn._id,
-            columnCode: updatedColumnCode,
-            descriptions: [...targetColumn.descriptions, formattedDesc],
-          };
-          method = "PUT";
-        } else {
-          body = {
-            columnCode: updatedColumnCode,
-            descriptions: [formattedDesc],
-          };
-          method = "POST";
-        }
-      } else {
-        const updatedDescriptions = column.descriptions.map(
-          (desc: ColumnDescription, index: number) =>
-            index === selectedDescriptionIndex ? formattedDesc : desc
-        );
-        body = {
-          id: selectedColumnId,
-          columnCode: column.columnCode,
-          descriptions: updatedDescriptions,
-        };
-        method = "PUT";
-      }
-      action = "UPDATE";
-    } else {
-      const existingColumn = [...columns, ...obsoleteColumns].find(
-        (col) => col.columnCode.toLowerCase() === columnCode.toLowerCase()
-      );
-
-      if (existingColumn) {
-        console.log("CREATE MODE: Adding new description to existing column");
-        const response = await fetch(
-          `/api/admin/column?companyId=${companyId}&locationId=${locationId}`,
-          {
-            credentials: "include",
-          }
-        );
-        const data = await response.json();
-
-        if (data.success) {
-          const latestColumn = data.data.find(
-            (col: Column) => col._id === existingColumn._id
-          );
-          if (latestColumn) {
-            body = {
-              id: existingColumn._id,
-              columnCode: existingColumn.columnCode,
-              descriptions: [...latestColumn.descriptions, formattedDesc],
-            };
-            method = "PUT";
-            action = "CREATE";
-            isNewDescriptionForExistingColumn = true;
-          } else {
-            console.log("Existing column not found in latest data, creating new column");
-            body = { columnCode: columnCode, descriptions: [formattedDesc] };
-            method = "POST";
-          }
-        } else {
-          console.log("Failed to fetch latest data, creating new column");
-          body = { columnCode: columnCode, descriptions: [formattedDesc] };
-          method = "POST";
-        }
-      } else {
-        console.log("CREATE MODE: Creating new column");
-        body = { columnCode: columnCode, descriptions: [formattedDesc] };
-        method = "POST";
-      }
-    }
-
-    if (formattedDesc.isObsolete) {
-      const obsoleteBody = {
-        columnCode: columnCode,
+      // Prepare the body for the API call
+      const body = {
+        columnCode: form.columnCode,
         descriptions: [formattedDesc],
         companyId,
         locationId,
       };
 
-      const obsoleteResponse = await fetch(
-        `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(obsoleteBody),
-          credentials: "include",
-        }
-      );
+      console.log("Request body:", JSON.stringify(body, null, 2));
 
-      const obsoleteData = await obsoleteResponse.json();
-      if (!obsoleteData.success) {
-        console.error("Failed to move to obsolete:", obsoleteData.error);
-        throw new Error(obsoleteData.error || "Failed to move column to obsolete table.");
-      }
+      // Determine the API endpoint based on obsolete status and whether it's new/existing
+      const isObsolete = desc.isObsolete;
+      const isNewColumn = !selectedColumnId;
+      const isEditingExisting =
+        selectedColumnId && selectedDescriptionIndex >= 0;
 
-      if (column && selectedDescriptionIndex >= 0) {
-        const updatedDescriptions = column.descriptions.filter(
-          (_, index) => index !== selectedDescriptionIndex
+      let url: string;
+      let method: string;
+      let requestBody: any = body;
+
+      if (isEditingExisting) {
+        // For editing existing columns, we need to handle state transitions
+        const currentColumn = [...columns, ...obsoleteColumns].find(
+          (col) => col._id === selectedColumnId
         );
+        const currentDesc =
+          currentColumn?.descriptions[selectedDescriptionIndex];
+        const wasObsolete = currentDesc?.isObsolete;
 
-        if (updatedDescriptions.length === 0) {
-          const deleteResponse = await fetch(
-            `/api/admin/column/${selectedColumnId}?companyId=${companyId}&locationId=${locationId}`,
-            {
-              method: "DELETE",
-              credentials: "include",
+        if (wasObsolete && !isObsolete) {
+          // Moving from obsolete to active
+          console.log("Moving column from obsolete to active");
+
+          // First, delete from obsolete column
+          try {
+            const deleteResponse = await fetch(
+              `/api/admin/obsolete-column/${selectedColumnId}?companyId=${companyId}&locationId=${locationId}`,
+              {
+                method: "DELETE",
+                credentials: "include",
+              }
+            );
+
+            if (!deleteResponse.ok) {
+              const deleteData = await deleteResponse.json();
+              throw new Error(
+                `Failed to remove from obsolete: ${deleteData.error}`
+              );
             }
-          );
-          const deleteData = await deleteResponse.json();
-          if (!deleteData.success) {
-            throw new Error(deleteData.error || "Failed to delete column.");
+            console.log("Successfully removed from obsolete table");
+          } catch (deleteErr) {
+            console.error("Error removing from obsolete:", deleteErr);
+            throw new Error("Failed to move column from obsolete to active");
           }
+
+          // Then create as new active column
+          url = `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
+          method = "POST";
+        } else if (!wasObsolete && isObsolete) {
+          // Moving from active to obsolete
+          console.log("Moving column from active to obsolete");
+
+          // First, delete from active column
+          try {
+            const deleteResponse = await fetch(
+              `/api/admin/column/${selectedColumnId}?companyId=${companyId}&locationId=${locationId}`,
+              {
+                method: "DELETE",
+                credentials: "include",
+              }
+            );
+
+            if (!deleteResponse.ok) {
+              const deleteData = await deleteResponse.json();
+              throw new Error(
+                `Failed to remove from active: ${deleteData.error}`
+              );
+            }
+            console.log("Successfully removed from active table");
+          } catch (deleteErr) {
+            console.error("Error removing from active:", deleteErr);
+            throw new Error("Failed to move column from active to obsolete");
+          }
+
+          // Then create as obsolete column
+          url = `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`;
+          method = "POST";
         } else {
-          const updateBody = {
-            id: selectedColumnId,
-            columnCode: column.columnCode,
-            descriptions: updatedDescriptions,
-          };
-
-          const updateResponse = await fetch(
-            `/api/admin/column?companyId=${companyId}&locationId=${locationId}`,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(updateBody),
-              credentials: "include",
-            }
-          );
-
-          const updateData = await updateResponse.json();
-          if (!updateData.success) {
-            throw new Error(updateData.error || "Failed to update column.");
-          }
-        }
-      }
-    } else {
-      const existingColumn = [...columns, ...obsoleteColumns].find(
-        (col) => col.columnCode.toLowerCase() === columnCode.toLowerCase()
-      );
-
-      console.log("Request details:");
-      console.log("- Method:", method);
-      console.log("- URL:", url);
-      console.log("- Body:", JSON.stringify(body, null, 2));
-      console.log("- Action for audit:", action);
-
-      const saveColumn = async () => {
-        const response = await fetch(url, {
-          method,
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-          credentials: "include",
-        });
-
-        const data = await response.json();
-        console.log("Response data:", JSON.stringify(data, null, 2));
-
-        if (!data.success) {
-          if (data.error === "Column code already exists" || response.status === 409) {
-            console.log("Duplicate column code detected, retrying with new code");
-            await fetchData();
-            setRenderKey((prev) => prev + 1);
-            const newColumnCode = generateNewColumnCode(columns, obsoleteColumns);
-            console.log("New column code generated:", newColumnCode);
-            setForm((prev) => ({ ...prev, columnCode: newColumnCode }));
-            body.columnCode = newColumnCode;
-            const retryResponse = await fetch(url, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(body),
-              credentials: "include",
-            });
-            const retryData = await retryResponse.json();
-            if (!retryData.success) {
-              throw new Error(retryData.error || "Failed to save column after retry.");
-            }
-            return retryData;
+          // Updating within the same category (active to active, or obsolete to obsolete)
+          if (wasObsolete) {
+            // Update obsolete column
+            url = `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`;
+            method = "POST"; // Obsolete API handles updates via POST
           } else {
-            throw new Error(data.error || "Failed to save column.");
+            // Update active column
+            url = `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
+            method = "PUT";
+            requestBody = { ...body, id: selectedColumnId };
           }
         }
-        return data;
-      };
+      } else {
+        // Creating new column
+        if (isObsolete) {
+          // Create new obsolete column
+          url = `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`;
+          method = "POST";
+          console.log("Creating new obsolete column");
+        } else {
+          // Create new active column
+          url = `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
+          method = "POST";
+          console.log("Creating new active column");
+        }
+      }
 
-      await saveColumn();
+      console.log("API Request:", {
+        method,
+        url,
+        isObsolete,
+        isNewColumn,
+        isEditingExisting,
+      });
 
-      // Log audit entry with correct action
+      // Make the API call
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+        },
+        body: JSON.stringify(requestBody),
+        credentials: "include",
+      });
+
+      console.log("API Response:", {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+      });
+
+      const data = await response.text();
+      console.log("Raw response data:", data);
+
+      let jsonData;
       try {
-        const auditBody = {
-          action,
-          columnCode: body.columnCode,
-          userId: localStorage.getItem("userId") || "unknown",
-          changes: isNewDescriptionForExistingColumn
-            ? Object.keys(formattedDesc).map((key) => ({
-                field: `descriptions[${existingColumn!.descriptions.length}].${key}`,
-                from: undefined,
-                to: formattedDesc[key as keyof ColumnDescription],
-              }))
-            : [],
-          companyId,
-          locationId,
-        };
-        console.log("Audit log body:", JSON.stringify(auditBody, null, 2));
-        await fetch(
-          `/api/admin/column/audit?companyId=${companyId}&locationId=${locationId}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(auditBody),
-            credentials: "include",
-          }
-        );
-      } catch (auditErr: any) {
-        console.error("Failed to log audit entry:", auditErr);
+        jsonData = JSON.parse(data);
+      } catch (parseErr) {
+        console.error("Failed to parse response:", parseErr, "Raw data:", data);
+        throw new Error("Invalid response from server");
       }
 
-      if (selectedSeriesId && !selectedColumnId) {
-        try {
-          console.log("Incrementing series counter for:", selectedSeriesId);
-          const incrementResponse = await fetch(
-            `/api/admin/series/increment?seriesId=${selectedSeriesId}&companyId=${companyId}&locationId=${locationId}`,
-            { method: "PUT", credentials: "include" }
-          );
-          const incrementData = await incrementResponse.json();
-          if (!incrementData.success) {
-            console.error("Failed to increment series counter:", incrementData.error);
-            setError(`Failed to increment series counter: ${incrementData.error}`);
-          }
-        } catch (err: any) {
-          console.error("Error incrementing series counter:", err);
-          setError(`Error incrementing series counter: ${err.message}`);
-        }
-      }
-    }
-
-    // **Refresh data and update selection**
-    console.log("=== REFRESHING DATA AND UPDATING SELECTION ===");
-    await fetchData(); // Ensure data is fetched
-    setRenderKey((prev) => prev + 1);
-
-    // Store the current column code and column ID for finding the updated record
-    const currentColumnCode = form.columnCode;
-    const currentColumnId = form.descriptions[0].columnId;
-
-    console.log("Looking for updated record with:", {
-      currentColumnCode,
-      currentColumnId,
-    });
-
-    // Find the updated column in the refreshed data
-    const allUpdatedColumns = [...columns, ...obsoleteColumns];
-    const updatedColumn = allUpdatedColumns.find(
-      (col) => col.columnCode === currentColumnCode
-    );
-
-    console.log("Found updated column:", !!updatedColumn, updatedColumn?.columnCode);
-
-    if (updatedColumn) {
-      // Find the specific description that matches our saved data
-      const updatedDescIndex = updatedColumn.descriptions.findIndex(
-        (d) => d.columnId === currentColumnId
-      );
-
-      console.log("Found updated description at index:", updatedDescIndex);
-
-      if (updatedDescIndex >= 0) {
-        const updatedDesc = updatedColumn.descriptions[updatedDescIndex];
-
-        // Update selection to point to the correct location
-        setSelectedColumnId(updatedColumn._id);
-        setSelectedDescriptionIndex(updatedDescIndex);
-
-        // Find and set the series information for the updated record
-        const matchingSeries = series.find((s) => updatedDesc.columnId.startsWith(s.prefix));
-
-        if (matchingSeries) {
-          setSelectedSeriesId(matchingSeries._id);
-          setSelectedSeriesName(matchingSeries.name);
-        }
-
-        // Update form with fresh data from backend
-        setForm({
-          columnCode: updatedColumn.columnCode,
-          descriptions: [
-            {
-              ...updatedDesc,
-              innerDiameter: updatedDesc.innerDiameter.toString(),
-              length: updatedDesc.length.toString(),
-              particleSize: updatedDesc.particleSize.toString(),
-              linkedCarbonType: carbonTypeMap[updatedDesc.carbonType] || "",
-              usePrefix: !!updatedDesc.usePrefix,
-              useSuffix: !!updatedDesc.useSuffix,
-              usePrefixForNewCode: !!updatedDesc.usePrefixForNewCode,
-              useSuffixForNewCode: !!updatedDesc.useSuffixForNewCode,
-              isObsolete: !!updatedDesc.isObsolete,
-            },
-          ],
+      if (!response.ok) {
+        console.error("API error:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: jsonData.error || "Unknown error",
         });
-
-        console.log("Selection and form updated successfully");
-      } else {
-        console.log("Could not find matching description, clearing selection");
-        setSelectedColumnId("");
-        setSelectedDescriptionIndex(-1);
-        setSelectedSeriesId("");
-        setSelectedSeriesName("");
+        throw new Error(jsonData.error || "Failed to save column");
       }
-    } else {
-      console.log("Could not find updated column, clearing selection");
-      setSelectedColumnId("");
-      setSelectedDescriptionIndex(-1);
-      setSelectedSeriesId("");
-      setSelectedSeriesName("");
-    }
 
-    // Fetch updated makes to ensure new "Make" values are available
-    try {
-      const makesRes = await fetch(
-        `/api/admin/column/make?companyId=${companyId}&locationId=${locationId}`,
-        {
-          credentials: "include",
-        }
+      if (jsonData.success) {
+        console.log("Save successful:", jsonData);
+        // Refresh data after successful save
+        await fetchData();
+        handleCloseForm();
+
+        // Show success message
+        console.log(
+          `Column ${isObsolete ? "moved to obsolete" : "saved successfully"}`
+        );
+      } else {
+        console.error("API returned success: false", jsonData);
+        throw new Error(jsonData.error || "Failed to save column");
+      }
+    } catch (err) {
+      console.error("Save operation failed:", err);
+      setError(
+        `Failed to save column: ${
+          err instanceof Error ? err.message : "An unknown error occurred."
+        }`
       );
-      const makesData = await makesRes.json();
-      if (makesData.success) {
-        setMakes(makesData.data.filter((make: any) => make && make.make?.trim()));
-      } else {
-        console.error("Failed to fetch updated makes:", makesData.error);
-      }
-    } catch (err: any) {
-      console.error("Error fetching updated makes:", err);
+    } finally {
+      setLoading(false);
     }
-
-    console.log("=== SAVE OPERATION COMPLETED SUCCESSFULLY ===");
-  } catch (err: any) {
-    console.error("Save operation failed:", err);
-    setError(`Failed to save column: ${err.message || "An unknown error occurred."}`);
-  } finally {
-    setLoading(false);
-    handleCloseForm();
-  }
-};
+  };
 
   const handleCodeGenerationCheckboxChange = (
     index: number,
@@ -1707,9 +1864,9 @@ export default function MasterColumn() {
 
   const navigation = (direction: "up" | "down") => {
     const currentColumns = useMemo(
-  () => filterColumns(showObsoleteTable ? obsoleteColumns : columns),
-  [columns, obsoleteColumns, showObsoleteTable, searchFilters]
-);
+      () => filterColumns(showObsoleteTable ? obsoleteColumns : columns),
+      [columns, obsoleteColumns, showObsoleteTable, searchFilters]
+    );
     if (!currentColumns.length) return;
 
     let newColumnIndex = currentColumns.findIndex(
@@ -1761,41 +1918,40 @@ export default function MasterColumn() {
 
   // Filter columns based on search criteria
   const filterColumns = (columns: Column[]) => {
-  return columns.filter((column) => {
-    const matchesColumnCode =
-      !searchFilters.columnCode ||
-      column.columnCode
-        .toLowerCase()
-        .includes(searchFilters.columnCode.toLowerCase());
-
-    const matchesDescription = column.descriptions.some((desc) => {
-      const matchesCarbonType =
-        !searchFilters.carbonType ||
-        desc.carbonType
+    return columns.filter((column) => {
+      const matchesColumnCode =
+        !searchFilters.columnCode ||
+        column.columnCode
           .toLowerCase()
-          .includes(searchFilters.carbonType.toLowerCase());
+          .includes(searchFilters.columnCode.toLowerCase());
 
-      const matchesMake =
-        !searchFilters.make ||
-        desc.make.toLowerCase().includes(searchFilters.make.toLowerCase());
+      const matchesDescription = column.descriptions.some((desc) => {
+        const matchesCarbonType =
+          !searchFilters.carbonType ||
+          desc.carbonType
+            .toLowerCase()
+            .includes(searchFilters.carbonType.toLowerCase());
 
-      const descString =
-        `${desc.prefix} ${desc.carbonType} ${desc.innerDiameter} x ${desc.length} ${desc.particleSize}µm ${desc.suffix}`.toLowerCase();
-      const matchesDescText =
-        !searchFilters.description ||
-        descString.includes(searchFilters.description.toLowerCase());
+        const matchesMake =
+          !searchFilters.make ||
+          desc.make.toLowerCase().includes(searchFilters.make.toLowerCase());
 
-      return matchesCarbonType && matchesMake && matchesDescText;
+        const descString =
+          `${desc.prefix} ${desc.carbonType} ${desc.innerDiameter} x ${desc.length} ${desc.particleSize}µm ${desc.suffix}`.toLowerCase();
+        const matchesDescText =
+          !searchFilters.description ||
+          descString.includes(searchFilters.description.toLowerCase());
+
+        return matchesCarbonType && matchesMake && matchesDescText;
+      });
+
+      return matchesColumnCode && matchesDescription;
     });
-
-    return matchesColumnCode && matchesDescription;
-  });
-};
+  };
 
   const currentColumns = filterColumns(
     showObsoleteTable ? obsoleteColumns : columns
   );
-  
 
   if (!authLoaded) {
     return (
@@ -1841,8 +1997,15 @@ export default function MasterColumn() {
                 ? "CL01"
                 : "";
 
+            // Find the "Internal Column ID" series
+            const internalSeries = series.find(
+              (s) => s.name === "Internal Column ID"
+            );
+            const defaultSeriesId = internalSeries ? internalSeries._id : "";
+
+            // Initialize form
             setForm({
-              columnCode: initialColumnCode, // Use the conditional initial value
+              columnCode: initialColumnCode,
               descriptions: [
                 {
                   prefix: "",
@@ -1863,6 +2026,14 @@ export default function MasterColumn() {
                 },
               ],
             });
+
+            // Set default series and generate column ID if available
+            setSelectedSeriesId(defaultSeriesId);
+            setSelectedSeriesName(defaultSeriesId ? "Internal Column ID" : "");
+            if (defaultSeriesId) {
+              handleSeriesChange(0, defaultSeriesId);
+            }
+
             setFormErrors({});
             setSelectedColumnId("");
             setSelectedDescriptionIndex(-1);
@@ -1938,86 +2109,23 @@ export default function MasterColumn() {
                 setSelectedDescriptionIndex(-1);
                 handleCloseForm();
               }}
-              className="bg-[#0052cc] text-white px-4 py-2 rounded-lg hover:bg-[#003087] transition-all shadow-sm"
+              className={`px-4 py-2 rounded-lg transition-all shadow-sm text-white 
+    ${
+      showObsoleteTable
+        ? "bg-red-600 hover:bg-red-800" // Obsolete table active
+        : "bg-[#0052cc] hover:bg-[#003087]" // Active table
+    }`}
             >
               {showObsoleteTable
                 ? "Show Active Columns"
                 : "Show Obsolete Columns"}
             </button>
           </div>
-
-          {/* Search Filters */}
-          <div className="mb-4 bg-white p-4 rounded-lg border border-gray-300">
-            <h3 className="text-sm font-semibold text-[#003087] mb-2">
-              Search Filters
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-              <input
-                type="text"
-                placeholder="Column Code..."
-                value={searchFilters.columnCode}
-                onChange={(e) =>
-                  setSearchFilters((prev) => ({
-                    ...prev,
-                    columnCode: e.target.value,
-                  }))
-                }
-                className="border border-gray-300 rounded px-2 py-1 text-sm"
-              />
-              <input
-                type="text"
-                placeholder="Carbon Type..."
-                value={searchFilters.carbonType}
-                onChange={(e) =>
-                  setSearchFilters((prev) => ({
-                    ...prev,
-                    carbonType: e.target.value,
-                  }))
-                }
-                className="border border-gray-300 rounded px-2 py-1 text-sm"
-              />
-              <input
-                type="text"
-                placeholder="Make..."
-                value={searchFilters.make}
-                onChange={(e) =>
-                  setSearchFilters((prev) => ({
-                    ...prev,
-                    make: e.target.value,
-                  }))
-                }
-                className="border border-gray-300 rounded px-2 py-1 text-sm"
-              />
-              <input
-                type="text"
-                placeholder="Description..."
-                value={searchFilters.description}
-                onChange={(e) =>
-                  setSearchFilters((prev) => ({
-                    ...prev,
-                    description: e.target.value,
-                  }))
-                }
-                className="border border-gray-300 rounded px-2 py-1 text-sm"
-              />
-            </div>
-            <button
-              onClick={() =>
-                setSearchFilters({
-                  columnCode: "",
-                  carbonType: "",
-                  make: "",
-                  description: "",
-                })
-              }
-              className="mt-2 bg-gray-500 text-white px-3 py-1 rounded text-sm hover:bg-gray-600 transition-all"
-            >
-              Clear Filters
-            </button>
-          </div>
-
           <div className="overflow-x-auto border-2 border-gray-300 rounded-lg shadow-sm">
-            <table key={renderKey} className="w-full border-collapse border border-gray-300 bg-white">
+            <table
+              key={renderKey}
+              className="w-full border-collapse border border-gray-300 bg-white"
+            >
               <thead>
                 <tr className="bg-gray-100">
                   {[
@@ -2071,17 +2179,18 @@ export default function MasterColumn() {
                         </>
                       )}
                       <td className="border border-gray-300 p-2">
-                        {desc.prefix || "-"}
+                        {getPrefixName(desc.prefix) || "-"}
                       </td>
                       <td className="border border-gray-300 p-2">
-                        {desc.suffix || "-"}
+                        {getSuffixName(desc.suffix) || "-"}
                       </td>
                       <td className="border border-gray-300 p-2">
-                        {desc.prefix} {desc.carbonType} {desc.innerDiameter} x{" "}
-                        {desc.length} {desc.particleSize}µm {desc.suffix}
+                        {getPrefixName(desc.prefix)} {desc.carbonType}{" "}
+                        {desc.innerDiameter} x {desc.length} {desc.particleSize}
+                        µm {getSuffixName(desc.suffix)}
                       </td>
                       <td className="border border-gray-300 p-2">
-                        {desc.make}
+                        {getMakeName(desc.make)}
                       </td>
                       <td className="border border-gray-300 p-2">
                         {desc.columnId}
@@ -2142,39 +2251,6 @@ export default function MasterColumn() {
                     fetchAudits();
                     setShowAuditModal(true);
                   }}
-                  onPrint={() => {
-                    const printContent = `<h1>${
-                      showObsoleteTable ? "Obsolete" : "Active"
-                    } Column Master</h1>
-                    <table border="1"><thead><tr><th>Serial No</th><th>Column Code</th><th>Prefix</th><th>Suffix</th><th>Description</th><th>Make</th><th>Column ID</th><th>Installation Date</th><th>Status</th></tr></thead>
-                    <tbody>${currentColumns
-                      .flatMap((column, index) =>
-                        column.descriptions.map(
-                          (desc) =>
-                            `<tr><td>${index + 1}</td><td>${
-                              column.columnCode
-                            }</td><td>${desc.prefix || "-"}</td><td>${
-                              desc.suffix || "-"
-                            }</td><td>${desc.carbonType} ${
-                              desc.innerDiameter
-                            } x ${desc.length} ${desc.particleSize}µm</td><td>${
-                              desc.make
-                            }</td><td>${desc.columnId}</td><td>${
-                              desc.installationDate
-                            }</td><td>${
-                              desc.isObsolete ? "Obsolete" : "Active"
-                            }</td></tr>`
-                        )
-                      )
-                      .join("")}</tbody></table>`;
-                    const printWindow = window.open("", "_blank");
-                    printWindow?.document.write(
-                      `<html><head><title>Print Column Master</title></head><body>${printContent}</body></html>`
-                    );
-                    printWindow?.document.close();
-                    printWindow?.print();
-                  }}
-                  onHelp={() => setShowHelpModal(true)}
                 />
 
                 {error && (
@@ -2234,7 +2310,7 @@ export default function MasterColumn() {
                     <label className="block text-sm font-medium text-[#003087]">
                       Make:
                     </label>
-                    <p>{form.descriptions[0]?.make}</p>
+                    <p>{getMakeName(form.descriptions[0]?.make)}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-[#003087]">
@@ -2357,19 +2433,23 @@ export default function MasterColumn() {
                         </label>
                         <select
                           value={desc.make}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            // Find the selected make object and store its ID instead of the string
+                            const selectedMake = makes.find(
+                              (m) => m._id === e.target.value
+                            );
                             handleDescriptionChange(
                               index,
                               "make",
                               e.target.value
-                            )
-                          }
+                            );
+                          }}
                           className="border-2 border-[#3a6ea5] rounded-lg p-2 w-full bg-[#f8f8f8] text-xs"
                           required
                         >
                           <option value="">Select Make</option>
                           {makes.map((make) => (
-                            <option key={make._id} value={make.make}>
+                            <option key={make._id} value={make._id}>
                               {make.make}
                             </option>
                           ))}
@@ -2397,7 +2477,8 @@ export default function MasterColumn() {
                         >
                           <option value="">Select Prefix</option>
                           {prefixes.map((prefix) => (
-                            <option key={prefix._id} value={prefix.value}>
+                            <option key={prefix._id} value={prefix._id}>
+                              {" "}
                               {prefix.value}
                             </option>
                           ))}
@@ -2730,7 +2811,8 @@ export default function MasterColumn() {
                         >
                           <option value="">Select Suffix</option>
                           {suffixes.map((suffix) => (
-                            <option key={suffix._id} value={suffix.value}>
+                            <option key={suffix._id} value={suffix._id}>
+                              {" "}
                               {suffix.value}
                             </option>
                           ))}
@@ -2969,318 +3051,6 @@ export default function MasterColumn() {
                   Cancel
                 </button>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Audit Modal */}
-        {showAuditModal && (
-          <div className="fixed inset-0 backdrop-blur-md bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-[#f0f0f0] border-2 border-[#3a6ea5] rounded-lg p-6 max-w-6xl w-full shadow-lg max-h-[90vh] overflow-y-auto">
-              <h2 className="text-lg font-bold mb-4 text-[#003087]">
-                Audit Logs
-              </h2>
-
-              {/* Enhanced Filter Section */}
-              <div className="mb-6 bg-white p-4 rounded-lg border border-gray-300">
-                <h3 className="text-sm font-semibold text-[#003087] mb-3">
-                  Filter Audit Logs
-                </h3>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-[#003087] mb-1">
-                      Column Code
-                    </label>
-                    <input
-                      type="text"
-                      value={auditFilters.columnCode}
-                      onChange={(e) =>
-                        setAuditFilters((prev) => ({
-                          ...prev,
-                          columnCode: e.target.value,
-                        }))
-                      }
-                      placeholder="Search column code..."
-                      className="border border-gray-300 rounded px-3 py-2 w-full text-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-[#003087] mb-1">
-                      Action
-                    </label>
-                    <select
-                      value={auditFilters.action}
-                      onChange={(e) =>
-                        setAuditFilters((prev) => ({
-                          ...prev,
-                          action: e.target.value,
-                        }))
-                      }
-                      className="border border-gray-300 rounded px-3 py-2 w-full text-sm"
-                    >
-                      <option value="">All Actions</option>
-                      <option value="CREATE">Create</option>
-                      <option value="UPDATE">Update</option>
-                      <option value="DELETE">Delete</option>
-                      <option value="OBSOLETE">Mark Obsolete</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-[#003087] mb-1">
-                      User ID
-                    </label>
-                    <input
-                      type="text"
-                      value={auditFilters.userId}
-                      onChange={(e) =>
-                        setAuditFilters((prev) => ({
-                          ...prev,
-                          userId: e.target.value,
-                        }))
-                      }
-                      placeholder="Search user ID..."
-                      className="border border-gray-300 rounded px-3 py-2 w-full text-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-[#003087] mb-1">
-                      Date From
-                    </label>
-                    <input
-                      type="date"
-                      value={auditFilters.dateFrom}
-                      onChange={(e) =>
-                        setAuditFilters((prev) => ({
-                          ...prev,
-                          dateFrom: e.target.value,
-                        }))
-                      }
-                      className="border border-gray-300 rounded px-3 py-2 w-full text-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-[#003087] mb-1">
-                      Date To
-                    </label>
-                    <input
-                      type="date"
-                      value={auditFilters.dateTo}
-                      onChange={(e) =>
-                        setAuditFilters((prev) => ({
-                          ...prev,
-                          dateTo: e.target.value,
-                        }))
-                      }
-                      className="border border-gray-300 rounded px-3 py-2 w-full text-sm"
-                    />
-                  </div>
-
-                  <div className="flex items-end">
-                    <button
-                      onClick={() =>
-                        setAuditFilters({
-                          columnCode: "",
-                          action: "",
-                          userId: "",
-                          dateFrom: "",
-                          dateTo: "",
-                        })
-                      }
-                      className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-all text-sm w-full"
-                    >
-                      Clear All Filters
-                    </button>
-                  </div>
-                </div>
-
-                {/* Filter Summary */}
-                <div className="text-sm text-gray-600">
-                  Showing {filterAudits(audits).length} of {audits.length} audit
-                  entries
-                </div>
-              </div>
-
-              {/* Enhanced Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse border border-gray-300 bg-white">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border border-gray-300 p-3 text-left font-semibold">
-                        Timestamp
-                      </th>
-                      <th className="border border-gray-300 p-3 text-left font-semibold">
-                        Action
-                      </th>
-                      <th className="border border-gray-300 p-3 text-left font-semibold">
-                        Column Code
-                      </th>
-                      <th className="border border-gray-300 p-3 text-left font-semibold">
-                        Changes
-                      </th>
-                      <th className="border border-gray-300 p-3 text-left font-semibold">
-                        User ID
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filterAudits(audits).length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={5}
-                          className="border border-gray-300 p-4 text-center text-gray-500"
-                        >
-                          No audit entries found matching the current filters
-                        </td>
-                      </tr>
-                    ) : (
-                      filterAudits(audits).map((audit) => (
-                        <tr key={audit._id} className="hover:bg-gray-50">
-                          <td className="border border-gray-300 p-3">
-                            <div className="font-medium">
-                              {new Date(audit.timestamp).toLocaleDateString()}
-                            </div>
-                            <div className="text-sm text-gray-600">
-                              {new Date(audit.timestamp).toLocaleTimeString()}
-                            </div>
-                          </td>
-                          <td className="border border-gray-300 p-3">
-                            <span
-                              className={`px-2 py-1 rounded text-xs font-medium ${
-                                audit.action === "CREATE"
-                                  ? "bg-green-100 text-green-800"
-                                  : audit.action === "UPDATE"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : audit.action === "DELETE"
-                                  ? "bg-red-100 text-red-800"
-                                  : audit.action === "OBSOLETE"
-                                  ? "bg-orange-100 text-orange-800"
-                                  : "bg-gray-100 text-gray-800"
-                              }`}
-                            >
-                              {audit.action}
-                            </span>
-                          </td>
-                          <td className="border border-gray-300 p-3 font-mono">
-                            {audit.columnCode}
-                          </td>
-                          <td className="border border-gray-300 p-3">
-                            {audit.changes && audit.changes.length > 0 ? (
-                              <div className="space-y-1">
-                                {audit.changes.map((change, i) => (
-                                  <div key={i} className="text-sm">
-                                    <span className="font-medium text-gray-700">
-                                      {change.field}:
-                                    </span>
-                                    <span className="text-red-600 mx-1">
-                                      {String(change.from) || "null"}
-                                    </span>
-                                    →
-                                    <span className="text-green-600 mx-1">
-                                      {String(change.to) || "null"}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-gray-500 text-sm">
-                                No changes recorded
-                              </span>
-                            )}
-                          </td>
-                          <td className="border border-gray-300 p-3 font-mono text-sm">
-                            {audit.userId}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Export and Close Buttons */}
-              <div className="flex justify-between items-center mt-6">
-                <button
-                  onClick={() => {
-                    const filteredData = filterAudits(audits);
-                    const csvContent = [
-                      "Timestamp,Action,Column Code,Changes,User ID",
-                      ...filteredData.map(
-                        (audit) =>
-                          `"${new Date(audit.timestamp).toLocaleString()}","${
-                            audit.action
-                          }","${audit.columnCode}","${audit.changes
-                            .map((c) => `${c.field}: ${c.from} → ${c.to}`)
-                            .join("; ")}","${audit.userId}"`
-                      ),
-                    ].join("\n");
-
-                    const blob = new Blob([csvContent], { type: "text/csv" });
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `audit-logs-${
-                      new Date().toISOString().split("T")[0]
-                    }.csv`;
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                  }}
-                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-all text-sm"
-                >
-                  Export to CSV
-                </button>
-
-                <button
-                  onClick={() => {
-                    setShowAuditModal(false);
-                    setAuditFilters({
-                      columnCode: "",
-                      action: "",
-                      userId: "",
-                      dateFrom: "",
-                      dateTo: "",
-                    });
-                  }}
-                  className="bg-gray-500 text-white px-6 py-2 rounded hover:bg-gray-600 transition-all"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Help Modal */}
-        {showHelpModal && (
-          <div className="fixed inset-0 backdrop-blur-md bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-[#f0f0f0] border-2 border-[#3a6ea5] rounded-lg p-4 max-w-md w-full shadow-lg">
-              <h2 className="text-lg font-bold mb-2 text-[#003087]">Help</h2>
-              <p className="text-sm text-gray-700 mb-4">
-                Use the Column Master to manage HPLC columns:
-                <ul className="list-disc ml-5">
-                  <li>Add new columns using the "Add New" button.</li>
-                  <li>Edit or delete existing columns using the toolbar.</li>
-                  <li>Use Ctrl+Click on a table row to view details.</li>
-                  <li>
-                    Search columns using the search filters or quick search.
-                  </li>
-                  <li>View audit logs to track changes.</li>
-                  <li>Toggle between active and obsolete columns.</li>
-                  <li>
-                    Generate column codes automatically or enter manually.
-                  </li>
-                </ul>
-              </p>
-              <button
-                onClick={() => setShowHelpModal(false)}
-                className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-all"
-              >
-                Close
-              </button>
             </div>
           </div>
         )}

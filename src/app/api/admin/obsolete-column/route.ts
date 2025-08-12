@@ -40,9 +40,13 @@ export async function GET(req: NextRequest) {
     await mongoose.connect(process.env.MONGODB_URI!);
     console.log("Database connected successfully");
 
-    const obsoleteColumns = await ObsoleteColumn.find({ companyId, locationId }).sort({
-      columnCode: 1,
-    });
+    const obsoleteColumns = await ObsoleteColumn.find({ companyId, locationId })
+      .populate('descriptions.makeId', 'make description')
+      .populate('descriptions.prefixId', 'name')
+      .populate('descriptions.suffixId', 'name')
+      .sort({
+        columnCode: 1,
+      });
 
     console.log("Obsolete columns fetched:", obsoleteColumns.length);
     console.log("=== GET /api/admin/obsolete-column SUCCESS ===");
@@ -98,14 +102,14 @@ export async function POST(req: NextRequest) {
     formattedDescriptions = body.descriptions.map((desc: any, index: number) => {
       console.log(`Processing description ${index}:`, JSON.stringify(desc, null, 2));
       return {
-        prefix: desc.prefix?.trim() || "",
+        prefixId: desc.prefixId || null,
         carbonType: desc.carbonType?.trim() || "",
         linkedCarbonType: desc.linkedCarbonType?.trim() || "",
         innerDiameter: desc.innerDiameter === "" || desc.innerDiameter == null ? 0 : Number(desc.innerDiameter),
         length: desc.length === "" || desc.length == null ? 0 : Number(desc.length),
         particleSize: desc.particleSize === "" || desc.particleSize == null ? 0 : Number(desc.particleSize),
-        suffix: desc.suffix?.trim() || "",
-        make: desc.make?.trim() || "",
+        suffixId: desc.suffixId || null,
+        makeId: desc.makeId,
         columnId: desc.columnId?.trim() || "",
         installationDate: desc.installationDate || "",
         usePrefix: !!desc.usePrefix,
@@ -125,7 +129,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      if (!desc.make) {
+      if (!desc.makeId) {
         console.log(`Validation failed: Make missing for description ${i + 1}`);
         return NextResponse.json(
           { success: false, error: `Make is required for description ${i + 1}` },

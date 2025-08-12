@@ -32,9 +32,13 @@ export async function GET(req: NextRequest) {
     }
 
     await mongoose.connect(process.env.MONGODB_URI!);
-    const columns = await Column.find({ companyId, locationId }).sort({
-      columnCode: 1,
-    });
+    const columns = await Column.find({ companyId, locationId })
+      .populate('descriptions.makeId', 'make description')
+      .populate('descriptions.prefixId', 'name')
+      .populate('descriptions.suffixId', 'name')
+      .sort({
+        columnCode: 1,
+      });
 
     return NextResponse.json({ success: true, data: columns });
   } catch (error: any) {
@@ -126,7 +130,7 @@ export async function POST(req: NextRequest) {
           JSON.stringify(desc, null, 2)
         );
         return {
-          prefix: desc.prefix?.trim() || "",
+          prefixId: desc.prefixId || null,
           carbonType: desc.carbonType?.trim() || "",
           linkedCarbonType: desc.linkedCarbonType?.trim() || "",
           innerDiameter:
@@ -139,8 +143,8 @@ export async function POST(req: NextRequest) {
             desc.particleSize === "" || desc.particleSize == null
               ? 0
               : Number(desc.particleSize),
-          suffix: desc.suffix?.trim() || "",
-          make: desc.make?.trim() || "",
+          suffixId: desc.suffixId || null,
+          makeId: desc.makeId,
           columnId: desc.columnId?.trim() || "",
           installationDate: desc.installationDate || "",
           usePrefix: !!desc.usePrefix,
@@ -177,7 +181,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      if (!desc.make) {
+      if (!desc.makeId) {
         console.log(`Validation failed: Make missing for description ${i + 1}`);
         return NextResponse.json(
           {
@@ -190,17 +194,15 @@ export async function POST(req: NextRequest) {
 
       if (!desc.columnId) {
         console.log(
-          `Validation failed: Column ID missing for description ${
-            i + 1
+          `Validation failed: Column ID missing for description ${i + 1
           }. Value:`,
           desc.columnId
         );
         return NextResponse.json(
           {
             success: false,
-            error: `Column ID is required for description ${
-              i + 1
-            }. Please select a series to generate a Column ID.`,
+            error: `Column ID is required for description ${i + 1
+              }. Please select a series to generate a Column ID.`,
           },
           { status: 400 }
         );
@@ -208,8 +210,7 @@ export async function POST(req: NextRequest) {
 
       if (!desc.installationDate) {
         console.log(
-          `Validation failed: Installation Date missing for description ${
-            i + 1
+          `Validation failed: Installation Date missing for description ${i + 1
           }`
         );
         return NextResponse.json(
@@ -223,8 +224,7 @@ export async function POST(req: NextRequest) {
 
       if (isNaN(desc.innerDiameter) || desc.innerDiameter < 0) {
         console.log(
-          `Validation failed: Invalid inner diameter for description ${
-            i + 1
+          `Validation failed: Invalid inner diameter for description ${i + 1
           }:`,
           desc.innerDiameter
         );
@@ -253,8 +253,7 @@ export async function POST(req: NextRequest) {
 
       if (isNaN(desc.particleSize) || desc.particleSize < 0) {
         console.log(
-          `Validation failed: Invalid particle size for description ${
-            i + 1
+          `Validation failed: Invalid particle size for description ${i + 1
           }:`,
           desc.particleSize
         );
@@ -419,6 +418,11 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   console.log("=== PUT /api/admin/column START ===");
 
+  let body;
+  let formattedDescriptions: any[] = [];
+  const companyId = req.nextUrl.searchParams.get("companyId");
+  const locationId = req.nextUrl.searchParams.get("locationId");
+
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user) {
@@ -429,223 +433,85 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    const companyId = req.nextUrl.searchParams.get("companyId");
-    const locationId = req.nextUrl.searchParams.get("locationId");
-    const { id, ...body } = await req.json();
+    body = await req.json();
 
-    console.log("PUT Request - ID:", id);
-    console.log("PUT Request body:", JSON.stringify(body, null, 2));
+    console.log("Request params - companyId:", companyId, "locationId:", locationId);
+    console.log("Request body:", JSON.stringify(body, null, 2));
 
-    if (!companyId || !locationId || !id) {
-      console.log("Missing required parameters");
+    if (!companyId || !locationId || !body.id || !body.columnCode || !body.descriptions) {
+      console.log("Missing required parameters or body fields");
       return NextResponse.json(
         {
           success: false,
-          error: "Company ID,f Location ID, and Column ID are required",
+          error: "Company ID, Location ID, column ID, column code, and descriptions are required",
         },
         { status: 400 }
       );
     }
 
     await mongoose.connect(process.env.MONGODB_URI!);
+    console.log("Database connected successfully");
 
-    // Find the existing column
-    const oldColumn = await Column.findOne({ _id: id, companyId, locationId });
+    // Format descriptions
+    formattedDescriptions = body.descriptions.map((desc: any, index: number) => {
+      console.log(`Processing description ${index}:`, JSON.stringify(desc, null, 2));
+      return {
+        prefixId: desc.prefixId || null,
+        carbonType: desc.carbonType?.trim() || "",
+        linkedCarbonType: desc.linkedCarbonType?.trim() || "",
+        innerDiameter: desc.innerDiameter === "" || desc.innerDiameter == null ? 0 : Number(desc.innerDiameter),
+        length: desc.length === "" || desc.length == null ? 0 : Number(desc.length),
+        particleSize: desc.particleSize === "" || desc.particleSize == null ? 0 : Number(desc.particleSize),
+        suffixId: desc.suffixId || null,
+        makeId: desc.makeId,
+        columnId: desc.columnId?.trim() || "",
+        installationDate: desc.installationDate || "",
+        usePrefix: !!desc.usePrefix,
+        useSuffix: !!desc.useSuffix,
+        usePrefixForNewCode: !!desc.usePrefixForNewCode,
+        useSuffixForNewCode: !!desc.useSuffixForNewCode,
+        isObsolete: !!desc.isObsolete,
+      };
+    });
 
-    if (!oldColumn) {
-      console.log("Column not found");
-      return NextResponse.json(
-        { success: false, error: "Column not found" },
-        { status: 404 }
-      );
+    // Validate descriptions
+    for (let i = 0; i < formattedDescriptions.length; i++) {
+      const desc = formattedDescriptions[i];
+      if (!desc.carbonType) {
+        return NextResponse.json(
+          { success: false, error: `Carbon Type is required for description ${i + 1}` },
+          { status: 400 }
+        );
+      }
+      if (!desc.makeId) {
+        return NextResponse.json(
+          { success: false, error: `Make is required for description ${i + 1}` },
+          { status: 400 }
+        );
+      }
+      if (!desc.columnId) {
+        return NextResponse.json(
+          { success: false, error: `Column ID is required for description ${i + 1}` },
+          { status: 400 }
+        );
+      }
+      if (!desc.installationDate) {
+        return NextResponse.json(
+          { success: false, error: `Installation Date is required for description ${i + 1}` },
+          { status: 400 }
+        );
+      }
     }
 
-    console.log(
-      "Found existing column with",
-      oldColumn.descriptions.length,
-      "descriptions"
-    );
-
-    // Check for duplicate columnCode (excluding the current column)
-    if (body.columnCode && body.columnCode !== oldColumn.columnCode) {
-      const existingColumn = await Column.findOne({
-        columnCode: body.columnCode,
+    // Find and update the column
+    const updatedColumn = await Column.findByIdAndUpdate(
+      body.id,
+      {
+        columnCode: body.columnCode.trim(),
+        descriptions: formattedDescriptions,
         companyId,
         locationId,
-        _id: { $ne: id },
-        "descriptions.columnId": { $in: body.descriptions.map((d: any) => d.columnId) },
-      });
-
-      if (existingColumn) {
-        console.log("Column code already exists:", body.columnCode);
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Column code already exists for this company and location",
-          },
-          { status: 400 }
-        );
-      }
-    }
-
-    const formattedBody = {
-  columnCode: body.columnCode.trim(),
-  descriptions: body.descriptions.map((desc: any, index: number) => {
-    const isExistingDesc = index < oldColumn.descriptions.length;
-    const originalDesc = isExistingDesc ? oldColumn.descriptions[index] : {};
-
-    return {
-      prefix: desc.prefix?.trim() || originalDesc.prefix || "",
-      carbonType: desc.carbonType?.trim() || originalDesc.carbonType || "",
-      linkedCarbonType: desc.linkedCarbonType?.trim() || originalDesc.linkedCarbonType || "",
-      innerDiameter: desc.innerDiameter === "" || desc.innerDiameter == null
-        ? originalDesc.innerDiameter || 0
-        : Number(desc.innerDiameter),
-      length: desc.length === "" || desc.length == null
-        ? originalDesc.length || 0
-        : Number(desc.length),
-      particleSize: desc.particleSize === "" || desc.particleSize == null
-        ? originalDesc.particleSize || 0
-        : Number(desc.particleSize),
-      suffix: desc.suffix?.trim() || originalDesc.suffix || "",
-      make: desc.make?.trim() || originalDesc.make || "",
-      columnId: desc.columnId?.trim() || originalDesc.columnId || "",
-      installationDate: desc.installationDate || originalDesc.installationDate || "",
-      usePrefix: desc.usePrefix !== undefined ? !!desc.usePrefix : !!originalDesc.usePrefix || false,
-      useSuffix: desc.useSuffix !== undefined ? !!desc.useSuffix : !!originalDesc.useSuffix || false,
-      usePrefixForNewCode: desc.usePrefixForNewCode !== undefined 
-        ? !!desc.usePrefixForNewCode 
-        : !!originalDesc.usePrefixForNewCode || false, // Ensure default
-      useSuffixForNewCode: desc.useSuffixForNewCode !== undefined 
-        ? !!desc.useSuffixForNewCode 
-        : !!originalDesc.useSuffixForNewCode || false, // Ensure default
-      isObsolete: desc.isObsolete !== undefined ? !!desc.isObsolete : !!originalDesc.isObsolete || false,
-    };
-  }),
-  companyId,
-  locationId,
-};
-
-    console.log(
-      "Formatted body for validation:",
-      JSON.stringify(formattedBody, null, 2)
-    );
-
-    // Validate all descriptions
-    for (let i = 0; i < formattedBody.descriptions.length; i++) {
-      const desc = formattedBody.descriptions[i];
-      console.log(
-        `Validating description ${i + 1}:`,
-        JSON.stringify(desc, null, 2)
-      );
-
-      if (!desc.carbonType) {
-        console.log(
-          `Validation failed: Carbon Type missing for description ${i + 1}`
-        );
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Carbon Type is required for description ${i + 1}`,
-          },
-          { status: 400 }
-        );
-      }
-
-      if (!desc.make) {
-        console.log(
-          `Validation failed: Make missing for description ${i + 1}`
-        );
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Make is required for description ${i + 1}`,
-          },
-          { status: 400 }
-        );
-      }
-
-      if (!desc.columnId) {
-        console.log(
-          `Validation failed: Column ID missing for description ${i + 1}`
-        );
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Column ID is required for description ${
-              i + 1
-            }. Please select a series to generate a Column ID.`,
-          },
-          { status: 400 }
-        );
-      }
-
-      if (!desc.installationDate) {
-        console.log(
-          `Validation failed: Installation Date missing for description ${
-            i + 1
-          }`
-        );
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Installation Date is required for description ${i + 1}`,
-          },
-          { status: 400 }
-        );
-      }
-
-      if (isNaN(desc.innerDiameter) || desc.innerDiameter < 0) {
-        console.log(
-          `Validation failed: Invalid inner diameter for description ${
-            i + 1
-          }`
-        );
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Invalid inner diameter for description ${i + 1}`,
-          },
-          { status: 400 }
-        );
-      }
-
-      if (isNaN(desc.length) || desc.length < 0) {
-        console.log(
-          `Validation failed: Invalid length for description ${i + 1}`
-        );
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Invalid length for description ${i + 1}`,
-          },
-          { status: 400 }
-        );
-      }
-
-      if (isNaN(desc.particleSize) || desc.particleSize < 0) {
-        console.log(
-          `Validation failed: Invalid particle size for description ${
-            i + 1
-          }`
-        );
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Invalid particle size for description ${i + 1}`,
-          },
-          { status: 400 }
-        );
-      }
-
-      console.log(`Description ${i + 1} validation passed`);
-    }
-
-    console.log("All description validations passed");
-
-    const updatedColumn = await Column.findOneAndUpdate(
-      { _id: id, companyId, locationId },
-      formattedBody,
+      },
       { new: true, runValidators: true }
     );
 
@@ -657,99 +523,55 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    console.log("Column updated successfully");
-
-    // Generate field-level changes for audit
-    const changes: ChangeLog[] = [];
-    const oldDescs = oldColumn.descriptions;
-    const newDescs = updatedColumn.descriptions;
-
-    for (let i = 0; i < Math.max(oldDescs.length, newDescs.length); i++) {
-      const oldDesc = oldDescs[i] || {};
-      const newDesc = newDescs[i] || {};
-      const fields = [
-        "prefix",
-        "carbonType",
-        "linkedCarbonType",
-        "innerDiameter",
-        "length",
-        "particleSize",
-        "suffix",
-        "make",
-        "columnId",
-        "installationDate",
-        "usePrefix",
-        "useSuffix",
-        "usePrefixForNewCode", // Added
-        "useSuffixForNewCode", // Added
-        "isObsolete",
-      ];
-      fields.forEach((field) => {
-        if (oldDesc[field] !== newDesc[field]) {
-          changes.push({
-            field: `descriptions[${i}].${field}`,
-            from: oldDesc[field],
-            to: newDesc[field],
-          });
-        }
-      });
-    }
-
-    if (oldColumn.columnCode !== updatedColumn.columnCode) {
-      changes.push({
-        field: "columnCode",
-        from: oldColumn.columnCode,
-        to: updatedColumn.columnCode,
-      });
-    }
+    console.log("Column updated successfully with ID:", updatedColumn._id);
 
     // Create audit log
+    const changes = formattedDescriptions.flatMap((desc: any, index: number) => [
+      {
+        field: `descriptions[${index}].carbonType`,
+        from: undefined, // Could track previous values if needed
+        to: desc.carbonType,
+      },
+      {
+        field: `descriptions[${index}].makeId`,
+        from: undefined,
+        to: desc.makeId,
+      },
+      {
+        field: `descriptions[${index}].columnId`,
+        from: undefined,
+        to: desc.columnId,
+      },
+      {
+        field: `descriptions[${index}].installationDate`,
+        from: undefined,
+        to: desc.installationDate,
+      },
+      {
+        field: `descriptions[${index}].isObsolete`,
+        from: undefined,
+        to: desc.isObsolete,
+      },
+    ]);
+
     const audit = new Audit({
-      action: "update",
+      action: "UPDATE",
       userId: session.user.userId,
       module: "column",
       companyId,
       locationId,
-      columnCode: updatedColumn.columnCode,
-      changes:
-        changes.length > 0
-          ? changes
-          : [{ field: "No changes detected", from: null, to: null }],
+      columnCode: body.columnCode,
+      changes,
     });
     await audit.save();
+    console.log("Audit log created");
 
     console.log("=== PUT /api/admin/column SUCCESS ===");
-    return NextResponse.json({ success: true, data: updatedColumn });
+    return NextResponse.json({ success: true, data: updatedColumn }, { status: 200 });
+
   } catch (error: any) {
     console.error("=== PUT /api/admin/column ERROR ===");
     console.error("Error details:", error);
-
-    if (error.code === 11000) {
-      console.log("Duplicate key error detected");
-      const duplicatedField = Object.keys(error.keyValue)[0];
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Duplicate value for field: ${duplicatedField}`,
-        },
-        { status: 400 }
-      );
-    }
-
-    if (error.name === "ValidationError") {
-      console.log("Mongoose validation error:", error.errors);
-      const validationErrors = Object.values(error.errors).map(
-        (err: any) => err.message
-      );
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Validation error: ${validationErrors.join(", ")}`,
-        },
-        { status: 400 }
-      );
-    }
-
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }

@@ -1,14 +1,14 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 interface IColumnDescription {
-  prefix: string;
+  prefixId?: mongoose.Types.ObjectId;
   carbonType: string;
   linkedCarbonType: string;
   innerDiameter: number;
   length: number;
   particleSize: number;
-  suffix: string;
-  make: string;
+  suffixId?: mongoose.Types.ObjectId;
+  makeId: mongoose.Types.ObjectId;
   columnId: string;
   installationDate: string;
   usePrefix: boolean;
@@ -26,14 +26,14 @@ interface IObsoleteColumn extends Document {
 }
 
 const ColumnDescriptionSchema = new Schema<IColumnDescription>({
-  prefix: { type: String, required: false, default: '', trim: true },
+  prefixId: { type: mongoose.Schema.Types.ObjectId, ref: 'PrefixSuffix', required: false },
   carbonType: { type: String, required: true, trim: true },
   linkedCarbonType: { type: String, required: false, default: '', trim: true },
   innerDiameter: { type: Number, required: true, min: 0, default: 0 },
   length: { type: Number, required: true, min: 0, default: 0 },
   particleSize: { type: Number, required: true, min: 0, default: 0 },
-  suffix: { type: String, required: false, default: '', trim: true },
-  make: { type: String, required: true, trim: true },
+  suffixId: { type: mongoose.Schema.Types.ObjectId, ref: 'PrefixSuffix', required: false },
+  makeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Make', required: true },
   columnId: { type: String, required: true, trim: true },
   installationDate: { type: String, required: true },
   usePrefix: { type: Boolean, default: false },
@@ -44,16 +44,16 @@ const ColumnDescriptionSchema = new Schema<IColumnDescription>({
 }, { _id: false });
 
 const ObsoleteColumnSchema = new Schema<IObsoleteColumn>({
-  columnCode: { 
-    type: String, 
-    required: true, 
+  columnCode: {
+    type: String,
+    required: true,
     trim: true,
   },
   descriptions: {
     type: [ColumnDescriptionSchema],
     required: true,
     validate: {
-      validator: function(descriptions: IColumnDescription[]) {
+      validator: function (descriptions: IColumnDescription[]) {
         return descriptions.length > 0;
       },
       message: 'At least one description is required'
@@ -61,34 +61,34 @@ const ObsoleteColumnSchema = new Schema<IObsoleteColumn>({
   },
   companyId: { type: String, required: true },
   locationId: { type: String, required: true },
-}, { 
+}, {
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
 
 ObsoleteColumnSchema.index(
-  { columnCode: 1, companyId: 1, locationId: 1 }, 
+  { columnCode: 1, companyId: 1, locationId: 1 },
   { unique: true }
 );
 
-ObsoleteColumnSchema.pre('save', function(next) {
+ObsoleteColumnSchema.pre('save', function (next) {
   if (this.columnCode) {
     this.columnCode = this.columnCode.trim();
   }
-  
+
   if (!this.descriptions || this.descriptions.length === 0) {
     next(new Error('At least one description is required'));
     return;
   }
-  
+
   for (let i = 0; i < this.descriptions.length; i++) {
     const desc = this.descriptions[i];
     if (!desc.carbonType || desc.carbonType.trim() === '') {
       next(new Error(`Carbon Type is required for description ${i + 1}`));
       return;
     }
-    if (!desc.make || desc.make.trim() === '') {
+    if (!desc.makeId) {
       next(new Error(`Make is required for description ${i + 1}`));
       return;
     }
@@ -113,7 +113,7 @@ ObsoleteColumnSchema.pre('save', function(next) {
       return;
     }
   }
-  
+
   next();
 });
 
