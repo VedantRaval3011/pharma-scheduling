@@ -65,10 +65,18 @@ export async function POST(req: NextRequest) {
     console.log('Request body:', JSON.stringify(body, null, 2));
 
     // Validate required fields
-    if (!body.name || !body.prefix) { // Removed suffix from required fields
+    if (!body.name || !body.prefix || !body.endNumber) {
       return NextResponse.json({
         success: false,
-        error: 'Name and prefix are required',
+        error: 'Name, prefix, and endNumber are required',
+      }, { status: 400 });
+    }
+
+    // Validate endNumber
+    if (body.endNumber < (body.currentNumber || 1)) {
+      return NextResponse.json({
+        success: false,
+        error: 'endNumber must be greater than or equal to currentNumber',
       }, { status: 400 });
     }
 
@@ -84,8 +92,9 @@ export async function POST(req: NextRequest) {
     const formattedBody = {
       name: body.name.trim(),
       prefix: body.prefix.trim(),
-      suffix: body.suffix?.trim() || '', // Suffix is optional
+      suffix: body.suffix?.trim() || '',
       currentNumber: body.currentNumber || 1,
+      endNumber: body.endNumber, // Add endNumber
       padding: body.padding || 4,
       isActive: body.isActive !== undefined ? body.isActive : true,
       resetFrequency: body.resetFrequency || 'none',
@@ -108,6 +117,7 @@ export async function POST(req: NextRequest) {
       { field: 'prefix', from: undefined, to: formattedBody.prefix },
       { field: 'suffix', from: undefined, to: formattedBody.suffix },
       { field: 'currentNumber', from: undefined, to: formattedBody.currentNumber },
+      { field: 'endNumber', from: undefined, to: formattedBody.endNumber }, // Add endNumber to audit
       { field: 'padding', from: undefined, to: formattedBody.padding },
       { field: 'isActive', from: undefined, to: formattedBody.isActive },
       { field: 'resetFrequency', from: undefined, to: formattedBody.resetFrequency },
@@ -175,11 +185,20 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Company ID, Location ID, and Series ID are required' }, { status: 400 });
     }
 
+    // Validate endNumber if provided
+    if (body.endNumber !== undefined && body.endNumber < (body.currentNumber || 1)) {
+      return NextResponse.json({
+        success: false,
+        error: 'endNumber must be greater than or equal to currentNumber',
+      }, { status: 400 });
+    }
+
     const formattedBody = {
       name: body.name?.trim(),
       prefix: body.prefix?.trim(),
-      suffix: body.suffix?.trim() || '', // Suffix is optional
+      suffix: body.suffix?.trim() || '',
       currentNumber: body.currentNumber || 1,
+      endNumber: body.endNumber, // Include endNumber
       padding: body.padding || 4,
       isActive: body.isActive !== undefined ? body.isActive : true,
       resetFrequency: body.resetFrequency || 'none',
@@ -222,7 +241,7 @@ export async function PUT(req: NextRequest) {
 
     // Generate field-level changes
     const changes: ChangeLog[] = [];
-    const fields = ['name', 'prefix', 'suffix', 'currentNumber', 'padding', 'isActive', 'resetFrequency'];
+    const fields = ['name', 'prefix', 'suffix', 'currentNumber', 'endNumber', 'padding', 'isActive', 'resetFrequency'];
     fields.forEach(field => {
       if (oldSeries[field] !== updatedSeries[field]) {
         changes.push({
@@ -264,7 +283,6 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
-
 export async function DELETE(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

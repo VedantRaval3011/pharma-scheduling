@@ -13,8 +13,8 @@ interface IColumnDescription {
   installationDate: string;
   usePrefix: boolean;
   useSuffix: boolean;
-  usePrefixForNewCode: boolean; // New field
-  useSuffixForNewCode: boolean; // New field
+  usePrefixForNewCode: boolean;
+  useSuffixForNewCode: boolean;
   isObsolete: boolean;
 }
 
@@ -25,7 +25,7 @@ interface IColumn extends Document {
   locationId: string;
 }
 
-const ColumnDescriptionSchema = new Schema<IColumnDescription>({
+const ColumnDescriptionSchema = new Schema({
   prefixId: { type: mongoose.Schema.Types.ObjectId, ref: 'PrefixSuffix', required: false },
   carbonType: { type: String, required: true, trim: true },
   linkedCarbonType: { type: String, required: false, default: '', trim: true },
@@ -38,16 +38,17 @@ const ColumnDescriptionSchema = new Schema<IColumnDescription>({
   installationDate: { type: String, required: true },
   usePrefix: { type: Boolean, default: false },
   useSuffix: { type: Boolean, default: false },
-  usePrefixForNewCode: { type: Boolean, default: false }, // Added
-  useSuffixForNewCode: { type: Boolean, default: false }, // Added
+  usePrefixForNewCode: { type: Boolean, default: false },
+  useSuffixForNewCode: { type: Boolean, default: false },
   isObsolete: { type: Boolean, default: false },
 }, { _id: false });
 
-const ColumnSchema = new Schema<IColumn>({
+const ColumnSchema = new Schema({
   columnCode: {
     type: String,
     required: true,
     trim: true,
+    // REMOVED: unique: true - this was causing the issue
   },
   descriptions: {
     type: [ColumnDescriptionSchema],
@@ -66,6 +67,14 @@ const ColumnSchema = new Schema<IColumn>({
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
+
+// Create a NON-UNIQUE compound index for better query performance
+// This allows multiple documents with the same columnCode + companyId + locationId combination
+ColumnSchema.index({ columnCode: 1, companyId: 1, locationId: 1 }, { unique: false });
+
+// You might want to add a unique index on a different combination if needed
+// For example, if each description should have a unique columnId within a column:
+// ColumnSchema.index({ columnCode: 1, companyId: 1, locationId: 1, 'descriptions.columnId': 1 }, { unique: true });
 
 ColumnSchema.pre('save', function (next) {
   if (this.columnCode) {
@@ -112,4 +121,4 @@ ColumnSchema.pre('save', function (next) {
   next();
 });
 
-export default mongoose.models.Column || mongoose.model<IColumn>('Column', ColumnSchema);
+export default mongoose.models.Column || mongoose.model('Column', ColumnSchema);

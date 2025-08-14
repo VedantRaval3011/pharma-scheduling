@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import WindowsToolbar from "@/components/layout/ToolBox";
 import { useRouter } from "next/navigation";
@@ -44,6 +44,7 @@ interface Series {
   suffix: string;
   currentNumber: number;
   padding: number;
+  endNumber: number;
 }
 
 interface Option {
@@ -262,6 +263,14 @@ export default function MasterColumn() {
   const [showDescriptionPopup, setShowDescriptionPopup] = useState(false);
   const [columnCodeFilter, setColumnCodeFilter] = useState("");
   const [selectedSeriesName, setSelectedSeriesName] = useState<string>("");
+  const [warningMessage, setWarningMessage] = useState<string>("");
+  const carbonTypeDropdownRefs = useRef<{
+    [key: number]: HTMLDivElement | null;
+  }>({});
+  const linkedCarbonTypeDropdownRefs = useRef<{
+    [key: number]: HTMLDivElement | null;
+  }>({});
+
   const [linkedCarbonTypeDropdowns, setLinkedCarbonTypeDropdowns] = useState<{
     [key: number]: boolean;
   }>({});
@@ -358,6 +367,41 @@ export default function MasterColumn() {
     };
     loadAuthData();
   }, []);
+
+  const scrollToSelectedItem = (
+    dropdownRef: HTMLDivElement | null,
+    selectedIndex: number
+  ): void => {
+    if (!dropdownRef) return;
+
+    const items = dropdownRef.children;
+    if (!items || items.length <= selectedIndex) return;
+
+    const selectedItem = items[selectedIndex] as HTMLDivElement;
+    if (!selectedItem) return;
+
+    const dropdownHeight = dropdownRef.clientHeight;
+    const dropdownScrollTop = dropdownRef.scrollTop;
+
+    const itemTop = selectedItem.offsetTop;
+    const itemHeight = selectedItem.offsetHeight;
+    const itemBottom = itemTop + itemHeight;
+
+    // If item is above visible area, scroll up
+    if (itemTop < dropdownScrollTop) {
+      dropdownRef.scrollTo({
+        top: itemTop,
+        behavior: "smooth",
+      });
+    }
+    // If item is below visible area, scroll down
+    else if (itemBottom > dropdownScrollTop + dropdownHeight) {
+      dropdownRef.scrollTo({
+        top: itemBottom - dropdownHeight,
+        behavior: "smooth",
+      });
+    }
+  };
 
   const getCoreAttributes = (desc: ColumnDescription): CoreAttributes => {
     return {
@@ -985,38 +1029,108 @@ export default function MasterColumn() {
 
   const getNextColumnId = async (seriesId: string) => {
     try {
-      // Get the selected series to understand the prefix pattern
+      console.log("=== GET NEXT COLUMN ID START ===");
+      console.log("Series ID:", seriesId);
+      console.log("Company ID:", companyId);
+      console.log("Location ID:", locationId);
+
       const selectedSeries = series.find((s) => s._id === seriesId);
-      if (!selectedSeries) throw new Error("Series not found");
+      if (!selectedSeries) {
+        throw new Error("Series not found");
+      }
 
-      // Find all existing column IDs that match the series prefix pattern
-      const allColumns = [...columns, ...obsoleteColumns];
-      const existingIds = allColumns
-        .flatMap((col) => col.descriptions.map((desc) => desc.columnId))
-        .filter((id) => id && id.startsWith(selectedSeries.prefix));
+      // Check if current number has reached the end number
+      if (selectedSeries.currentNumber >= selectedSeries.endNumber) {
+        const endReachedMessage = `This series has reached its maximum number (${selectedSeries.endNumber}). Please change the end number from Series Master before proceeding.`;
+        setWarningMessage(endReachedMessage);
+        setError(endReachedMessage);
+        throw new Error("Series end number reached");
+      }
 
-      // Extract numbers and find the maximum
-      const maxNumber = existingIds.reduce((max, id) => {
-        const match = id.match(new RegExp(`^${selectedSeries.prefix}(\\d+)$`));
-        if (match) {
-          return Math.max(max, parseInt(match[1]) || 0);
+      // Check if next number would exceed end number
+      if (selectedSeries.currentNumber + 1 > selectedSeries.endNumber) {
+        const endReachedMessage = `Next number would exceed the series maximum (${selectedSeries.endNumber}). Please change the end number from Series Master before proceeding.`;
+        setWarningMessage(endReachedMessage);
+        setError(endReachedMessage);
+        throw new Error("Series end number would be exceeded");
+      }
+
+      // Get the next column ID from the series
+      const response = await fetch(
+        `/api/admin/series/next?seriesId=${seriesId}&companyId=${companyId}&locationId=${locationId}`,
+        {
+          credentials: "include",
+          headers: { "Cache-Control": "no-cache" },
         }
-        return max;
-      }, 0);
+      );
 
-      // Generate next ID
-      const nextNumber = maxNumber + 1;
-      const nextColumnId = `${selectedSeries.prefix}${nextNumber
-        .toString()
-        .padStart(selectedSeries.padding, "0")}`;
+      console.log("API Response status:", response.status);
 
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("API Error:", errorData);
+        throw new Error(errorData.error || "Failed to get next column ID");
+      }
+
+      const data = await response.json();
+      console.log("API Response data:", data);
+
+      if (!data.success) {
+        throw new Error(data.error || "Failed to get next column ID");
+      }
+
+      const nextColumnId = data.data.columnId;
+      console.log("Next Column ID received:", nextColumnId);
+
+      // Check if we're approaching the end number (show warning at 10 numbers before end)
+      if (selectedSeries.currentNumber + 10 >= selectedSeries.endNumber) {
+        const remainingNumbers =
+          selectedSeries.endNumber - selectedSeries.currentNumber;
+        setWarningMessage(
+          `Warning: Only ${remainingNumbers} numbers remaining in this series.`
+        );
+      } else {
+        setWarningMessage(""); // Clear warning if not approaching limit
+      }
+
+      // Increment the series current number
+      const incrementResponse = await fetch(
+        `/api/admin/series/increment?seriesId=${seriesId}&companyId=${companyId}&locationId=${locationId}`,
+        {
+          method: "PUT",
+          credentials: "include",
+          headers: { "Cache-Control": "no-cache" },
+        }
+      );
+
+      console.log("Increment response status:", incrementResponse.status);
+
+      if (!incrementResponse.ok) {
+        const incrementError = await incrementResponse.json();
+        console.warn(
+          "Warning: Failed to increment series counter, but column ID was generated"
+        );
+      } else {
+        const incrementData = await incrementResponse.json();
+        console.log("Series incremented successfully:", incrementData);
+
+        // Update the local series state
+        setSeries((prevSeries) =>
+          prevSeries.map((s) =>
+            s._id === seriesId
+              ? { ...s, currentNumber: incrementData.data.currentNumber }
+              : s
+          )
+        );
+      }
+
+      console.log("=== GET NEXT COLUMN ID END ===");
       return nextColumnId;
     } catch (err) {
-      console.error("Error generating next column ID:", err);
+      console.error("Error in getNextColumnId:", err);
       throw err;
     }
   };
-
   const validateForm = () => {
     console.log("=== FORM VALIDATION START ===");
     const errors: { [key: string]: string } = {};
@@ -1061,6 +1175,34 @@ export default function MasterColumn() {
     if (!form.columnCode) {
       errors.columnCode =
         "Column code is required. Please generate or enter a valid code.";
+    }
+
+    // CRITICAL: Series end number validation
+    if (selectedSeriesId && !selectedColumnId) {
+      // Only check for new entries
+      const selectedSeries = series.find((s) => s._id === selectedSeriesId);
+      if (selectedSeries) {
+        if (selectedSeries.currentNumber >= selectedSeries.endNumber) {
+          errors.seriesEndReached = `This series has reached its maximum number (${selectedSeries.endNumber}). Please change the end number from Series Master before proceeding.`;
+          errors.columnId_0 =
+            "Cannot generate Column ID - series limit reached";
+        } else if (
+          selectedSeries.currentNumber + 1 >
+          selectedSeries.endNumber
+        ) {
+          errors.seriesEndReached = `Next number would exceed the series maximum (${selectedSeries.endNumber}). Please change the end number from Series Master before proceeding.`;
+          errors.columnId_0 =
+            "Cannot generate Column ID - would exceed series limit";
+        }
+      }
+    }
+
+    // Check if there's a series-related error message already set
+    if (
+      error &&
+      (error.includes("maximum number") || error.includes("end number"))
+    ) {
+      errors.seriesEndReached = error;
     }
 
     console.log("Validation errors:", errors);
@@ -1176,10 +1318,22 @@ export default function MasterColumn() {
           currentSelectedIndex < filteredOptions.length - 1
             ? currentSelectedIndex + 1
             : 0;
+
+        // Update selection state
         setSelectedDropdownIndex((prev) => ({
           ...prev,
           [index]: { ...prev[index], [field]: nextIndex },
         }));
+
+        // Scroll dropdown to keep selected item visible
+        setTimeout(() => {
+          const dropdownRef =
+            field === "carbonType"
+              ? carbonTypeDropdownRefs.current[index]
+              : linkedCarbonTypeDropdownRefs.current[index];
+
+          scrollToSelectedItem(dropdownRef, nextIndex);
+        }, 10);
         break;
 
       case "ArrowUp":
@@ -1188,10 +1342,22 @@ export default function MasterColumn() {
           currentSelectedIndex > 0
             ? currentSelectedIndex - 1
             : filteredOptions.length - 1;
+
+        // Update selection state
         setSelectedDropdownIndex((prev) => ({
           ...prev,
           [index]: { ...prev[index], [field]: prevIndex },
         }));
+
+        // Scroll dropdown to keep selected item visible
+        setTimeout(() => {
+          const dropdownRef =
+            field === "carbonType"
+              ? carbonTypeDropdownRefs.current[index]
+              : linkedCarbonTypeDropdownRefs.current[index];
+
+          scrollToSelectedItem(dropdownRef, prevIndex);
+        }, 10);
         break;
 
       case "Enter":
@@ -1207,6 +1373,7 @@ export default function MasterColumn() {
         break;
 
       case "Escape":
+        e.preventDefault();
         if (field === "carbonType") {
           setCarbonTypeDropdowns((prev) => ({ ...prev, [index]: false }));
         } else {
@@ -1216,6 +1383,9 @@ export default function MasterColumn() {
           ...prev,
           [index]: { ...prev[index], [field]: 0 },
         }));
+        break;
+
+      default:
         break;
     }
   };
@@ -1332,6 +1502,9 @@ export default function MasterColumn() {
     console.log("Index:", index, "Series ID:", seriesId);
 
     setSelectedSeriesId(seriesId);
+    setWarningMessage(""); // Clear any existing warning
+    setError(""); // Clear any existing error
+
     if (!seriesId) {
       console.log("No series selected, clearing columnId");
       handleDescriptionChange(index, "columnId", "");
@@ -1343,6 +1516,31 @@ export default function MasterColumn() {
 
     if (selectedSeries) {
       try {
+        // Check current number before attempting to get next ID
+        if (selectedSeries.currentNumber >= selectedSeries.endNumber) {
+          const endReachedMessage = `This series has reached its maximum number (${selectedSeries.endNumber}). Please change the end number from Series Master before proceeding.`;
+          setWarningMessage(endReachedMessage);
+          setError(endReachedMessage);
+
+          // Set the column ID to show current state but don't allow submission
+          handleDescriptionChange(
+            index,
+            "columnId",
+            `${selectedSeries.prefix}${selectedSeries.endNumber
+              .toString()
+              .padStart(selectedSeries.padding, "0")}`
+          );
+          return;
+        }
+
+        // Check if next number would exceed end number
+        if (selectedSeries.currentNumber + 1 > selectedSeries.endNumber) {
+          const endReachedMessage = `Next number would exceed the series maximum (${selectedSeries.endNumber}). Please change the end number from Series Master before proceeding.`;
+          setWarningMessage(endReachedMessage);
+          setError(endReachedMessage);
+          return;
+        }
+
         console.log("Getting next column ID for series:", seriesId);
         const nextColumnId = await getNextColumnId(seriesId);
         console.log("Next column ID received:", nextColumnId);
@@ -1357,7 +1555,13 @@ export default function MasterColumn() {
         }
       } catch (err) {
         console.error("Error getting next column ID:", err);
-        setError("Failed to generate Column ID. Please try again.");
+        // Don't overwrite the specific end number error message
+        if (
+          !error.includes("maximum number") &&
+          !error.includes("end number")
+        ) {
+          setError("Failed to generate Column ID. Please try again.");
+        }
       }
     }
     console.log("=== SERIES CHANGE END ===");
@@ -1460,7 +1664,6 @@ export default function MasterColumn() {
   };
 
   // 1. Fix the formattedDesc creation in handleSave function
-  // Replace your existing handleSave function with this fixed version
   const handleSave = async () => {
     console.log("=== SAVE OPERATION START ===");
     console.log("Form state:", JSON.stringify(form, null, 2));
@@ -1506,9 +1709,9 @@ export default function MasterColumn() {
         useSuffix: !!desc.useSuffix,
         usePrefixForNewCode: !!desc.usePrefixForNewCode,
         useSuffixForNewCode: !!desc.useSuffixForNewCode,
-        makeId: desc.make, // Ensure this is the ID
-        prefixId: desc.prefix || undefined, // Ensure this is the ID or undefined
-        suffixId: desc.suffix || undefined, // Ensure this is the ID or undefined
+        makeId: desc.make,
+        prefixId: desc.prefix || undefined,
+        suffixId: desc.suffix || undefined,
       };
 
       console.log(
@@ -1516,127 +1719,408 @@ export default function MasterColumn() {
         JSON.stringify(formattedDesc, null, 2)
       );
 
-      // Prepare the body for the API call
-      const body = {
-        columnCode: form.columnCode,
-        descriptions: [formattedDesc],
-        companyId,
-        locationId,
-      };
-
-      console.log("Request body:", JSON.stringify(body, null, 2));
-
-      // Determine the API endpoint based on obsolete status and whether it's new/existing
       const isObsolete = desc.isObsolete;
-      const isNewColumn = !selectedColumnId;
       const isEditingExisting =
         selectedColumnId && selectedDescriptionIndex >= 0;
 
-      let url: string;
-      let method: string;
-      let requestBody: any = body;
+      let url: string = "";
+      let method: string = "POST";
+      let requestBody: any = {};
 
       if (isEditingExisting) {
-        // For editing existing columns, we need to handle state transitions
+        // EDITING EXISTING DESCRIPTION
+        console.log("Editing existing description");
+
         const currentColumn = [...columns, ...obsoleteColumns].find(
           (col) => col._id === selectedColumnId
         );
+
+        if (!currentColumn) {
+          throw new Error("Column not found for editing");
+        }
+
         const currentDesc =
-          currentColumn?.descriptions[selectedDescriptionIndex];
+          currentColumn.descriptions[selectedDescriptionIndex];
         const wasObsolete = currentDesc?.isObsolete;
+        const columnCodeChanged = currentColumn.columnCode !== form.columnCode;
 
-        if (wasObsolete && !isObsolete) {
-          // Moving from obsolete to active
-          console.log("Moving column from obsolete to active");
+        if (columnCodeChanged) {
+          // COLUMN CODE CHANGED - Need to handle this carefully
+          console.log(
+            "Column code changed from",
+            currentColumn.columnCode,
+            "to",
+            form.columnCode
+          );
 
-          // First, delete from obsolete column
-          try {
-            const deleteResponse = await fetch(
-              `/api/admin/obsolete-column/${selectedColumnId}?companyId=${companyId}&locationId=${locationId}`,
-              {
-                method: "DELETE",
-                credentials: "include",
-              }
-            );
+          // Check if target column code already exists
+          const targetColumn = [...columns, ...obsoleteColumns].find(
+            (col) =>
+              col.columnCode === form.columnCode &&
+              col.companyId === companyId &&
+              col.locationId === locationId &&
+              col._id !== selectedColumnId // Exclude current column
+          );
 
-            if (!deleteResponse.ok) {
-              const deleteData = await deleteResponse.json();
-              throw new Error(
-                `Failed to remove from obsolete: ${deleteData.error}`
-              );
-            }
-            console.log("Successfully removed from obsolete table");
-          } catch (deleteErr) {
-            console.error("Error removing from obsolete:", deleteErr);
-            throw new Error("Failed to move column from obsolete to active");
-          }
+          // Step 1: Remove description from current column
+          const remainingDescriptions = currentColumn.descriptions.filter(
+            (_, index) => index !== selectedDescriptionIndex
+          );
 
-          // Then create as new active column
-          url = `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
-          method = "POST";
-        } else if (!wasObsolete && isObsolete) {
-          // Moving from active to obsolete
-          console.log("Moving column from active to obsolete");
+          if (remainingDescriptions.length === 0) {
+            // Delete current column if no descriptions remain
+            const deleteUrl = wasObsolete
+              ? `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}&id=${selectedColumnId}`
+              : `/api/admin/column?companyId=${companyId}&locationId=${locationId}&id=${selectedColumnId}`;
 
-          // First, delete from active column
-          try {
-            const deleteResponse = await fetch(
-              `/api/admin/column/${selectedColumnId}?companyId=${companyId}&locationId=${locationId}`,
-              {
-                method: "DELETE",
-                credentials: "include",
-              }
-            );
+            const deleteResponse = await fetch(deleteUrl, {
+              method: "DELETE",
+              credentials: "include",
+            });
 
             if (!deleteResponse.ok) {
               const deleteData = await deleteResponse.json();
               throw new Error(
-                `Failed to remove from active: ${deleteData.error}`
+                `Failed to remove old column: ${deleteData.error}`
               );
             }
-            console.log("Successfully removed from active table");
-          } catch (deleteErr) {
-            console.error("Error removing from active:", deleteErr);
-            throw new Error("Failed to move column from active to obsolete");
-          }
-
-          // Then create as obsolete column
-          url = `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`;
-          method = "POST";
-        } else {
-          // Updating within the same category (active to active, or obsolete to obsolete)
-          if (wasObsolete) {
-            // Update obsolete column
-            url = `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`;
-            method = "POST"; // Obsolete API handles updates via POST
           } else {
-            // Update active column
+            // Update current column with remaining descriptions
+            const updateUrl = wasObsolete
+              ? `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`
+              : `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
+
+            const updateResponse = await fetch(updateUrl, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({
+                id: selectedColumnId,
+                columnCode: currentColumn.columnCode, // Keep original code
+                descriptions: remainingDescriptions,
+                companyId,
+                locationId,
+              }),
+            });
+
+            if (!updateResponse.ok) {
+              const updateData = await updateResponse.json();
+              throw new Error(
+                `Failed to update old column: ${updateData.error}`
+              );
+            }
+          }
+
+          // Step 2: Add description to target column (or create new one)
+          if (targetColumn) {
+            // Add to existing target column
+            const targetUrl = isObsolete
+              ? `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`
+              : `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
+
+            url = targetUrl;
+            method = "PUT";
+            requestBody = {
+              id: targetColumn._id,
+              columnCode: form.columnCode,
+              descriptions: [...targetColumn.descriptions, formattedDesc],
+              companyId,
+              locationId,
+            };
+          } else {
+            // Create new target column
+            url = isObsolete
+              ? `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`
+              : `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
+
+            method = "POST";
+            requestBody = {
+              columnCode: form.columnCode,
+              descriptions: [formattedDesc],
+              companyId,
+              locationId,
+            };
+          }
+        } else if (wasObsolete && !isObsolete) {
+          // MOVING FROM OBSOLETE TO ACTIVE (same column code)
+          console.log("Moving description from obsolete to active");
+
+          // Remove from obsolete column
+          const updatedObsoleteDescriptions = currentColumn.descriptions.filter(
+            (_, index) => index !== selectedDescriptionIndex
+          );
+
+          if (updatedObsoleteDescriptions.length === 0) {
+            // Delete obsolete column
+            const deleteResponse = await fetch(
+              `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}&id=${selectedColumnId}`,
+              { method: "DELETE", credentials: "include" }
+            );
+            if (!deleteResponse.ok) {
+              const deleteData = await deleteResponse.json();
+              throw new Error(
+                `Failed to remove obsolete column: ${deleteData.error}`
+              );
+            }
+          } else {
+            // Update obsolete column
+            const updateResponse = await fetch(
+              `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`,
+              {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                  id: selectedColumnId,
+                  columnCode: currentColumn.columnCode,
+                  descriptions: updatedObsoleteDescriptions,
+                  companyId,
+                  locationId,
+                }),
+              }
+            );
+            if (!updateResponse.ok) {
+              const updateData = await updateResponse.json();
+              throw new Error(
+                `Failed to update obsolete column: ${updateData.error}`
+              );
+            }
+          }
+
+          // Add to active column (or create new one)
+          const activeColumn = columns.find(
+            (col) =>
+              col.columnCode === form.columnCode &&
+              col.companyId === companyId &&
+              col.locationId === locationId
+          );
+
+          if (activeColumn) {
             url = `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
             method = "PUT";
-            requestBody = { ...body, id: selectedColumnId };
+            requestBody = {
+              id: activeColumn._id,
+              columnCode: form.columnCode,
+              descriptions: [...activeColumn.descriptions, formattedDesc],
+              companyId,
+              locationId,
+            };
+          } else {
+            url = `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
+            method = "POST";
+            requestBody = {
+              columnCode: form.columnCode,
+              descriptions: [formattedDesc],
+              companyId,
+              locationId,
+            };
           }
+        } else if (!wasObsolete && isObsolete) {
+          // MOVING FROM ACTIVE TO OBSOLETE (same column code)
+          console.log("Moving description from active to obsolete");
+
+          // Remove from active column
+          const updatedActiveDescriptions = currentColumn.descriptions.filter(
+            (_, index) => index !== selectedDescriptionIndex
+          );
+
+          if (updatedActiveDescriptions.length === 0) {
+            // Delete active column
+            const deleteResponse = await fetch(
+              `/api/admin/column?companyId=${companyId}&locationId=${locationId}&id=${selectedColumnId}`,
+              { method: "DELETE", credentials: "include" }
+            );
+            if (!deleteResponse.ok) {
+              const deleteData = await deleteResponse.json();
+              throw new Error(
+                `Failed to remove active column: ${deleteData.error}`
+              );
+            }
+          } else {
+            // Update active column
+            const updateResponse = await fetch(
+              `/api/admin/column?companyId=${companyId}&locationId=${locationId}`,
+              {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                  id: selectedColumnId,
+                  columnCode: currentColumn.columnCode,
+                  descriptions: updatedActiveDescriptions,
+                  companyId,
+                  locationId,
+                }),
+              }
+            );
+            if (!updateResponse.ok) {
+              const updateData = await updateResponse.json();
+              throw new Error(
+                `Failed to update active column: ${updateData.error}`
+              );
+            }
+          }
+
+          // Add to obsolete column (or create new one)
+          const obsoleteColumn = obsoleteColumns.find(
+            (col) =>
+              col.columnCode === form.columnCode &&
+              col.companyId === companyId &&
+              col.locationId === locationId
+          );
+
+          if (obsoleteColumn) {
+            url = `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`;
+            method = "PUT";
+            requestBody = {
+              id: obsoleteColumn._id,
+              columnCode: form.columnCode,
+              descriptions: [...obsoleteColumn.descriptions, formattedDesc],
+              companyId,
+              locationId,
+            };
+          } else {
+            url = `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`;
+            method = "POST";
+            requestBody = {
+              columnCode: form.columnCode,
+              descriptions: [formattedDesc],
+              companyId,
+              locationId,
+            };
+          }
+        } else {
+          // UPDATING WITHIN SAME CATEGORY (no moves, just update description)
+          console.log("Updating description within the same category");
+
+          const updatedDescriptions = [...currentColumn.descriptions];
+          updatedDescriptions[selectedDescriptionIndex] = formattedDesc;
+
+          if (wasObsolete) {
+            url = `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`;
+          } else {
+            url = `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
+          }
+
+          method = "PUT";
+          requestBody = {
+            id: selectedColumnId,
+            columnCode: form.columnCode, // This should be the same as currentColumn.columnCode
+            descriptions: updatedDescriptions,
+            companyId,
+            locationId,
+          };
         }
       } else {
-        // Creating new column
-        if (isObsolete) {
-          // Create new obsolete column
-          url = `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`;
-          method = "POST";
-          console.log("Creating new obsolete column");
+        // CREATING NEW COLUMN OR ADDING TO EXISTING
+        console.log("Creating new or adding to existing column");
+
+        // Check if column with this code already exists
+        const existingColumn = [...columns, ...obsoleteColumns].find(
+          (col) =>
+            col.columnCode === form.columnCode &&
+            col.companyId === companyId &&
+            col.locationId === locationId
+        );
+
+        if (existingColumn) {
+          // Add to existing column
+          console.log("Adding to existing column with code:", form.columnCode);
+
+          const targetIsObsolete = existingColumn.descriptions.some(
+            (d) => d.isObsolete
+          );
+
+          if (isObsolete) {
+            // Find in obsolete columns
+            const obsoleteColumn = obsoleteColumns.find(
+              (col) =>
+                col.columnCode === form.columnCode &&
+                col.companyId === companyId &&
+                col.locationId === locationId
+            );
+
+            if (obsoleteColumn) {
+              url = `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`;
+              method = "PUT";
+              requestBody = {
+                id: obsoleteColumn._id,
+                columnCode: form.columnCode,
+                descriptions: [...obsoleteColumn.descriptions, formattedDesc],
+                companyId,
+                locationId,
+              };
+            } else {
+              url = `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`;
+              method = "POST";
+              requestBody = {
+                columnCode: form.columnCode,
+                descriptions: [formattedDesc],
+                companyId,
+                locationId,
+              };
+            }
+          } else {
+            // Find in active columns
+            const activeColumn = columns.find(
+              (col) =>
+                col.columnCode === form.columnCode &&
+                col.companyId === companyId &&
+                col.locationId === locationId
+            );
+
+            if (activeColumn) {
+              url = `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
+              method = "PUT";
+              requestBody = {
+                id: activeColumn._id,
+                columnCode: form.columnCode,
+                descriptions: [...activeColumn.descriptions, formattedDesc],
+                companyId,
+                locationId,
+              };
+            } else {
+              url = `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
+              method = "POST";
+              requestBody = {
+                columnCode: form.columnCode,
+                descriptions: [formattedDesc],
+                companyId,
+                locationId,
+              };
+            }
+          }
         } else {
-          // Create new active column
-          url = `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
+          // Create completely new column
+          console.log("Creating completely new column");
+
+          if (isObsolete) {
+            url = `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`;
+          } else {
+            url = `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
+          }
+
           method = "POST";
-          console.log("Creating new active column");
+          requestBody = {
+            columnCode: form.columnCode,
+            descriptions: [formattedDesc],
+            companyId,
+            locationId,
+          };
         }
+      }
+
+      // Ensure all variables are set
+      if (!url || !method || !requestBody) {
+        throw new Error(
+          "Invalid configuration: URL, method, or request body not set"
+        );
       }
 
       console.log("API Request:", {
         method,
         url,
-        isObsolete,
-        isNewColumn,
-        isEditingExisting,
+        requestBody: JSON.stringify(requestBody, null, 2),
       });
 
       // Make the API call
@@ -1653,7 +2137,6 @@ export default function MasterColumn() {
       console.log("API Response:", {
         status: response.status,
         statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries()),
       });
 
       const data = await response.text();
@@ -1682,10 +2165,7 @@ export default function MasterColumn() {
         await fetchData();
         handleCloseForm();
 
-        // Show success message
-        console.log(
-          `Column ${isObsolete ? "moved to obsolete" : "saved successfully"}`
-        );
+        console.log("Column saved successfully");
       } else {
         console.error("API returned success: false", jsonData);
         throw new Error(jsonData.error || "Failed to save column");
@@ -1759,6 +2239,11 @@ export default function MasterColumn() {
             },
           ],
         });
+
+        // IMPORTANT: Keep the selected column and description index
+        // so handleSave knows this is an edit operation
+        // Don't reset these values here!
+
         setIsFormOpen(true);
         setShowDescriptionPopup(false);
       }
@@ -1999,7 +2484,7 @@ export default function MasterColumn() {
 
             // Find the "Internal Column ID" series
             const internalSeries = series.find(
-              (s) => s.name === "Internal Column ID"
+              (s) => s.name === "Internal Column Id"
             );
             const defaultSeriesId = internalSeries ? internalSeries._id : "";
 
@@ -2029,7 +2514,7 @@ export default function MasterColumn() {
 
             // Set default series and generate column ID if available
             setSelectedSeriesId(defaultSeriesId);
-            setSelectedSeriesName(defaultSeriesId ? "Internal Column ID" : "");
+            setSelectedSeriesName(defaultSeriesId ? "Internal Column Id" : "");
             if (defaultSeriesId) {
               handleSeriesChange(0, defaultSeriesId);
             }
@@ -2401,29 +2886,42 @@ export default function MasterColumn() {
                 {selectedColumnId ? "Edit Column Description" : "Add Column"}
               </h2>
 
-              {/* Fixed Preview in Top-Right Corner */}
-              <div className="fixed top-4 right-4 bg-white border border-[#3a6ea5] rounded-lg p-2 shadow-lg z-10 bg-opacity-90 max-w-xs">
-                <label className="block text-xs font-medium text-[#003087] mb-1">
-                  Preview:
-                </label>
-                {form.descriptions.map((desc, index) => (
-                  <div key={index}>
-                    <p className="text-xs font-semibold text-gray-800">
-                      {desc.prefix && `${desc.prefix} `}
-                      {desc.carbonType} {desc.innerDiameter} x {desc.length}{" "}
-                      {desc.particleSize}µm
-                      {desc.suffix && ` ${desc.suffix}`}
-                    </p>
-                    <p className="text-xs text-gray-600 mt-1">
-                      Column Code:{" "}
-                      <span className="font-semibold">{form.columnCode}</span>
-                    </p>
-                  </div>
-                ))}
-              </div>
-
               {form.descriptions.map((desc, index) => (
                 <div key={index} className="mb-3 p-3 border rounded bg-white">
+                  {formErrors.seriesEndReached && (
+                    <div className="mb-4 p-3 bg-red-100 border-2 border-red-400 text-red-700 rounded-lg">
+                      <div className="flex items-center mb-2">
+                        <svg
+                          className="w-5 h-5 mr-2"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        <strong>Series Limit Reached</strong>
+                      </div>
+                      <p className="text-sm">{formErrors.seriesEndReached}</p>
+                      <div className="mt-2 text-sm">
+                        <strong>Action Required:</strong>
+                        <ul className="list-disc ml-5 mt-1">
+                          <li>Go to Series Master</li>
+                          <li>
+                            Find the series:{" "}
+                            {
+                              series.find((s) => s._id === selectedSeriesId)
+                                ?.name
+                            }
+                          </li>
+                          <li>Increase the "End Number" value</li>
+                          <li>Return here to continue</li>
+                        </ul>
+                      </div>
+                    </div>
+                  )}
                   <div className="space-y-3">
                     {/* Make and Prefix */}
                     <div className="grid grid-cols-2 gap-3">
@@ -2536,7 +3034,12 @@ export default function MasterColumn() {
                           required
                         />
                         {carbonTypeDropdowns[index] && (
-                          <div className="absolute z-10 w-full bg-[#f8f8f8] border-2 border-[#3a6ea5] rounded-lg mt-1 shadow-lg max-h-32 overflow-y-auto">
+                          <div
+                            ref={(el) => {
+                              carbonTypeDropdownRefs.current[index] = el;
+                            }}
+                            className="absolute z-10 w-full bg-[#f8f8f8] border-2 border-[#3a6ea5] rounded-lg mt-1 shadow-lg max-h-32 overflow-y-auto"
+                          >
                             {carbonTypeOptions
                               .filter((option) =>
                                 option
@@ -2654,7 +3157,12 @@ export default function MasterColumn() {
                           placeholder="Type L1, L7, L3... or use arrows to select"
                         />
                         {linkedCarbonTypeDropdowns[index] && (
-                          <div className="absolute z-10 w-full bg-[#f8f8f8] border-2 border-[#3a6ea5] rounded-lg mt-1 shadow-lg max-h-32 overflow-y-auto">
+                          <div
+                            ref={(el) => {
+                              linkedCarbonTypeDropdownRefs.current[index] = el;
+                            }}
+                            className="absolute z-10 w-full bg-[#f8f8f8] border-2 border-[#3a6ea5] rounded-lg mt-1 shadow-lg max-h-32 overflow-y-auto"
+                          >
                             {linkedCarbonTypeOptions
                               .filter((option) =>
                                 option
@@ -2823,24 +3331,50 @@ export default function MasterColumn() {
                           <label className="block text-xs font-medium text-[#003087] mb-1">
                             Series
                           </label>
-                          <select
-                            value={selectedSeriesId}
-                            onChange={(e) =>
-                              handleSeriesChange(index, e.target.value)
-                            }
-                            className="border-2 border-[#3a6ea5] rounded-lg p-2 w-full bg-[#f8f8f8] text-xs"
-                            required
-                          >
-                            <option value="">Select Series</option>
-                            {series.map((s) => (
-                              <option key={s._id} value={s._id}>
-                                {s.name}
-                              </option>
-                            ))}
-                          </select>
-                          <p className="text-xs text-gray-600 mt-1">
-                            Current ID: {desc.columnId || "Select a series"}
-                          </p>
+                          {series.find(
+                            (s) => s.name === "Internal Column Id"
+                          ) ? (
+                            // If Internal Column ID series exists, make it read-only
+                            <div>
+                              <input
+                                type="text"
+                                value="Internal Column Id"
+                                className="border-2 border-gray-300 rounded-lg p-2 w-full bg-gray-100 text-xs opacity-60"
+                                readOnly
+                              />
+                              <p className="text-xs text-gray-600 mt-1">
+                                Current ID: {desc.columnId || "Generating..."}
+                              </p>
+                            </div>
+                          ) : (
+                            // If Internal Column ID series doesn't exist, allow selection
+                            <div>
+                              <select
+                                value={selectedSeriesId}
+                                onChange={(e) =>
+                                  handleSeriesChange(index, e.target.value)
+                                }
+                                className="border-2 border-[#3a6ea5] rounded-lg p-2 w-full bg-[#f8f8f8] text-xs"
+                                required
+                              >
+                                <option value="">
+                                  Select Series (Internal Column Id not found)
+                                </option>
+                                {series.map((s) => (
+                                  <option key={s._id} value={s._id}>
+                                    {s.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <p className="text-xs text-red-600 mt-1">
+                                Warning: Internal Column Id series not found.
+                                Please select an alternative.
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                Current ID: {desc.columnId || "Select a series"}
+                              </p>
+                            </div>
+                          )}
                           {formErrors[`columnId_${index}`] && (
                             <p className="text-red-500 text-xs mt-1">
                               {formErrors[`columnId_${index}`]}
@@ -2848,6 +3382,7 @@ export default function MasterColumn() {
                           )}
                         </div>
                       ) : (
+                        // Existing edit mode logic remains the same
                         <div>
                           <label className="block text-xs font-medium text-[#003087] mb-1">
                             Series (Read-only)

@@ -344,3 +344,183 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export async function PUT(req: NextRequest) {
+  console.log("=== PUT /api/admin/obsolete-column START ===");
+
+  let body;
+  let formattedDescriptions: any[] = [];
+  const companyId = req.nextUrl.searchParams.get("companyId");
+  const locationId = req.nextUrl.searchParams.get("locationId");
+
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user) {
+      console.log("Authentication failed - no session");
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    body = await req.json();
+
+    console.log("PUT Request params - companyId:", companyId, "locationId:", locationId);
+    console.log("PUT Request body:", JSON.stringify(body, null, 2));
+
+    if (!companyId || !locationId || !body.id || !body.columnCode || !body.descriptions) {
+      console.log("Missing required parameters or body fields");
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Company ID, Location ID, column ID, column code, and descriptions are required",
+        },
+        { status: 400 }
+      );
+    }
+
+    await mongoose.connect(process.env.MONGODB_URI!);
+    console.log("Database connected successfully");
+
+    // Format descriptions
+    formattedDescriptions = body.descriptions.map((desc: any, index: number) => {
+      console.log(`Processing description ${index}:`, JSON.stringify(desc, null, 2));
+      return {
+        prefixId: desc.prefixId || null,
+        carbonType: desc.carbonType?.trim() || "",
+        linkedCarbonType: desc.linkedCarbonType?.trim() || "",
+        innerDiameter: desc.innerDiameter === "" || desc.innerDiameter == null ? 0 : Number(desc.innerDiameter),
+        length: desc.length === "" || desc.length == null ? 0 : Number(desc.length),
+        particleSize: desc.particleSize === "" || desc.particleSize == null ? 0 : Number(desc.particleSize),
+        suffixId: desc.suffixId || null,
+        makeId: desc.makeId,
+        columnId: desc.columnId?.trim() || "",
+        installationDate: desc.installationDate || "",
+        usePrefix: !!desc.usePrefix,
+        useSuffix: !!desc.useSuffix,
+        usePrefixForNewCode: !!desc.usePrefixForNewCode,
+        useSuffixForNewCode: !!desc.useSuffixForNewCode,
+        isObsolete: true,
+      };
+    });
+
+    console.log("=== PUT FORMATTED DESCRIPTIONS ===");
+    console.log("Full formatted descriptions:", JSON.stringify(formattedDescriptions, null, 2));
+    console.log("usePrefixForNewCode values:", formattedDescriptions.map(d => d.usePrefixForNewCode));
+    console.log("useSuffixForNewCode values:", formattedDescriptions.map(d => d.useSuffixForNewCode));
+
+    // Validate descriptions
+    for (let i = 0; i < formattedDescriptions.length; i++) {
+      const desc = formattedDescriptions[i];
+      if (!desc.carbonType) {
+        return NextResponse.json(
+          { success: false, error: `Carbon Type is required for description ${i + 1}` },
+          { status: 400 }
+        );
+      }
+      if (!desc.makeId) {
+        return NextResponse.json(
+          { success: false, error: `Make is required for description ${i + 1}` },
+          { status: 400 }
+        );
+      }
+      if (!desc.columnId) {
+        return NextResponse.json(
+          { success: false, error: `Column ID is required for description ${i + 1}` },
+          { status: 400 }
+        );
+      }
+      if (!desc.installationDate) {
+        return NextResponse.json(
+          { success: false, error: `Installation Date is required for description ${i + 1}` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Find and update the obsolete column
+    const updatedColumn = await ObsoleteColumn.findByIdAndUpdate(
+      body.id,
+      {
+        columnCode: body.columnCode.trim(),
+        descriptions: formattedDescriptions,
+        companyId,
+        locationId,
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedColumn) {
+      console.log("Obsolete column not found for update");
+      return NextResponse.json(
+        { success: false, error: "Obsolete column not found" },
+        { status: 404 }
+      );
+    }
+
+    console.log("Obsolete column updated successfully with ID:", updatedColumn._id);
+    console.log("Updated descriptions:", JSON.stringify(updatedColumn.descriptions, null, 2));
+
+    // Create audit log
+    const changes = formattedDescriptions.flatMap((desc: any, index: number) => [
+      {
+        field: `descriptions[${index}].carbonType`,
+        from: undefined, // Could track previous values if needed
+        to: desc.carbonType,
+      },
+      {
+        field: `descriptions[${index}].makeId`,
+        from: undefined,
+        to: desc.makeId,
+      },
+      {
+        field: `descriptions[${index}].columnId`,
+        from: undefined,
+        to: desc.columnId,
+      },
+      {
+        field: `descriptions[${index}].installationDate`,
+        from: undefined,
+        to: desc.installationDate,
+      },
+      {
+        field: `descriptions[${index}].usePrefixForNewCode`,
+        from: undefined,
+        to: desc.usePrefixForNewCode,
+      },
+      {
+        field: `descriptions[${index}].useSuffixForNewCode`, 
+        from: undefined,
+        to: desc.useSuffixForNewCode,
+      },
+      {
+        field: `descriptions[${index}].isObsolete`,
+        from: undefined,
+        to: desc.isObsolete,
+      },
+    ]);
+
+    const audit = new Audit({
+      action: "update",
+      userId: session.user.userId,
+      module: "obsolete_column",
+      companyId,
+      locationId,
+      columnCode: body.columnCode,
+      changes,
+    });
+    await audit.save();
+    console.log("Audit log created");
+
+    console.log("=== PUT /api/admin/obsolete-column SUCCESS ===");
+    return NextResponse.json({ success: true, data: updatedColumn }, { status: 200 });
+
+  } catch (error: any) {
+    console.error("=== PUT /api/admin/obsolete-column ERROR ===");
+    console.error("Error details:", error);
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
+  }
+}

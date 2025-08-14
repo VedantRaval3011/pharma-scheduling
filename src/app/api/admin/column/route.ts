@@ -102,25 +102,7 @@ export async function POST(req: NextRequest) {
     await mongoose.connect(process.env.MONGODB_URI!);
     console.log("Database connected successfully");
 
-    // Check if column code already exists
-    const existingColumn = await Column.findOne({
-      companyId,
-      locationId,
-      columnCode: body.columnCode,
-      "descriptions.columnId": { $in: body.descriptions.map((d: any) => d.columnId) },
-    });
-    console.log("Existing column check:", !!existingColumn);
-
-    if (existingColumn) {
-      console.log("Column code already exists:", body.columnCode);
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Column code already exists",
-        },
-        { status: 400 }
-      );
-    }
+    // Removed duplicate check logic - CL01 can have multiple column descriptions
 
     const formattedBody = {
       columnCode: body.columnCode.trim(),
@@ -149,8 +131,8 @@ export async function POST(req: NextRequest) {
           installationDate: desc.installationDate || "",
           usePrefix: !!desc.usePrefix,
           useSuffix: !!desc.useSuffix,
-          usePrefixForNewCode: !!desc.usePrefixForNewCode, // Added
-          useSuffixForNewCode: !!desc.useSuffixForNewCode, // Added
+          usePrefixForNewCode: !!desc.usePrefixForNewCode,
+          useSuffixForNewCode: !!desc.useSuffixForNewCode,
           isObsolete: !!desc.isObsolete,
         };
       }),
@@ -341,12 +323,12 @@ export async function POST(req: NextRequest) {
           to: desc.useSuffix,
         },
         {
-          field: `descriptions[${index}].usePrefixForNewCode`, // Added
+          field: `descriptions[${index}].usePrefixForNewCode`,
           from: undefined,
           to: desc.usePrefixForNewCode,
         },
         {
-          field: `descriptions[${index}].useSuffixForNewCode`, // Added
+          field: `descriptions[${index}].useSuffixForNewCode`,
           from: undefined,
           to: desc.useSuffixForNewCode,
         },
@@ -381,18 +363,6 @@ export async function POST(req: NextRequest) {
     console.error("=== POST /api/admin/column ERROR ===");
     console.error("Error details:", error);
     console.error("Error stack:", error.stack);
-
-    if (error.code === 11000) {
-      console.log("Duplicate key error - but this shouldn't happen for columnCode anymore");
-      const duplicatedField = Object.keys(error.keyValue)[0];
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Duplicate value for field: ${duplicatedField}`,
-        },
-        { status: 400 }
-      );
-    }
 
     if (error.name === "ValidationError") {
       console.log("Mongoose validation error:", error.errors);
@@ -552,10 +522,20 @@ export async function PUT(req: NextRequest) {
         from: undefined,
         to: desc.isObsolete,
       },
+      {
+    field: `descriptions[${index}].usePrefixForNewCode`,
+    from: undefined,
+    to: desc.usePrefixForNewCode,
+  },
+  {
+    field: `descriptions[${index}].useSuffixForNewCode`,
+    from: undefined,
+    to: desc.useSuffixForNewCode,
+  },
     ]);
 
     const audit = new Audit({
-      action: "UPDATE",
+      action: "update",
       userId: session.user.userId,
       module: "column",
       companyId,

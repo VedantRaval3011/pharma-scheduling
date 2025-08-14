@@ -27,6 +27,14 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Series not found' }, { status: 404 });
     }
 
+    // Check if incrementing would exceed endNumber
+    if (series.currentNumber + 1 > series.endNumber) {
+      return NextResponse.json({
+        success: false,
+        error: `Cannot exceed end number of ${series.endNumber}`,
+      }, { status: 400 });
+    }
+
     const oldCurrentNumber = series.currentNumber;
     series.currentNumber += 1;
     const updatedSeries = await series.save();

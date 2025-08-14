@@ -9,6 +9,7 @@ interface ISeries extends Document {
   padding: number;
   isActive: boolean;
   resetFrequency: 'daily' | 'monthly' | 'yearly' | 'none';
+  endNumber: number,
   companyId: string;
   locationId: string;
   createdBy: string;
@@ -21,6 +22,7 @@ const SeriesSchema: Schema = new Schema({
   prefix: { type: String, required: true },
   suffix: { type: String  },
   currentNumber: { type: Number, required: true, default: 1 },
+  endNumber: { type: Number, required: true },
   padding: { type: Number, required: true, default: 4 },
   isActive: { type: Boolean, required: true, default: true },
   resetFrequency: { 
