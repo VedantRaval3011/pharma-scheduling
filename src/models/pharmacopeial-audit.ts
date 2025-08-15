@@ -1,16 +1,16 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
-export interface IPharmacopeialAuditLog extends Document {
+export interface IPharmacopoeialAuditLog extends Document {
   userId: string;
   action: string;
   data: {
-    pharmacopeial: string;
+    pharmacopoeial: string;
     description: string;
     companyId: string;
     locationId: string;
   };
   previousData?: {
-    pharmacopeial: string;
+    pharmacopoeial: string;
     description: string;
     companyId: string;
     locationId: string;
@@ -20,7 +20,7 @@ export interface IPharmacopeialAuditLog extends Document {
   timestamp: Date;
 }
 
-const PharmacopeialAuditLogSchema: Schema<IPharmacopeialAuditLog> = new Schema(
+const PharmacopoeialAuditLogSchema: Schema<IPharmacopoeialAuditLog> = new Schema(
   {
     userId: {
       type: String,
@@ -55,10 +55,10 @@ const PharmacopeialAuditLogSchema: Schema<IPharmacopeialAuditLog> = new Schema(
     },
   },
   {
-    collection: 'pharmacopeial_audit',
+    collection: 'pharmacopoeial_audit',
   }
 );
 
-PharmacopeialAuditLogSchema.index({ companyId: 1, locationId: 1, timestamp: -1 });
+PharmacopoeialAuditLogSchema.index({ companyId: 1, locationId: 1, timestamp: -1 });
 
-export default mongoose.models.PharmacopeialAuditLog || mongoose.model<IPharmacopeialAuditLog>('PharmacopeialAuditLog', PharmacopeialAuditLogSchema);
+export default mongoose.models.PharmacopoeialAuditLog || mongoose.model<IPharmacopoeialAuditLog>('PharmacopoeialAuditLog', PharmacopoeialAuditLogSchema);

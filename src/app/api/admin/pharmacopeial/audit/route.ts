@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
-import PharmacopeialAuditLog from '@/models/pharmacopeial-audit';
+import PharmacopoeialAuditLog from '@/models/pharmacopeial-audit';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const auditLog = new PharmacopeialAuditLog({
+    const auditLog = new PharmacopoeialAuditLog({
       userId,
       action,
       data,
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const companyId = searchParams.get('companyId');
     const locationId = searchParams.get('locationId');
-    const pharmacopeial = searchParams.get('pharmacopeial');
+    const pharmacopoeial = searchParams.get('pharmacopoeial');
     const action = searchParams.get('action');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
@@ -101,11 +101,11 @@ export async function GET(request: NextRequest) {
     // Build query
     const query: any = { companyId, locationId };
 
-    // Filter by pharmacopeial (exact match in data.pharmacopeial or previousData.pharmacopeial)
-    if (pharmacopeial) {
+    // Filter by pharmacopoeial (exact match in data.pharmacopoeial or previousData.pharmacopoeial)
+    if (pharmacopoeial) {
       query.$or = [
-        { 'data.pharmacopeial': pharmacopeial },
-        { 'previousData.pharmacopeial': pharmacopeial }
+        { 'data.pharmacopoeial': pharmacopoeial },
+        { 'previousData.pharmacopoeial': pharmacopoeial }
       ];
     }
 
@@ -125,18 +125,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Search by keyword in pharmacopeial or description
+    // Search by keyword in pharmacopoeial or description
     if (searchTerm) {
       query.$or = query.$or || [];
       query.$or.push(
-        { 'data.pharmacopeial': { $regex: searchTerm, $options: 'i' } },
+        { 'data.pharmacopoeial': { $regex: searchTerm, $options: 'i' } },
         { 'data.description': { $regex: searchTerm, $options: 'i' } },
-        { 'previousData.pharmacopeial': { $regex: searchTerm, $options: 'i' } },
+        { 'previousData.pharmacopoeial': { $regex: searchTerm, $options: 'i' } },
         { 'previousData.description': { $regex: searchTerm, $options: 'i' } }
       );
     }
 
-    const auditLogs = await PharmacopeialAuditLog.find(query).sort({ timestamp: -1 });
+    const auditLogs = await PharmacopoeialAuditLog.find(query).sort({ timestamp: -1 });
     
     return NextResponse.json({ success: true, data: auditLogs }, { status: 200 });
   } catch (error: any) {

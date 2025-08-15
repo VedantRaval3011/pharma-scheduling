@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
-import Pharmacopeial from '@/models/pharmacopeial';
+import Pharmacopoeial from '@/models/pharmacopeial';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-// Helper function to validate Pharmacopeial data
-function validatePharmacopeialData(data: any) {
+// Helper function to validate Pharmacopoeial data
+function validatePharmacopoeialData(data: any) {
   const errors: string[] = [];
-  if (!data.pharmacopeial) {
-    errors.push('Pharmacopeial name is required');
-  } else if (typeof data.pharmacopeial !== 'string') {
-    errors.push('Pharmacopeial name must be a string');
-  } else if (data.pharmacopeial.trim().length === 0) {
-    errors.push('Pharmacopeial name cannot be empty');
-  } else if (data.pharmacopeial.trim().length > 100) {
-    errors.push('Pharmacopeial name cannot exceed 100 characters');
+  if (!data.pharmacopoeial) {
+    errors.push('Pharmacopoeial name is required');
+  } else if (typeof data.pharmacopoeial !== 'string') {
+    errors.push('Pharmacopoeial name must be a string');
+  } else if (data.pharmacopoeial.trim().length === 0) {
+    errors.push('Pharmacopoeial name cannot be empty');
+  } else if (data.pharmacopoeial.trim().length > 100) {
+    errors.push('Pharmacopoeial name cannot exceed 100 characters');
   }
   if (data.description && typeof data.description !== 'string') {
     errors.push('Description must be a string');
@@ -56,10 +56,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { pharmacopeial, description, companyId, locationId } = body;
+    const { pharmacopoeial, description, companyId, locationId } = body;
 
     // Validate input data
-    const validationErrors = validatePharmacopeialData({ pharmacopeial, description, companyId, locationId });
+    const validationErrors = validatePharmacopoeialData({ pharmacopoeial, description, companyId, locationId });
     if (validationErrors.length > 0) {
       return NextResponse.json(
         { success: false, error: validationErrors.join(', '), validationErrors },
@@ -76,29 +76,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check for existing pharmacopeial
-    const existingPharmacopeial = await Pharmacopeial.findOne({ pharmacopeial, companyId, locationId });
-    if (existingPharmacopeial) {
+    // Check for existing pharmacopoeial
+    const existingPharmacopoeial = await Pharmacopoeial.findOne({ pharmacopoeial, companyId, locationId });
+    if (existingPharmacopoeial) {
       return NextResponse.json(
-        { success: false, error: 'Pharmacopeial already exists for this company and location' },
+        { success: false, error: 'Pharmacopoeial already exists for this company and location' },
         { status: 400 }
       );
     }
 
-    // Create new pharmacopeial
-    const pharmacopeialData = {
-      pharmacopeial: pharmacopeial.trim(),
+    // Create new pharmacopoeial
+    const pharmacopoeialData = {
+      pharmacopoeial: pharmacopoeial.trim(),
       description: description?.trim() || '',
       companyId: companyId.trim(),
       locationId: locationId.trim(),
       createdBy: session.user.userId || session.user.id,
     };
     
-    const newPharmacopeial = new Pharmacopeial(pharmacopeialData);
-    const savedPharmacopeial = await newPharmacopeial.save();
+    const newPharmacopoeial = new Pharmacopoeial(pharmacopoeialData);
+    const savedPharmacopoeial = await newPharmacopoeial.save();
     
     return NextResponse.json(
-      { success: true, data: savedPharmacopeial },
+      { success: true, data: savedPharmacopoeial },
       { status: 201 }
     );
   } catch (error: any) {
@@ -141,9 +141,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const pharmacopeials = await Pharmacopeial.find({ companyId, locationId }).sort({ pharmacopeial: 1 }).lean();
+    const pharmacopoeials = await Pharmacopoeial.find({ companyId, locationId }).sort({ pharmacopoeial: 1 }).lean();
     
-    return NextResponse.json({ success: true, data: pharmacopeials }, { status: 200 });
+    return NextResponse.json({ success: true, data: pharmacopoeials }, { status: 200 });
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: 'Server error', details: error.message },
@@ -165,12 +165,12 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, pharmacopeial, description, companyId, locationId } = body;
+    const { id, pharmacopoeial, description, companyId, locationId } = body;
 
     // Validate input data
-    const validationErrors = validatePharmacopeialData({ pharmacopeial, description, companyId, locationId });
+    const validationErrors = validatePharmacopoeialData({ pharmacopoeial, description, companyId, locationId });
     if (!id) {
-      validationErrors.push('Pharmacopeial ID is required');
+      validationErrors.push('Pharmacopoeial ID is required');
     }
     if (validationErrors.length > 0) {
       return NextResponse.json(
@@ -188,60 +188,60 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Find the existing pharmacopeial
-    const existingPharmacopeial = await Pharmacopeial.findById(id);
-    if (!existingPharmacopeial) {
+    // Find the existing pharmacopoeial
+    const existingPharmacopoeial = await Pharmacopoeial.findById(id);
+    if (!existingPharmacopoeial) {
       return NextResponse.json(
-        { success: false, error: 'Pharmacopeial not found' },
+        { success: false, error: 'Pharmacopoeial not found' },
         { status: 404 }
       );
     }
 
     // Verify that companyId and locationId match the existing document
-    if (existingPharmacopeial.companyId !== companyId || existingPharmacopeial.locationId !== locationId) {
+    if (existingPharmacopoeial.companyId !== companyId || existingPharmacopoeial.locationId !== locationId) {
       return NextResponse.json(
-        { success: false, error: 'Company ID or Location ID does not match the existing pharmacopeial' },
+        { success: false, error: 'Company ID or Location ID does not match the existing pharmacopoeial' },
         { status: 403 }
       );
     }
 
-    // Check for duplicate pharmacopeial (excluding the current pharmacopeial)
-    const duplicatePharmacopeial = await Pharmacopeial.findOne({
-      pharmacopeial,
+    // Check for duplicate pharmacopoeial (excluding the current pharmacopoeial)
+    const duplicatePharmacopoeial = await Pharmacopoeial.findOne({
+      pharmacopoeial,
       companyId,
       locationId,
       _id: { $ne: id }
     });
 
-    if (duplicatePharmacopeial) {
+    if (duplicatePharmacopoeial) {
       return NextResponse.json(
-        { success: false, error: 'Pharmacopeial already exists for this company and location' },
+        { success: false, error: 'Pharmacopoeial already exists for this company and location' },
         { status: 400 }
       );
     }
 
-    // Update the pharmacopeial
+    // Update the pharmacopoeial
     const updateData = {
-      pharmacopeial: pharmacopeial.trim(),
+      pharmacopoeial: pharmacopoeial.trim(),
       description: description?.trim() || '',
       updatedAt: new Date(),
     };
     
-    const updatedPharmacopeial = await Pharmacopeial.findByIdAndUpdate(
+    const updatedPharmacopoeial = await Pharmacopoeial.findByIdAndUpdate(
       id,
       updateData,
       { new: true, runValidators: true }
     );
     
-    if (!updatedPharmacopeial) {
+    if (!updatedPharmacopoeial) {
       return NextResponse.json(
-        { success: false, error: 'Failed to update pharmacopeial' },
+        { success: false, error: 'Failed to update pharmacopoeial' },
         { status: 500 }
       );
     }
 
     return NextResponse.json(
-      { success: true, data: updatedPharmacopeial },
+      { success: true, data: updatedPharmacopoeial },
       { status: 200 }
     );
   } catch (error: any) {
@@ -268,33 +268,33 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json(
-        { success: false, error: 'Pharmacopeial ID is required' },
+        { success: false, error: 'Pharmacopoeial ID is required' },
         { status: 400 }
       );
     }
 
-    const pharmacopeial = await Pharmacopeial.findById(id);
-    if (!pharmacopeial) {
+    const pharmacopoeial = await Pharmacopoeial.findById(id);
+    if (!pharmacopoeial) {
       return NextResponse.json(
-        { success: false, error: 'Pharmacopeial not found' },
+        { success: false, error: 'Pharmacopoeial not found' },
         { status: 404 }
       );
     }
 
     // Validate companyId and locationId against session
-    if (!validateCompanyAndLocation(session, pharmacopeial.companyId, pharmacopeial.locationId)) {
+    if (!validateCompanyAndLocation(session, pharmacopoeial.companyId, pharmacopoeial.locationId)) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized company or location access' },
         { status: 403 }
       );
     }
 
-    await Pharmacopeial.findByIdAndDelete(id);
+    await Pharmacopoeial.findByIdAndDelete(id);
     
     return NextResponse.json({
       success: true,
-      message: 'Pharmacopeial deleted successfully',
-      deletedPharmacopeial: { id: pharmacopeial._id, pharmacopeial: pharmacopeial.pharmacopeial },
+      message: 'Pharmacopoeial deleted successfully',
+      deletedPharmacopoeial: { id: pharmacopoeial._id, pharmacopoeial: pharmacopoeial.pharmacopoeial },
     });
   } catch (error: any) {
     return NextResponse.json(

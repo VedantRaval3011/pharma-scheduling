@@ -494,6 +494,29 @@ export default function MasterColumn() {
     }
   }, [companyId, locationId, authLoaded]);
 
+ const incrementSeriesNumber = async (seriesId: string) => {
+  try {
+    const response = await fetch(
+      `/api/admin/series/increment?seriesId=${seriesId}&companyId=${companyId}&locationId=${locationId}`,
+      {
+        method: 'PUT',
+        credentials: 'include',
+      }
+    );
+
+    const data = await response.json();
+    if (!data.success) {
+      console.error('Failed to increment series number:', data.error);
+      // Don't throw error here as the column was already saved successfully
+    } else {
+      console.log('Series number incremented successfully:', data.data);
+    }
+  } catch (err) {
+    console.error('Error incrementing series number:', err);
+    // Don't throw error here as the column was already saved successfully
+  }
+};
+
   const fetchData = async () => {
     console.log("=== FETCH DATA START ===");
     console.log("Auth data:", { companyId, locationId });
@@ -1027,110 +1050,45 @@ export default function MasterColumn() {
     return newColumnCode;
   };
 
-  const getNextColumnId = async (seriesId: string) => {
-    try {
-      console.log("=== GET NEXT COLUMN ID START ===");
-      console.log("Series ID:", seriesId);
-      console.log("Company ID:", companyId);
-      console.log("Location ID:", locationId);
+  const reserveNextColumnId = async (seriesId: string) => {
+  try {
+    console.log("=== RESERVE NEXT COLUMN ID START ===");
+    console.log("Series ID:", seriesId);
+    console.log("Company ID:", companyId);
+    console.log("Location ID:", locationId);
 
-      const selectedSeries = series.find((s) => s._id === seriesId);
-      if (!selectedSeries) {
-        throw new Error("Series not found");
-      }
-
-      // Check if current number has reached the end number
-      if (selectedSeries.currentNumber >= selectedSeries.endNumber) {
-        const endReachedMessage = `This series has reached its maximum number (${selectedSeries.endNumber}). Please change the end number from Series Master before proceeding.`;
-        setWarningMessage(endReachedMessage);
-        setError(endReachedMessage);
-        throw new Error("Series end number reached");
-      }
-
-      // Check if next number would exceed end number
-      if (selectedSeries.currentNumber + 1 > selectedSeries.endNumber) {
-        const endReachedMessage = `Next number would exceed the series maximum (${selectedSeries.endNumber}). Please change the end number from Series Master before proceeding.`;
-        setWarningMessage(endReachedMessage);
-        setError(endReachedMessage);
-        throw new Error("Series end number would be exceeded");
-      }
-
-      // Get the next column ID from the series
-      const response = await fetch(
-        `/api/admin/series/next?seriesId=${seriesId}&companyId=${companyId}&locationId=${locationId}`,
-        {
-          credentials: "include",
-          headers: { "Cache-Control": "no-cache" },
-        }
-      );
-
-      console.log("API Response status:", response.status);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("API Error:", errorData);
-        throw new Error(errorData.error || "Failed to get next column ID");
-      }
-
-      const data = await response.json();
-      console.log("API Response data:", data);
-
-      if (!data.success) {
-        throw new Error(data.error || "Failed to get next column ID");
-      }
-
-      const nextColumnId = data.data.columnId;
-      console.log("Next Column ID received:", nextColumnId);
-
-      // Check if we're approaching the end number (show warning at 10 numbers before end)
-      if (selectedSeries.currentNumber + 10 >= selectedSeries.endNumber) {
-        const remainingNumbers =
-          selectedSeries.endNumber - selectedSeries.currentNumber;
-        setWarningMessage(
-          `Warning: Only ${remainingNumbers} numbers remaining in this series.`
-        );
-      } else {
-        setWarningMessage(""); // Clear warning if not approaching limit
-      }
-
-      // Increment the series current number
-      const incrementResponse = await fetch(
-        `/api/admin/series/increment?seriesId=${seriesId}&companyId=${companyId}&locationId=${locationId}`,
-        {
-          method: "PUT",
-          credentials: "include",
-          headers: { "Cache-Control": "no-cache" },
-        }
-      );
-
-      console.log("Increment response status:", incrementResponse.status);
-
-      if (!incrementResponse.ok) {
-        const incrementError = await incrementResponse.json();
-        console.warn(
-          "Warning: Failed to increment series counter, but column ID was generated"
-        );
-      } else {
-        const incrementData = await incrementResponse.json();
-        console.log("Series incremented successfully:", incrementData);
-
-        // Update the local series state
-        setSeries((prevSeries) =>
-          prevSeries.map((s) =>
-            s._id === seriesId
-              ? { ...s, currentNumber: incrementData.data.currentNumber }
-              : s
-          )
-        );
-      }
-
-      console.log("=== GET NEXT COLUMN ID END ===");
-      return nextColumnId;
-    } catch (err) {
-      console.error("Error in getNextColumnId:", err);
-      throw err;
+    const selectedSeries = series.find((s) => s._id === seriesId);
+    if (!selectedSeries) {
+      throw new Error("Series not found");
     }
-  };
+
+    // Final check before reserving
+    if (selectedSeries.currentNumber >= selectedSeries.endNumber) {
+      throw new Error(
+        `Series has reached its maximum number (${selectedSeries.endNumber})`
+      );
+    }
+
+    if (selectedSeries.currentNumber + 1 > selectedSeries.endNumber) {
+      throw new Error(
+        `Next number would exceed the series maximum (${selectedSeries.endNumber})`
+      );
+    }
+
+    // FIXED: Use the CURRENT number, not currentNumber + 1
+    const currentColumnId = `${selectedSeries.prefix}${selectedSeries.currentNumber
+      .toString()
+      .padStart(selectedSeries.padding, "0")}`;
+
+    console.log("Using current Column ID:", currentColumnId);
+    console.log("=== RESERVE NEXT COLUMN ID END ===");
+    
+    return currentColumnId;
+  } catch (err) {
+    console.error("Error in reserveNextColumnId:", err);
+    throw err;
+  }
+};
   const validateForm = () => {
     console.log("=== FORM VALIDATION START ===");
     const errors: { [key: string]: string } = {};
@@ -1474,6 +1432,15 @@ export default function MasterColumn() {
     setForm((prev) => {
       const newDescriptions = [...prev.descriptions];
       newDescriptions[index] = { ...newDescriptions[index], [field]: value };
+
+      // Handle prefix/suffix checkbox clearing logic within the setForm callback
+      if (field === "prefix" && !value) {
+        newDescriptions[index].usePrefixForNewCode = false;
+      }
+      if (field === "suffix" && !value) {
+        newDescriptions[index].useSuffixForNewCode = false;
+      }
+
       return { ...prev, descriptions: newDescriptions };
     });
 
@@ -1498,74 +1465,83 @@ export default function MasterColumn() {
   };
 
   const handleSeriesChange = async (index: number, seriesId: string) => {
-    console.log("=== SERIES CHANGE START ===");
-    console.log("Index:", index, "Series ID:", seriesId);
+  console.log("=== SERIES CHANGE START ===");
+  console.log("Index:", index, "Series ID:", seriesId);
 
-    setSelectedSeriesId(seriesId);
-    setWarningMessage(""); // Clear any existing warning
-    setError(""); // Clear any existing error
+  setSelectedSeriesId(seriesId);
+  setWarningMessage(""); // Clear any existing warning
+  setError(""); // Clear any existing error
 
-    if (!seriesId) {
-      console.log("No series selected, clearing columnId");
-      handleDescriptionChange(index, "columnId", "");
-      return;
-    }
+  if (!seriesId) {
+    console.log("No series selected, clearing columnId");
+    handleDescriptionChange(index, "columnId", "");
+    return;
+  }
 
-    const selectedSeries = series.find((s) => s._id === seriesId);
-    console.log("Selected series:", selectedSeries);
+  const selectedSeries = series.find((s) => s._id === seriesId);
+  console.log("Selected series:", selectedSeries);
 
-    if (selectedSeries) {
-      try {
-        // Check current number before attempting to get next ID
-        if (selectedSeries.currentNumber >= selectedSeries.endNumber) {
-          const endReachedMessage = `This series has reached its maximum number (${selectedSeries.endNumber}). Please change the end number from Series Master before proceeding.`;
-          setWarningMessage(endReachedMessage);
-          setError(endReachedMessage);
-
-          // Set the column ID to show current state but don't allow submission
-          handleDescriptionChange(
-            index,
-            "columnId",
-            `${selectedSeries.prefix}${selectedSeries.endNumber
-              .toString()
-              .padStart(selectedSeries.padding, "0")}`
-          );
+  if (selectedSeries) {
+    try {
+      // Check if we're in edit mode (selectedColumnId exists)
+      if (selectedColumnId) {
+        // For editing, retain the existing columnId
+        const currentColumn = [...columns, ...obsoleteColumns].find(
+          (col) => col._id === selectedColumnId
+        );
+        if (currentColumn && currentColumn.descriptions[selectedDescriptionIndex]) {
+          const currentDesc = currentColumn.descriptions[selectedDescriptionIndex];
+          console.log("Retaining existing columnId for edit:", currentDesc.columnId);
+          handleDescriptionChange(index, "columnId", currentDesc.columnId);
+          setSelectedSeriesName(selectedSeries.name);
           return;
-        }
-
-        // Check if next number would exceed end number
-        if (selectedSeries.currentNumber + 1 > selectedSeries.endNumber) {
-          const endReachedMessage = `Next number would exceed the series maximum (${selectedSeries.endNumber}). Please change the end number from Series Master before proceeding.`;
-          setWarningMessage(endReachedMessage);
-          setError(endReachedMessage);
-          return;
-        }
-
-        console.log("Getting next column ID for series:", seriesId);
-        const nextColumnId = await getNextColumnId(seriesId);
-        console.log("Next column ID received:", nextColumnId);
-
-        if (nextColumnId) {
-          handleDescriptionChange(index, "columnId", nextColumnId);
-          setFormErrors((prev) => ({ ...prev, [`columnId_${index}`]: "" }));
-          console.log("Column ID set successfully");
-        } else {
-          console.error("No column ID returned from API");
-          setError("Failed to generate Column ID. Please try again.");
-        }
-      } catch (err) {
-        console.error("Error getting next column ID:", err);
-        // Don't overwrite the specific end number error message
-        if (
-          !error.includes("maximum number") &&
-          !error.includes("end number")
-        ) {
-          setError("Failed to generate Column ID. Please try again.");
         }
       }
+
+      // For new entries, check series limits
+      if (selectedSeries.currentNumber >= selectedSeries.endNumber) {
+        const endReachedMessage = `This series has reached its maximum number (${selectedSeries.endNumber}). Please change the end number from Series Master before proceeding.`;
+        setWarningMessage(endReachedMessage);
+        setError(endReachedMessage);
+        setFormErrors((prev) => ({
+          ...prev,
+          [`columnId_${index}`]: "Cannot generate Column ID - series limit reached",
+        }));
+        handleDescriptionChange(index, "columnId", "");
+        return;
+      }
+
+      // Generate PREVIEW of CURRENT column ID using currentNumber
+      const currentNumber = selectedSeries.currentNumber;
+const previewColumnId = `${selectedSeries.prefix}${currentNumber
+  .toString()
+  .padStart(selectedSeries.padding, "0")}`;
+
+      console.log("Preview column ID:", previewColumnId);
+      handleDescriptionChange(index, "columnId", previewColumnId);
+      setFormErrors((prev) => ({ ...prev, [`columnId_${index}`]: "" }));
+      setSelectedSeriesName(selectedSeries.name);
+
+      // Check if we're approaching the end number (show warning at 10 numbers before end)
+      if (selectedSeries.currentNumber + 10 >= selectedSeries.endNumber) {
+        const remainingNumbers = selectedSeries.endNumber - selectedSeries.currentNumber;
+        setWarningMessage(
+          `Warning: Only ${remainingNumbers} numbers remaining in this series.`
+        );
+      }
+
+      console.log("Column ID preview set successfully");
+    } catch (err) {
+      console.error("Error generating column ID preview:", err);
+      setError("Failed to generate Column ID preview. Please try again.");
+      setFormErrors((prev) => ({
+        ...prev,
+        [`columnId_${index}`]: "Failed to generate Column ID",
+      }));
     }
-    console.log("=== SERIES CHANGE END ===");
-  };
+  }
+  console.log("=== SERIES CHANGE END ===");
+};
 
   const handleTableRowClick = (
     column: Column,
@@ -1696,13 +1672,34 @@ export default function MasterColumn() {
         throw new Error(errorMsg);
       }
 
-      // Format description for backend
+      // NEW: Reserve column ID if this is a new entry
+      let finalColumnId = desc.columnId;
+      if (!selectedColumnId && selectedSeriesId) {
+        console.log("Reserving column ID for new entry...");
+        try {
+          finalColumnId = await reserveNextColumnId(selectedSeriesId);
+          console.log("Column ID reserved:", finalColumnId);
+
+          // Update the form with the reserved ID
+          setForm((prev) => ({
+            ...prev,
+            descriptions: prev.descriptions.map((d, idx) =>
+              idx === 0 ? { ...d, columnId: finalColumnId } : d
+            ),
+          }));
+        } catch (reserveError) {
+          console.error("Failed to reserve column ID:", reserveError);
+          throw new Error(`Failed to reserve column ID: ${reserveError}`);
+        }
+      }
+
+      // Format description for backend (use finalColumnId)
       const formattedDesc = {
         ...desc,
+        columnId: finalColumnId, // Use the reserved ID
         innerDiameter: Number(desc.innerDiameter),
         length: Number(desc.length),
         particleSize: Number(desc.particleSize),
-        columnId: desc.columnId.trim(),
         installationDate: desc.installationDate,
         isObsolete: !!desc.isObsolete,
         usePrefix: !!desc.usePrefix,
@@ -2160,16 +2157,23 @@ export default function MasterColumn() {
       }
 
       if (jsonData.success) {
-        console.log("Save successful:", jsonData);
-        // Refresh data after successful save
-        await fetchData();
-        handleCloseForm();
-
-        console.log("Column saved successfully");
-      } else {
-        console.error("API returned success: false", jsonData);
-        throw new Error(jsonData.error || "Failed to save column");
-      }
+  console.log("Save successful:", jsonData);
+  
+  // NEW: Increment series number if this was a new entry (not an edit)
+  if (!selectedColumnId && selectedSeriesId) {
+    console.log("Incrementing series number for new entry...");
+    await incrementSeriesNumber(selectedSeriesId);
+  }
+  
+  // Refresh data after successful save
+  await fetchData();
+  handleCloseForm();
+  
+  console.log("Column saved successfully");
+} else {
+  console.error("API returned success: false", jsonData);
+  throw new Error(jsonData.error || "Failed to save column");
+}
     } catch (err) {
       console.error("Save operation failed:", err);
       setError(
@@ -2183,27 +2187,39 @@ export default function MasterColumn() {
   };
 
   const handleCodeGenerationCheckboxChange = (
-    index: number,
-    field: "usePrefixForNewCode" | "useSuffixForNewCode",
-    checked: boolean
-  ) => {
-    console.log(`=== ${field.toUpperCase()} CHECKBOX CHANGE: ${checked} ===`);
+  index: number,
+  field: "usePrefixForNewCode" | "useSuffixForNewCode",
+  checked: boolean
+) => {
+  console.log(`=== ${field.toUpperCase()} CHECKBOX CHANGE: ${checked} ===`);
 
-    setForm((prev) => {
-      const newDescriptions = [...prev.descriptions];
-      newDescriptions[index] = { ...newDescriptions[index], [field]: checked };
-      return { ...prev, descriptions: newDescriptions };
-    });
+  // For edit mode, get the ORIGINAL core attributes from the selected column
+  let originalCoreAttributes: CoreAttributes | undefined;
+  if (selectedColumnId && selectedDescriptionIndex >= 0) {
+    const originalColumn = [...columns, ...obsoleteColumns].find(
+      (col) => col._id === selectedColumnId
+    );  
+    if (originalColumn && originalColumn.descriptions[selectedDescriptionIndex]) {
+      originalCoreAttributes = getCoreAttributes(
+        originalColumn.descriptions[selectedDescriptionIndex]
+      );
+    }
+  }
 
-    // Clear any related errors
-    setFormErrors((prev) => ({ ...prev, [`${field}_${index}`]: "" }));
+  setForm((prev) => {
+    const newDescriptions = [...prev.descriptions];
+    newDescriptions[index] = { ...newDescriptions[index], [field]: checked };
+    return { ...prev, descriptions: newDescriptions };
+  });
 
-    // Trigger column code update
-    setTimeout(() => {
-      updateColumnCode(index);
-    }, 50);
-  };
+  // Clear any related errors
+  setFormErrors((prev) => ({ ...prev, [`${field}_${index}`]: "" }));
 
+  // Trigger column code update with original core attributes for edit mode
+  setTimeout(() => {
+    updateColumnCode(index, false, originalCoreAttributes);
+  }, 50);
+};
   const handleEdit = () => {
     if (selectedColumnId && selectedDescriptionIndex >= 0) {
       const column = [...columns, ...obsoleteColumns].find(
@@ -2476,55 +2492,51 @@ export default function MasterColumn() {
         <WindowsToolbar
           modulePath="/dashboard/columns"
           onAddNew={() => {
-            // Determine initial column code based on whether there are existing columns
-            const initialColumnCode =
-              columns.length === 0 && obsoleteColumns.length === 0
-                ? "CL01"
-                : "";
+  // Determine initial column code based on whether there are existing columns
+  const initialColumnCode =
+    columns.length === 0 && obsoleteColumns.length === 0 ? "CL01" : "";
 
-            // Find the "Internal Column ID" series
-            const internalSeries = series.find(
-              (s) => s.name === "Internal Column Id"
-            );
-            const defaultSeriesId = internalSeries ? internalSeries._id : "";
+  // Find the "Internal Column Id" series
+  const internalSeries = series.find((s) => s.name === "Internal Column Id");
+  const defaultSeriesId = internalSeries ? internalSeries._id : "";
 
-            // Initialize form
-            setForm({
-              columnCode: initialColumnCode,
-              descriptions: [
-                {
-                  prefix: "",
-                  carbonType: "",
-                  linkedCarbonType: "",
-                  innerDiameter: "",
-                  length: "",
-                  particleSize: "",
-                  suffix: "",
-                  make: "",
-                  columnId: "",
-                  installationDate: "",
-                  usePrefix: false,
-                  useSuffix: false,
-                  usePrefixForNewCode: false,
-                  useSuffixForNewCode: false,
-                  isObsolete: false,
-                },
-              ],
-            });
+  // Initialize form
+  setForm({
+    columnCode: initialColumnCode,
+    descriptions: [
+      {
+        prefix: "",
+        carbonType: "",
+        linkedCarbonType: "",
+        innerDiameter: "",
+        length: "",
+        particleSize: "",
+        suffix: "",
+        make: "",
+        columnId: "", // Will be set by handleSeriesChange
+        installationDate: "",
+        usePrefix: false,
+        useSuffix: false,
+        usePrefixForNewCode: false,
+        useSuffixForNewCode: false,
+        isObsolete: false,
+      },
+    ],
+  });
 
-            // Set default series and generate column ID if available
-            setSelectedSeriesId(defaultSeriesId);
-            setSelectedSeriesName(defaultSeriesId ? "Internal Column Id" : "");
-            if (defaultSeriesId) {
-              handleSeriesChange(0, defaultSeriesId);
-            }
+  // Set default series and generate column ID if available
+  setSelectedSeriesId(defaultSeriesId);
+  setSelectedSeriesName(defaultSeriesId ? "Internal Column Id" : "");
+  if (defaultSeriesId) {
+    handleSeriesChange(0, defaultSeriesId);
+  }
 
-            setFormErrors({});
-            setSelectedColumnId("");
-            setSelectedDescriptionIndex(-1);
-            setShowDescriptionPopup(false);
-            setIsFormOpen(true);
-          }}
+  setFormErrors({});
+  setSelectedColumnId("");
+  setSelectedDescriptionIndex(-1);
+  setShowDescriptionPopup(false);
+  setIsFormOpen(true);
+}}
           onSave={handleSave}
           onClear={handleCloseForm}
           onExit={() => router.push("/dashboard")}
@@ -2670,9 +2682,9 @@ export default function MasterColumn() {
                         {getSuffixName(desc.suffix) || "-"}
                       </td>
                       <td className="border border-gray-300 p-2">
-                        {getPrefixName(desc.prefix)} {desc.carbonType}{" "}
-                        {desc.innerDiameter} x {desc.length} {desc.particleSize}
-                        µm {getSuffixName(desc.suffix)}
+                        {desc.carbonType} {desc.innerDiameter} x {desc.length}{" "}
+                        {desc.particleSize}
+                        µm
                       </td>
                       <td className="border border-gray-300 p-2">
                         {getMakeName(desc.make)}
@@ -3446,6 +3458,7 @@ export default function MasterColumn() {
                     {/* Column Code Generation Options */}
                     <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg">
                       <div className="grid grid-cols-2 gap-3">
+                        {/* Prefix Checkbox */}
                         <div>
                           <label className="flex items-center gap-2">
                             <input
@@ -3458,17 +3471,31 @@ export default function MasterColumn() {
                                   e.target.checked
                                 )
                               }
-                              className="form-checkbox h-4 w-4 text-[#3a6ea5]"
+                              disabled={!desc.prefix} // Disable when no prefix is selected
+                              className={`form-checkbox h-4 w-4 ${
+                                desc.prefix
+                                  ? "text-[#3a6ea5] cursor-pointer"
+                                  : "text-gray-300 cursor-not-allowed opacity-50"
+                              }`}
                             />
-                            <span className="text-xs font-medium text-[#003087]">
+                            <span
+                              className={`text-xs font-medium ${
+                                desc.prefix ? "text-[#003087]" : "text-gray-400"
+                              }`}
+                            >
                               Use prefix to generate a new column code
+                              {!desc.prefix && " (Select a prefix first)"}
                             </span>
                           </label>
-                          <p className="text-xs text-gray-600 mt-1 ml-6">
-                            When checked, different prefixes will create
-                            separate column codes
-                          </p>
+                          {desc.prefix && (
+                            <p className="text-xs text-gray-600 mt-1 ml-6">
+                              When checked, different prefixes will create
+                              separate column codes
+                            </p>
+                          )}
                         </div>
+
+                        {/* Suffix Checkbox */}
                         <div>
                           <label className="flex items-center gap-2">
                             <input
@@ -3481,16 +3508,28 @@ export default function MasterColumn() {
                                   e.target.checked
                                 )
                               }
-                              className="form-checkbox h-4 w-4 text-[#3a6ea5]"
+                              disabled={!desc.suffix} // Disable when no suffix is selected
+                              className={`form-checkbox h-4 w-4 ${
+                                desc.suffix
+                                  ? "text-[#3a6ea5] cursor-pointer"
+                                  : "text-gray-300 cursor-not-allowed opacity-50"
+                              }`}
                             />
-                            <span className="text-xs font-medium text-[#003087]">
+                            <span
+                              className={`text-xs font-medium ${
+                                desc.suffix ? "text-[#003087]" : "text-gray-400"
+                              }`}
+                            >
                               Use suffix to generate a new column code
+                              {!desc.suffix && " (Select a suffix first)"}
                             </span>
                           </label>
-                          <p className="text-xs text-gray-600 mt-1 ml-6">
-                            When checked, different suffixes will create
-                            separate column codes
-                          </p>
+                          {desc.suffix && (
+                            <p className="text-xs text-gray-600 mt-1 ml-6">
+                              When checked, different suffixes will create
+                              separate column codes
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>

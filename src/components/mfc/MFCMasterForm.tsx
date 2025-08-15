@@ -40,8 +40,16 @@ interface DropdownOption {
 }
 
 interface ApiItem {
-  id: string;
-  name: string;
+  _id: string;
+  api?: string;
+  department?: string;
+  testType?: string;
+  detectorType?: string;
+  pharmacopoeial?: string;
+  columnCode?: string;
+  desc?: string;
+  companyId?: string;
+  locationId?: string;
 }
 
 interface MobilePhaseItem {
@@ -133,59 +141,82 @@ const MFCMasterForm = forwardRef(({ onSubmit, initialData, onCancel }: MFCMaster
           columnResponse,
           mobilePhaseResponse,
         ] = await Promise.all([
-          fetch(`/api/admin/api?companyId=${companyId}&locationId=${locationId}`).then(res => res.json()),
-          fetch(`/api/admin/department?companyId=${companyId}&locationId=${locationId}`).then(res => res.json()),
-          fetch(`/api/admin/test-type?companyId=${companyId}&locationId=${locationId}`).then(res => res.json()),
-          fetch(`/api/admin/detector-type?companyId=${companyId}&locationId=${locationId}`).then(res => res.json()),
-          fetch(`/api/admin/pharmacopeial?companyId=${companyId}&locationId=${locationId}`).then(res => res.json()),
-          fetch(`/api/admin/column?companyId=${companyId}&locationId=${locationId}`).then(res => res.json()),
-          fetch(`/api/admin/mfc?companyId=${companyId}&locationId=${locationId}`).then(res => res.json()),
+          fetch(`/api/admin/api?companyId=${companyId}&locationId=${locationId}`).then(async (res) => {
+            if (!res.ok) throw new Error(`API fetch failed: ${res.status}`);
+            return res.json();
+          }),
+          fetch(`/api/admin/department?companyId=${companyId}&locationId=${locationId}`).then(async (res) => {
+            if (!res.ok) throw new Error(`Department fetch failed: ${res.status}`);
+            return res.json();
+          }),
+          fetch(`/api/admin/test-type?companyId=${companyId}&locationId=${locationId}`).then(async (res) => {
+            if (!res.ok) throw new Error(`Test Type fetch failed: ${res.status}`);
+            return res.json();
+          }),
+          fetch(`/api/admin/detector-type?companyId=${companyId}&locationId=${locationId}`).then(async (res) => {
+            if (!res.ok) throw new Error(`Detector Type fetch failed: ${res.status}`);
+            return res.json();
+          }),
+          fetch(`/api/admin/pharmacopeial?companyId=${companyId}&locationId=${locationId}`).then(async (res) => {
+            if (!res.ok) throw new Error(`Pharmacopoeial fetch failed: ${res.status}`);
+            return res.json();
+          }),
+          fetch(`/api/admin/column/getAll?companyId=${companyId}&locationId=${locationId}`).then(async (res) => {
+            if (!res.ok) throw new Error(`Column fetch failed: ${res.status}`);
+            return res.json();
+          }),
+          fetch(`/api/admin/mfc?companyId=${companyId}&locationId=${locationId}`).then(async (res) => {
+            if (!res.ok) throw new Error(`MFC fetch failed: ${res.status}`);
+            return res.json();
+          }),
         ]);
 
         // Helper function to validate array response
-        const validateArray = (data: any, endpoint: string): any[] => {
+        const validateArray = (response: any, endpoint: string): any[] => {
+          const data = response?.data || response;
           if (!Array.isArray(data)) {
-            console.error(`Invalid response from ${endpoint}: Expected an array, got`, data);
+            console.error(`Invalid response from ${endpoint}: Expected an array, got`, response);
             setError(`Invalid response from ${endpoint}. Please try again.`);
             return [];
           }
+          console.log(`Response from ${endpoint}:`, data); // Debugging log
           return data;
         };
 
         setApiOptions(
           validateArray(apiResponse, "/api/admin/api").map((item: ApiItem) => ({
-            id: item.id,
-            name: item.name,
+            id: item._id,
+            name: item.api || "Unknown API",
           }))
         );
         setDepartmentOptions(
           validateArray(departmentResponse, "/api/admin/department").map((item: ApiItem) => ({
-            id: item.id,
-            name: item.name,
+            id: item._id,
+            name: item.department || "Unknown Department",
           }))
         );
         setTestTypeOptions(
           validateArray(testTypeResponse, "/api/admin/test-type").map((item: ApiItem) => ({
-            id: item.id,
-            name: item.name,
+            id: item._id,
+            name: item.testType || "Unknown Test Type",
           }))
         );
         setDetectorTypeOptions(
           validateArray(detectorTypeResponse, "/api/admin/detector-type").map((item: ApiItem) => ({
-            id: item.id,
-            name: item.name,
+            id: item._id,
+            name: item.detectorType || "Unknown Detector Type",
           }))
         );
         setPharmacopoeialOptions(
           validateArray(pharmacopoeialResponse, "/api/admin/pharmacopeial").map((item: ApiItem) => ({
-            id: item.id,
-            name: item.name,
+            id: item._id,
+            name: item.pharmacopoeial || "Unknown Pharmacopoeial",
           }))
         );
         setColumnOptions(
           validateArray(columnResponse, "/api/admin/column").map((item: ApiItem) => ({
-            id: item.id,
-            name: item.name,
+            id: item._id,
+            name: item.columnCode || "Unknown Column",
           }))
         );
         setMobilePhaseOptions(
@@ -228,8 +259,8 @@ const MFCMasterForm = forwardRef(({ onSubmit, initialData, onCancel }: MFCMaster
       <select
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
-        className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
-          error ? "border-red-500" : ""
+        className={`w-full px-3 py-2 text-sm border border-gray-400 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 shadow-inner transition-all duration-200 hover:border-blue-500 ${
+          error ? "border-red-400 shadow-none" : ""
         }`}
       >
         <option value="">{placeholder || "Select Mobile Phase"}</option>
@@ -239,26 +270,26 @@ const MFCMasterForm = forwardRef(({ onSubmit, initialData, onCancel }: MFCMaster
           </option>
         ))}
       </select>
-      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+      {error && <p className="mt-1 text-xs text-red-500 font-medium">{error}</p>}
     </div>
   );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden border border-gray-200">
+    <div className="fixed inset-0 bg-gradient-to-b from-[#b6d5ff] to-white flex items-center justify-center z-50 p-4">
+      <div className="bg-gradient-to-b from-white to-gray-100 rounded-md shadow-[0_0_10px_rgba(0,0,0,0.3)] w-full max-w-4xl max-h-[90vh] overflow-hidden border border-gray-400">
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-gray-200 bg-white">
-          <h2 className="text-lg font-semibold text-gray-900">
+        <div className="px-6 py-3 border-b border-gray-400 bg-gradient-to-r from-[#e0e8ff] to-[#f5f7ff] shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-800 tracking-wide">
             {initialData ? "Edit MFC Record" : "Add MFC Record"}
           </h2>
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-red-500 font-medium">{error}</p>}
         </div>
 
         {/* Modal Body */}
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)] bg-gray-50">
           <div className="space-y-6">
             {/* Basic Information Section */}
-            <div className="bg-white p-4 rounded-md border border-gray-200">
+            <div className="bg-white p-4 rounded-sm border border-gray-400 shadow-inner">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -267,13 +298,13 @@ const MFCMasterForm = forwardRef(({ onSubmit, initialData, onCancel }: MFCMaster
                   <input
                     type="number"
                     {...register("mfcNumber", { valueAsNumber: true })}
-                    className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.mfcNumber ? "border-red-500" : ""
+                    className={`w-full px-3 py-2 text-sm border border-gray-400 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 shadow-inner transition-all duration-200 hover:border-blue-500 ${
+                      errors.mfcNumber ? "border-red-400 shadow-none" : ""
                     }`}
                     placeholder=""
                   />
                   {errors.mfcNumber && (
-                    <p className="mt-1 text-xs text-red-500">{errors.mfcNumber.message}</p>
+                    <p className="mt-1 text-xs text-red-500 font-medium">{errors.mfcNumber.message}</p>
                   )}
                 </div>
                 <div>
@@ -283,27 +314,27 @@ const MFCMasterForm = forwardRef(({ onSubmit, initialData, onCancel }: MFCMaster
                   <input
                     type="text"
                     {...register("genericName")}
-                    className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.genericName ? "border-red-500" : ""
+                    className={`w-full px-3 py-2 text-sm border border-gray-400 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 shadow-inner transition-all duration-200 hover:border-blue-500 ${
+                      errors.genericName ? "border-red-400 shadow-none" : ""
                     }`}
                     placeholder=""
                   />
                   {errors.genericName && (
-                    <p className="mt-1 text-xs text-red-500">{errors.genericName.message}</p>
+                    <p className="mt-1 text-xs text-red-500 font-medium">{errors.genericName.message}</p>
                   )}
                 </div>
               </div>
             </div>
 
             {/* Dropdown Selections Section */}
-            <div className="bg-white p-4 rounded-md border border-gray-200">
+            <div className="bg-white p-4 rounded-sm border border-gray-400 shadow-inner">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">API</label>
                   <select
                     {...register("apiId")}
-                    className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.apiId ? "border-red-500" : ""
+                    className={`w-full px-3 py-2 text-sm border border-gray-400 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 shadow-inner transition-all duration-200 hover:border-blue-500 ${
+                      errors.apiId ? "border-red-400 shadow-none" : ""
                     }`}
                   >
                     <option value="">Select API</option>
@@ -314,15 +345,15 @@ const MFCMasterForm = forwardRef(({ onSubmit, initialData, onCancel }: MFCMaster
                     ))}
                   </select>
                   {errors.apiId && (
-                    <p className="mt-1 text-xs text-red-500">{errors.apiId.message}</p>
+                    <p className="mt-1 text-xs text-red-500 font-medium">{errors.apiId.message}</p>
                   )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
                   <select
                     {...register("departmentId")}
-                    className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.departmentId ? "border-red-500" : ""
+                    className={`w-full px-3 py-2 text-sm border border-gray-400 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 shadow-inner transition-all duration-200 hover:border-blue-500 ${
+                      errors.departmentId ? "border-red-400 shadow-none" : ""
                     }`}
                   >
                     <option value="">Select Department</option>
@@ -333,15 +364,15 @@ const MFCMasterForm = forwardRef(({ onSubmit, initialData, onCancel }: MFCMaster
                     ))}
                   </select>
                   {errors.departmentId && (
-                    <p className="mt-1 text-xs text-red-500">{errors.departmentId.message}</p>
+                    <p className="mt-1 text-xs text-red-500 font-medium">{errors.departmentId.message}</p>
                   )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Test Type</label>
                   <select
                     {...register("testTypeId")}
-                    className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.testTypeId ? "border-red-500" : ""
+                    className={`w-full px-3 py-2 text-sm border border-gray-400 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 shadow-inner transition-all duration-200 hover:border-blue-500 ${
+                      errors.testTypeId ? "border-red-400 shadow-none" : ""
                     }`}
                   >
                     <option value="">Select Test Type</option>
@@ -352,15 +383,15 @@ const MFCMasterForm = forwardRef(({ onSubmit, initialData, onCancel }: MFCMaster
                     ))}
                   </select>
                   {errors.testTypeId && (
-                    <p className="mt-1 text-xs text-red-500">{errors.testTypeId.message}</p>
+                    <p className="mt-1 text-xs text-red-500 font-medium">{errors.testTypeId.message}</p>
                   )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Detector Type</label>
                   <select
                     {...register("detectorTypeId")}
-                    className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.detectorTypeId ? "border-red-500" : ""
+                    className={`w-full px-3 py-2 text-sm border border-gray-400 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 shadow-inner transition-all duration-200 hover:border-blue-500 ${
+                      errors.detectorTypeId ? "border-red-400 shadow-none" : ""
                     }`}
                   >
                     <option value="">Select Detector Type</option>
@@ -371,15 +402,15 @@ const MFCMasterForm = forwardRef(({ onSubmit, initialData, onCancel }: MFCMaster
                     ))}
                   </select>
                   {errors.detectorTypeId && (
-                    <p className="mt-1 text-xs text-red-500">{errors.detectorTypeId.message}</p>
+                    <p className="mt-1 text-xs text-red-500 font-medium">{errors.detectorTypeId.message}</p>
                   )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Pharmacopoeial</label>
                   <select
                     {...register("pharmacopoeialId")}
-                    className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.pharmacopoeialId ? "border-red-500" : ""
+                    className={`w-full px-3 py-2 text-sm border border-gray-400 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 shadow-inner transition-all duration-200 hover:border-blue-500 ${
+                      errors.pharmacopoeialId ? "border-red-400 shadow-none" : ""
                     }`}
                   >
                     <option value="">Select Pharmacopoeial</option>
@@ -390,15 +421,15 @@ const MFCMasterForm = forwardRef(({ onSubmit, initialData, onCancel }: MFCMaster
                     ))}
                   </select>
                   {errors.pharmacopoeialId && (
-                    <p className="mt-1 text-xs text-red-500">{errors.pharmacopoeialId.message}</p>
+                    <p className="mt-1 text-xs text-red-500 font-medium">{errors.pharmacopoeialId.message}</p>
                   )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Column Code</label>
                   <select
                     {...register("columnCode")}
-                    className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.columnCode ? "border-red-500" : ""
+                    className={`w-full px-3 py-2 text-sm border border-gray-400 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 shadow-inner transition-all duration-200 hover:border-blue-500 ${
+                      errors.columnCode ? "border-red-400 shadow-none" : ""
                     }`}
                   >
                     <option value="">Select Column Code</option>
@@ -409,14 +440,14 @@ const MFCMasterForm = forwardRef(({ onSubmit, initialData, onCancel }: MFCMaster
                     ))}
                   </select>
                   {errors.columnCode && (
-                    <p className="mt-1 text-xs text-red-500">{errors.columnCode.message}</p>
+                    <p className="mt-1 text-xs text-red-500 font-medium">{errors.columnCode.message}</p>
                   )}
                 </div>
               </div>
             </div>
 
             {/* Mobile Phase Codes Section */}
-            <div className="bg-white p-4 rounded-md border border-gray-200">
+            <div className="bg-white p-4 rounded-sm border border-gray-400 shadow-inner">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -488,7 +519,7 @@ const MFCMasterForm = forwardRef(({ onSubmit, initialData, onCancel }: MFCMaster
             </div>
 
             {/* Numerical Fields Section */}
-            <div className="bg-white p-4 rounded-md border border-gray-200">
+            <div className="bg-white p-4 rounded-sm border border-gray-400 shadow-inner">
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -498,13 +529,13 @@ const MFCMasterForm = forwardRef(({ onSubmit, initialData, onCancel }: MFCMaster
                     type="number"
                     step="0.01"
                     {...register("sampleInjection", { valueAsNumber: true })}
-                    className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.sampleInjection ? "border-red-500" : ""
+                    className={`w-full px-3 py-2 text-sm border border-gray-400 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 shadow-inner transition-all duration-200 hover:border-blue-500 ${
+                      errors.sampleInjection ? "border-red-400 shadow-none" : ""
                     }`}
                     placeholder=""
                   />
                   {errors.sampleInjection && (
-                    <p className="mt-1 text-xs text-red-500">{errors.sampleInjection.message}</p>
+                    <p className="mt-1 text-xs text-red-500 font-medium">{errors.sampleInjection.message}</p>
                   )}
                 </div>
                 <div>
@@ -515,13 +546,13 @@ const MFCMasterForm = forwardRef(({ onSubmit, initialData, onCancel }: MFCMaster
                     type="number"
                     step="0.01"
                     {...register("blankInjection", { valueAsNumber: true })}
-                    className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.blankInjection ? "border-red-500" : ""
+                    className={`w-full px-3 py-2 text-sm border border-gray-400 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 shadow-inner transition-all duration-200 hover:border-blue-500 ${
+                      errors.blankInjection ? "border-red-400 shadow-none" : ""
                     }`}
                     placeholder=""
                   />
                   {errors.blankInjection && (
-                    <p className="mt-1 text-xs text-red-500">{errors.blankInjection.message}</p>
+                    <p className="mt-1 text-xs text-red-500 font-medium">{errors.blankInjection.message}</p>
                   )}
                 </div>
                 <div>
@@ -532,13 +563,13 @@ const MFCMasterForm = forwardRef(({ onSubmit, initialData, onCancel }: MFCMaster
                     type="number"
                     step="0.01"
                     {...register("bracketingFrequency", { valueAsNumber: true })}
-                    className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.bracketingFrequency ? "border-red-500" : ""
+                    className={`w-full px-3 py-2 text-sm border border-gray-400 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 shadow-inner transition-all duration-200 hover:border-blue-500 ${
+                      errors.bracketingFrequency ? "border-red-400 shadow-none" : ""
                     }`}
                     placeholder=""
                   />
                   {errors.bracketingFrequency && (
-                    <p className="mt-1 text-xs text-red-500">{errors.bracketingFrequency.message}</p>
+                    <p className="mt-1 text-xs text-red-500 font-medium">{errors.bracketingFrequency.message}</p>
                   )}
                 </div>
                 <div>
@@ -549,13 +580,13 @@ const MFCMasterForm = forwardRef(({ onSubmit, initialData, onCancel }: MFCMaster
                     type="number"
                     step="0.01"
                     {...register("injectionTime", { valueAsNumber: true })}
-                    className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.injectionTime ? "border-red-500" : ""
+                    className={`w-full px-3 py-2 text-sm border border-gray-400 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 shadow-inner transition-all duration-200 hover:border-blue-500 ${
+                      errors.injectionTime ? "border-red-400 shadow-none" : ""
                     }`}
                     placeholder=""
                   />
                   {errors.injectionTime && (
-                    <p className="mt-1 text-xs text-red-500">{errors.injectionTime.message}</p>
+                    <p className="mt-1 text-xs text-red-500 font-medium">{errors.injectionTime.message}</p>
                   )}
                 </div>
                 <div>
@@ -566,84 +597,84 @@ const MFCMasterForm = forwardRef(({ onSubmit, initialData, onCancel }: MFCMaster
                     type="number"
                     step="0.01"
                     {...register("runTime", { valueAsNumber: true })}
-                    className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.runTime ? "border-red-500" : ""
+                    className={`w-full px-3 py-2 text-sm border border-gray-400 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 shadow-inner transition-all duration-200 hover:border-blue-500 ${
+                      errors.runTime ? "border-red-400 shadow-none" : ""
                     }`}
                     placeholder=""
                   />
                   {errors.runTime && (
-                    <p className="mt-1 text-xs text-red-500">{errors.runTime.message}</p>
+                    <p className="mt-1 text-xs text-red-500 font-medium">{errors.runTime.message}</p>
                   )}
                 </div>
               </div>
             </div>
 
             {/* Checkbox Fields Section */}
-            <div className="bg-white p-4 rounded-md border border-gray-200">
+            <div className="bg-white p-4 rounded-sm border border-gray-400 shadow-inner">
               <div className="grid grid-cols-4 gap-4">
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     {...register("testApplicability")}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-400 border-gray-400 rounded-sm shadow-inner"
                   />
-                  <label className="text-sm text-gray-700">Test Applicability</label>
+                  <label className="text-sm text-gray-700 font-medium">Test Applicability</label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     {...register("bulk")}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-400 border-gray-400 rounded-sm shadow-inner"
                   />
-                  <label className="text-sm text-gray-700">Bulk</label>
+                  <label className="text-sm text-gray-700 font-medium">Bulk</label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     {...register("fp")}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-400 border-gray-400 rounded-sm shadow-inner"
                   />
-                  <label className="text-sm text-gray-700">FP</label>
+                  <label className="text-sm text-gray-700 font-medium">FP</label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     {...register("stabilityPartial")}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-400 border-gray-400 rounded-sm shadow-inner"
                   />
-                  <label className="text-sm text-gray-700">Stability Partial</label>
+                  <label className="text-sm text-gray-700 font-medium">Stability Partial</label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     {...register("stabilityFinal")}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-400 border-gray-400 rounded-sm shadow-inner"
                   />
-                  <label className="text-sm text-gray-700">Stability Final</label>
+                  <label className="text-sm text-gray-700 font-medium">Stability Final</label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     {...register("amv")}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-400 border-gray-400 rounded-sm shadow-inner"
                   />
-                  <label className="text-sm text-gray-700">AMV</label>
+                  <label className="text-sm text-gray-700 font-medium">AMV</label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     {...register("pv")}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-400 border-gray-400 rounded-sm shadow-inner"
                   />
-                  <label className="text-sm text-gray-700">PV</label>
+                  <label className="text-sm text-gray-700 font-medium">PV</label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     {...register("cv")}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-400 border-gray-400 rounded-sm shadow-inner"
                   />
-                  <label className="text-sm text-gray-700">CV</label>
+                  <label className="text-sm text-gray-700 font-medium">CV</label>
                 </div>
               </div>
             </div>
@@ -651,18 +682,18 @@ const MFCMasterForm = forwardRef(({ onSubmit, initialData, onCancel }: MFCMaster
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 bg-white flex justify-end gap-3">
+        <div className="px-6 py-3 border-t border-gray-400 bg-gradient-to-r from-[#e0e8ff] to-[#f5f7ff] flex justify-end gap-3">
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 border border-gray-300 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gradient-to-b from-gray-200 to-gray-300 border border-gray-400 rounded-sm shadow-sm hover:bg-gradient-to-b hover:from-gray-300 hover:to-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={handleSubmit(onSubmit)}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-b from-blue-600 to-blue-700 border border-blue-600 rounded-sm shadow-sm hover:bg-gradient-to-b hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-400"
           >
             Save
           </button>

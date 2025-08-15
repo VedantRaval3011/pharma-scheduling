@@ -1,11 +1,11 @@
 import mongoose from 'mongoose';
 
-const pharmacopeialSchema = new mongoose.Schema({
-  pharmacopeial: {
+const pharmacopoeialSchema = new mongoose.Schema({
+  pharmacopoeial: {
     type: String,
-    required: [true, 'Pharmacopeial name is required'],
+    required: [true, 'Pharmacopoeial name is required'],
     trim: true,
-    maxlength: [100, 'Pharmacopeial name cannot exceed 100 characters']
+    maxlength: [100, 'Pharmacopoeial name cannot exceed 100 characters']
   },
   description: {
     type: String,
@@ -33,11 +33,11 @@ const pharmacopeialSchema = new mongoose.Schema({
 });
 
 // Compound index to ensure uniqueness per company/location
-pharmacopeialSchema.index({ pharmacopeial: 1, companyId: 1, locationId: 1 }, { unique: true });
+pharmacopoeialSchema.index({ pharmacopoeial: 1, companyId: 1, locationId: 1 }, { unique: true });
 
 // Index for better query performance
-pharmacopeialSchema.index({ companyId: 1, locationId: 1 });
+pharmacopoeialSchema.index({ companyId: 1, locationId: 1 });
 
-const Pharmacopeial = mongoose.models.Pharmacopeial || mongoose.model('Pharmacopeial', pharmacopeialSchema);
+const Pharmacopoeial = mongoose.models.Pharmacopoeial || mongoose.model('Pharmacopoeial', pharmacopoeialSchema);
 
-export default Pharmacopeial;
+export default Pharmacopoeial;
