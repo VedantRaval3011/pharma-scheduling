@@ -2,37 +2,53 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/db';
 import MFCMaster from '@/models/MFCMaster';
+import { createMFCAuditLog } from '@/lib/auditUtils';
 import { z } from 'zod';
 
-// Validation schema
-const mfcSchema = z.object({
-  mfcNumber: z.number().min(1),
-  companyId: z.string().uuid(),
-  locationId: z.string().uuid(),
-  genericName: z.string().min(1),
-  apiId: z.string().min(1),
-  departmentId: z.string().min(1),
+// Updated validation schema to match the new nested structure
+const testTypeSchema = z.object({
   testTypeId: z.string().min(1),
+  columnCode: z.string().min(1),
+  mobilePhaseCodes: z.array(z.string().min(1)).min(1),
   detectorTypeId: z.string().min(1),
   pharmacopoeialId: z.string().min(1),
-  columnCode: z.string().min(1),
-  mobilePhaseCode1: z.string().min(1),
-  mobilePhaseCode2: z.string().optional(),
-  mobilePhaseCode3: z.string().optional(),
-  mobilePhaseCode4: z.string().optional(),
-  sampleInjection: z.number().min(0),
-  blankInjection: z.number().min(0),
-  bracketingFrequency: z.number().min(0),
-  injectionTime: z.number().min(0),
-  runTime: z.number().min(0),
-  testApplicability: z.boolean().optional(),
-  bulk: z.boolean().optional(),
-  fp: z.boolean().optional(),
-  stabilityPartial: z.boolean().optional(),
-  stabilityFinal: z.boolean().optional(),
-  amv: z.boolean().optional(),
-  pv: z.boolean().optional(),
-  cv: z.boolean().optional(),
+  sampleInjection: z.number().min(0).default(0),
+  standardInjection: z.number().min(0).default(0),
+  blankInjection: z.number().min(0).default(0),
+  bracketingFrequency: z.number().min(0).default(0),
+  injectionTime: z.number().min(0).default(0),
+  runTime: z.number().min(0).default(0),
+  testApplicability: z.boolean().default(false),
+});
+
+const apiSchema = z.object({
+  apiName: z.string().min(1),
+  testTypes: z.array(testTypeSchema).min(1),
+});
+
+const genericSchema = z.object({
+  genericName: z.string().min(1),
+  apis: z.array(apiSchema).min(1),
+});
+
+const productCodeSchema = z.object({
+  code: z.string().min(1),
+});
+
+const mfcSchema = z.object({
+  mfcNumber: z.string().min(1),
+  companyId: z.string().uuid(),
+  locationId: z.string().uuid(),
+  productCodes: z.array(productCodeSchema).min(1),
+  generics: z.array(genericSchema).min(1),
+  departmentId: z.string().min(1),
+  bulk: z.boolean().default(false),
+  fp: z.boolean().default(false),
+  stabilityPartial: z.boolean().default(false),
+  stabilityFinal: z.boolean().default(false),
+  amv: z.boolean().default(false),
+  pv: z.boolean().default(false),
+  cv: z.boolean().default(false),
   createdBy: z.string().min(1),
 });
 
@@ -65,8 +81,10 @@ export async function GET(request: NextRequest) {
     if (search) {
       query.$or = [
         { mfcNumber: { $regex: search, $options: 'i' } },
-        { genericName: { $regex: search, $options: 'i' } },
-        { columnCode: { $regex: search, $options: 'i' } },
+        { 'generics.genericName': { $regex: search, $options: 'i' } },
+        { 'generics.apis.apiName': { $regex: search, $options: 'i' } },
+        { 'generics.apis.testTypes.columnCode': { $regex: search, $options: 'i' } },
+        { 'productCodes.code': { $regex: search, $options: 'i' } },
       ];
     }
 
@@ -100,7 +118,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Create new MFC record
+// POST - Create new MFC record with audit logging
 export async function POST(request: NextRequest) {
   try {
     await connectToDatabase();
@@ -126,6 +144,19 @@ export async function POST(request: NextRequest) {
 
     const newMFC = new MFCMaster(validatedData);
     const savedMFC = await newMFC.save();
+
+    // Create audit log
+    await createMFCAuditLog({
+      mfcId: savedMFC._id.toString(),
+      mfcNumber: savedMFC.mfcNumber,
+      companyId: savedMFC.companyId,
+      locationId: savedMFC.locationId,
+      action: 'CREATE',
+      performedBy: validatedData.createdBy,
+      newData: savedMFC.toObject(),
+      ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+      userAgent: request.headers.get('user-agent') || 'unknown',
+    });
 
     return NextResponse.json({
       message: 'MFC record created successfully',
@@ -156,7 +187,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT - Update MFC record
+// PUT - Update MFC record with audit logging
 export async function PUT(request: NextRequest) {
   try {
     await connectToDatabase();
@@ -174,6 +205,32 @@ export async function PUT(request: NextRequest) {
       filter.locationId = updateData.locationId;
     }
 
+    // Get old data for audit
+    const oldMFC = await MFCMaster.findOne(filter);
+    if (!oldMFC) {
+      return NextResponse.json(
+        { error: 'MFC record not found or access denied' },
+        { status: 404 }
+      );
+    }
+
+    // Check if MFC number already exists for other records
+    if (updateData.mfcNumber) {
+      const existingMFC = await MFCMaster.findOne({
+        _id: { $ne: id },
+        mfcNumber: updateData.mfcNumber,
+        companyId: updateData.companyId,
+        locationId: updateData.locationId,
+      });
+
+      if (existingMFC) {
+        return NextResponse.json(
+          { error: 'MFC number already exists for another record' },
+          { status: 409 }
+        );
+      }
+    }
+
     const updatedMFC = await MFCMaster.findOneAndUpdate(
       filter,
       { ...updateData, updatedAt: new Date() },
@@ -186,6 +243,20 @@ export async function PUT(request: NextRequest) {
         { status: 404 }
       );
     }
+
+    // Create audit log
+    await createMFCAuditLog({
+      mfcId: updatedMFC._id.toString(),
+      mfcNumber: updatedMFC.mfcNumber,
+      companyId: updatedMFC.companyId,
+      locationId: updatedMFC.locationId,
+      action: 'UPDATE',
+      performedBy: updateData.createdBy || 'system',
+      oldData: oldMFC.toObject(),
+      newData: updatedMFC.toObject(),
+      ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+      userAgent: request.headers.get('user-agent') || 'unknown',
+    });
 
     return NextResponse.json({
       message: 'MFC record updated successfully',
@@ -209,7 +280,7 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// DELETE - Delete MFC record
+// DELETE - Delete MFC record with audit logging
 export async function DELETE(request: NextRequest) {
   try {
     await connectToDatabase();
@@ -218,6 +289,7 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get('id');
     const companyId = searchParams.get('companyId');
     const locationId = searchParams.get('locationId');
+    const deletedBy = searchParams.get('deletedBy');
 
     if (!id || !companyId || !locationId) {
       return NextResponse.json(
@@ -226,18 +298,40 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Ensure data isolation - only delete records belonging to the company/location
+    // Get the record before deletion for audit
+    const mfcToDelete = await MFCMaster.findOne({
+      _id: id,
+      companyId,
+      locationId,
+    });
+
+    if (!mfcToDelete) {
+      return NextResponse.json(
+        { error: 'MFC record not found or access denied' },
+        { status: 404 }
+      );
+    }
+
+    // Delete the record
     const deletedMFC = await MFCMaster.findOneAndDelete({
       _id: id,
       companyId,
       locationId,
     });
 
-    if (!deletedMFC) {
-      return NextResponse.json(
-        { error: 'MFC record not found or access denied' },
-        { status: 404 }
-      );
+    // Create audit log
+    if (deletedMFC) {
+      await createMFCAuditLog({
+        mfcId: deletedMFC._id.toString(),
+        mfcNumber: deletedMFC.mfcNumber,
+        companyId: deletedMFC.companyId,
+        locationId: deletedMFC.locationId,
+        action: 'DELETE',
+        performedBy: deletedBy || 'system',
+        oldData: mfcToDelete.toObject(),
+        ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+        userAgent: request.headers.get('user-agent') || 'unknown',
+      });
     }
 
     return NextResponse.json({

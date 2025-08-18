@@ -61,4 +61,4 @@ const PharmacopoeialAuditLogSchema: Schema<IPharmacopoeialAuditLog> = new Schema
 
 PharmacopoeialAuditLogSchema.index({ companyId: 1, locationId: 1, timestamp: -1 });
 
-export default mongoose.models.PharmacopoeialAuditLog || mongoose.model<IPharmacopoeialAuditLog>('PharmacopoeialAuditLog', PharmacopoeialAuditLogSchema);
+export default mongoose.models.PharmacopeialAuditLog || mongoose.model<IPharmacopoeialAuditLog>('PharmacopeialAuditLog', PharmacopoeialAuditLogSchema);

@@ -38,6 +38,6 @@ pharmacopoeialSchema.index({ pharmacopoeial: 1, companyId: 1, locationId: 1 }, {
 // Index for better query performance
 pharmacopoeialSchema.index({ companyId: 1, locationId: 1 });
 
-const Pharmacopoeial = mongoose.models.Pharmacopoeial || mongoose.model('Pharmacopoeial', pharmacopoeialSchema);
+const Pharmacopoeial = mongoose.models.Pharmacopeial || mongoose.model('Pharmacopeial', pharmacopoeialSchema);
 
 export default Pharmacopoeial;

@@ -1,27 +1,41 @@
-// models/MFCMaster.ts
 import mongoose, { Schema, Document } from 'mongoose';
 
-export interface IMFCMaster extends Document {
-  mfcNumber: number;
-  companyId: string;
-  locationId: string;
-  genericName: string;
-  apiId: string;
-  departmentId: string;
+export interface ITestType {
   testTypeId: string;
-  detectorTypeId: string;
-  pharmacopoeialId: string;
   columnCode: string;
-  mobilePhaseCode1: string;
-  mobilePhaseCode2?: string;
-  mobilePhaseCode3?: string;
-  mobilePhaseCode4?: string;
+  mobilePhaseCodes: string[];
+  detectorTypeId: string;     // now here
+  pharmacopoeialId: string;   // now here
   sampleInjection: number;
+  standardInjection: number;
   blankInjection: number;
   bracketingFrequency: number;
   injectionTime: number;
   runTime: number;
   testApplicability: boolean;
+}
+
+export interface IAPI {
+  apiName: string;
+  testTypes: ITestType[];
+}
+
+export interface IGeneric {
+  genericName: string;
+  apis: IAPI[];
+}
+
+export interface IProductCode {
+  code: string;
+}
+
+export interface IMFCMaster extends Document {
+  mfcNumber: string;
+  companyId: string;
+  locationId: string;
+  productCodes: IProductCode[];
+  generics: IGeneric[];
+  departmentId: string; // stays at MFC level
   bulk: boolean;
   fp: boolean;
   stabilityPartial: boolean;
@@ -34,144 +48,59 @@ export interface IMFCMaster extends Document {
   updatedAt: Date;
 }
 
-const MFCMasterSchema = new Schema<IMFCMaster>({
-  mfcNumber: {
-    type: Number,
-    required: true,
-  },
-  companyId: {
-    type: String,
-    required: true,
-    index: true,
-  },
-  locationId: {
-    type: String,
-    required: true,
-    index: true,
-  },
-  genericName: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  apiId: {
-    type: String,
-    required: true,
-  },
-  departmentId: {
-    type: String,
-    required: true,
-  },
-  testTypeId: {
-    type: String,
-    required: true,
-  },
-  detectorTypeId: {
-    type: String,
-    required: true,
-  },
-  pharmacopoeialId: {
-    type: String,
-    required: true,
-  },
-  columnCode: {
-    type: String,
-    required: true,
-  },
-  mobilePhaseCode1: {
-    type: String,
-    required: true,
-  },
-  mobilePhaseCode2: {
-    type: String,
-    required: false,
-  },
-  mobilePhaseCode3: {
-    type: String,
-    required: false,
-  },
-  mobilePhaseCode4: {
-    type: String,
-    required: false,
-  },
-  sampleInjection: {
-    type: Number,
-    required: true,
-  },
-  blankInjection: {
-    type: Number,
-    required: true,
-  },
-  bracketingFrequency: {
-    type: Number,
-    required: true,
-  },
-  injectionTime: {
-    type: Number,
-    required: true,
-  },
-  runTime: {
-    type: Number,
-    required: true,
-  },
-  testApplicability: {
-    type: Boolean,
-    default: false,
-  },
-  bulk: {
-    type: Boolean,
-    default: false,
-  },
-  fp: {
-    type: Boolean,
-    default: false,
-  },
-  stabilityPartial: {
-    type: Boolean,
-    default: false,
-  },
-  stabilityFinal: {
-    type: Boolean,
-    default: false,
-  },
-  amv: {
-    type: Boolean,
-    default: false,
-  },
-  pv: {
-    type: Boolean,
-    default: false,
-  },
-  cv: {
-    type: Boolean,
-    default: false,
-  },
-  createdBy: {
-    type: String,
-    required: true,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now,
-  },
+const TestTypeSchema = new Schema<ITestType>({
+  testTypeId: { type: String, required: true },
+  columnCode: { type: String, required: true },
+  mobilePhaseCodes: [{ type: String, required: true }],
+  detectorTypeId: { type: String, required: true },
+  pharmacopoeialId: { type: String, required: true },
+  sampleInjection: Number,
+  standardInjection: Number,
+  blankInjection: Number,
+  bracketingFrequency: Number,
+  injectionTime: Number,
+  runTime: Number,
+  testApplicability: { type: Boolean, default: false },
 });
 
-// Compound index for data isolation
+const APISchema = new Schema<IAPI>({
+  apiName: { type: String, required: true },
+  testTypes: [TestTypeSchema],
+});
+
+const GenericSchema = new Schema<IGeneric>({
+  genericName: { type: String, required: true },
+  apis: [APISchema],
+});
+
+const ProductCodeSchema = new Schema<IProductCode>({
+  code: { type: String, required: true },
+});
+
+const MFCMasterSchema = new Schema<IMFCMaster>({
+  mfcNumber: { type: String, required: true },
+  companyId: { type: String, required: true, index: true },
+  locationId: { type: String, required: true, index: true },
+  productCodes: [ProductCodeSchema],
+  generics: [GenericSchema],
+  departmentId: { type: String, required: true }, // fixed per MFC
+  bulk: { type: Boolean, default: false },
+  fp: { type: Boolean, default: false },
+  stabilityPartial: { type: Boolean, default: false },
+  stabilityFinal: { type: Boolean, default: false },
+  amv: { type: Boolean, default: false },
+  pv: { type: Boolean, default: false },
+  cv: { type: Boolean, default: false },
+  createdBy: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+// compound + unique index
 MFCMasterSchema.index({ companyId: 1, locationId: 1 });
+MFCMasterSchema.index({ mfcNumber: 1, companyId: 1, locationId: 1 }, { unique: true });
 
-// Unique constraint for MFC Number within company and location
-MFCMasterSchema.index({ 
-  mfcNumber: 1, 
-  companyId: 1, 
-  locationId: 1 
-}, { unique: true });
-
-// Update the updatedAt field before saving
-MFCMasterSchema.pre('save', function(next) {
+MFCMasterSchema.pre('save', function (next) {
   this.updatedAt = new Date();
   next();
 });
