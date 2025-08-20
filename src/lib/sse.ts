@@ -1,5 +1,5 @@
 // lib/sse.ts
-type MasterDataType = "apis" | "departments" | "testTypes" | "detectorTypes" | "pharmacopoeials";
+type MasterDataType = "apis" | "departments" | "testTypes" | "detectorTypes" | "pharmacopoeials" | "productMakes" | "products";
 
 type SSEEventAction = "create" | "update" | "delete";
 

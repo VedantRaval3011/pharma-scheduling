@@ -175,8 +175,17 @@ export const adminEmployeeNavData: NavItem[] = [
         path: "/dashboard/detector-type-master",
       },
       {
-        label: "Product Master",
-        path: "/dashboard/product-master",
+        label: "Product",
+        children: [
+          {
+            label: "Product Master",
+            path: "/dashboard/product/product-master",
+          },
+          {
+            label: "Make Master ",
+            path: "/dashboard/product/make-master",
+          }
+        ]
       },
       {
         label: "Raw Material Master",
