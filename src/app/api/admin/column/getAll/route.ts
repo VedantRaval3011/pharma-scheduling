@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import Column from "@/models/column";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import connectDB from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   try {
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    await mongoose.connect(process.env.MONGODB_URI!);
+    await connectDB();
     const columns = await Column.find({ companyId, locationId }).sort({
       columnCode: 1,
     });

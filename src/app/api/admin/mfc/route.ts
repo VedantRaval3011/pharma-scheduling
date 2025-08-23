@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/db';
 import MFCMaster from '@/models/MFCMaster';
+import Product from '@/models/product/product';
 import { createMFCAuditLog } from '@/lib/auditUtils';
 import { z } from 'zod';
 
 // Validation schema for TestType
 const testTypeSchema = z.object({
   testTypeId: z.string().min(1, { message: 'Test type ID is required' }),
+  selectMakeSpecific: z.boolean().default(false), // Added selectMakeSpecific
   columnCode: z.string().min(1, { message: 'Column code is required' }),
   mobilePhaseCodes: z
     .array(z.string())
@@ -22,9 +24,9 @@ const testTypeSchema = z.object({
   bracketingFrequency: z.number().min(0).default(0),
   injectionTime: z.number().min(0).default(0),
   runTime: z.number().min(0).default(0),
+  washTime: z.number().min(0).default(0),
   testApplicability: z.boolean().default(false),
   numberOfInjections: z.number().min(0).default(0).optional(),
-  // Updated test type flags
   bulk: z.boolean().default(false),
   fp: z.boolean().default(false),
   stabilityPartial: z.boolean().default(false),
@@ -47,20 +49,18 @@ const genericSchema = z.object({
   apis: z.array(apiSchema).min(1, { message: 'At least one API is required' }),
 });
 
-// Validation schema for ProductId
-const productIdSchema = z.object({
-  id: z.string().min(1, { message: 'Product ID is required' }),
-});
-
-// Validation schema for creating MFC record
+// Validation schema for creating MFC record with productIds
 const mfcSchema = z.object({
   mfcNumber: z.string().min(1, { message: 'MFC number is required' }),
   companyId: z.string().uuid({ message: 'Valid company ID is required' }),
   locationId: z.string().uuid({ message: 'Valid location ID is required' }),
-  productIds: z.array(productIdSchema).min(1, { message: 'At least one product ID is required' }),
+  productIds: z
+    .array(z.string().min(1, { message: 'Product ID cannot be empty' }))
+    .min(1, { message: 'At least one product ID is required' })
+    .optional(),
   generics: z.array(genericSchema).min(1, { message: 'At least one generic is required' }),
   departmentId: z.string().min(1, { message: 'Department ID is required' }),
-  wash: z.string().default(''),
+  wash: z.number().min(0).default(0),
   createdBy: z.string().min(1, { message: 'Created by is required' }),
 });
 
@@ -68,6 +68,57 @@ const mfcSchema = z.object({
 const updateMfcSchema = mfcSchema.partial().extend({
   id: z.string().min(1, { message: 'ID is required' }),
 });
+
+// Helper function to validate product IDs exist
+async function validateProductIds(
+  productIds: string[],
+  companyId: string,
+  locationId: string
+): Promise<{ valid: boolean; invalidIds: string[]; validProducts: any[] }> {
+  try {
+    const existingProducts = await Product.find({
+      _id: { $in: productIds },
+      companyId,
+      locationId,
+    }).select('_id name productCode');
+
+    const foundIds = existingProducts.map(p => p._id.toString());
+    const invalidIds = productIds.filter(id => !foundIds.includes(id));
+
+    return {
+      valid: invalidIds.length === 0,
+      invalidIds,
+      validProducts: existingProducts,
+    };
+  } catch (error) {
+    console.error('Error validating product IDs:', error);
+    return {
+      valid: false,
+      invalidIds: productIds,
+      validProducts: [],
+    };
+  }
+}
+
+// Helper function to build search query with productIds
+function buildSearchQuery(companyId: string, locationId: string, search: string) {
+  const query: any = { companyId, locationId };
+
+  if (search) {
+    query.$or = [
+      { mfcNumber: { $regex: search, $options: 'i' } },
+      { 'generics.genericName': { $regex: search, $options: 'i' } },
+      { 'generics.apis.apiName': { $regex: search, $options: 'i' } },
+      { 'generics.apis.testTypes.columnCode': { $regex: search, $options: 'i' } },
+      { 'generics.apis.testTypes.selectMakeSpecific': { $eq: search.toLowerCase() === 'true' } }, // Added selectMakeSpecific search
+      { 'generics.apis.testTypes.washTime': { $regex: search, $options: 'i' } },
+      { wash: { $regex: search, $options: 'i' } },
+      { productIds: { $in: [search] } },
+    ];
+  }
+
+  return query;
+}
 
 // GET - Retrieve all MFC records for company and location
 export async function GET(request: NextRequest) {
@@ -80,6 +131,8 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
     const search = searchParams.get('search') || '';
+    const populate = searchParams.get('populate') === 'true';
+    const productId = searchParams.get('productId');
 
     if (!companyId || !locationId) {
       return NextResponse.json(
@@ -88,17 +141,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const query: any = { companyId, locationId };
+    let query = buildSearchQuery(companyId, locationId, search);
 
-    if (search) {
-      query.$or = [
-        { mfcNumber: { $regex: search, $options: 'i' } },
-        { 'generics.genericName': { $regex: search, $options: 'i' } },
-        { 'generics.apis.apiName': { $regex: search, $options: 'i' } },
-        { 'generics.apis.testTypes.columnCode': { $regex: search, $options: 'i' } },
-        { 'productIds.id': { $regex: search, $options: 'i' } },
-        { wash: { $regex: search, $options: 'i' } },
-      ];
+    if (productId) {
+      query.productIds = { $in: [productId] };
     }
 
     const skip = (page - 1) * limit;
@@ -112,8 +158,44 @@ export async function GET(request: NextRequest) {
       MFCMaster.countDocuments(query),
     ]);
 
+    let enrichedRecords = records;
+    if (populate) {
+      enrichedRecords = await Promise.all(
+        records.map(async (record) => {
+          if (record.productIds && record.productIds.length > 0) {
+            try {
+              const productDetails = await Product.find({
+                _id: { $in: record.productIds },
+                companyId: record.companyId,
+                locationId: record.locationId,
+              }).select('_id name productCode description').lean();
+              
+              return {
+                ...record,
+                productDetails,
+              };
+            } catch (error) {
+              console.warn('Error fetching product details:', error);
+              return record;
+            }
+          }
+          return record;
+        })
+      );
+    }
+
+    const statistics = {
+      totalRecords: total,
+      recordsWithProducts: await MFCMaster.countDocuments({
+        ...query,
+        productIds: { $exists: true, $not: { $size: 0 } },
+      }),
+    };
+
     return NextResponse.json({
-      data: records,
+      success: true,
+      data: enrichedRecords,
+      statistics,
       pagination: {
         page,
         limit,
@@ -124,7 +206,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('Error fetching MFC records:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch MFC records' },
+      { error: 'Failed to fetch MFC records', details: error.message },
       { status: 500 }
     );
   }
@@ -136,11 +218,27 @@ export async function POST(request: NextRequest) {
     await connectToDatabase();
 
     const body = await request.json();
-
-    // Validate request body
     const validatedData = mfcSchema.parse(body);
 
-    // Check if MFC number already exists for this company/location
+    if (validatedData.productIds && validatedData.productIds.length > 0) {
+      const productValidation = await validateProductIds(
+        validatedData.productIds,
+        validatedData.companyId,
+        validatedData.locationId
+      );
+
+      if (!productValidation.valid) {
+        return NextResponse.json(
+          {
+            error: 'Invalid product IDs provided',
+            invalidIds: productValidation.invalidIds,
+            message: `The following product IDs are invalid or do not exist: ${productValidation.invalidIds.join(', ')}`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const existingMFC = await MFCMaster.findOne({
       mfcNumber: validatedData.mfcNumber,
       companyId: validatedData.companyId,
@@ -154,10 +252,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const newMFC = new MFCMaster(validatedData);
+    const mfcData = { 
+      ...validatedData,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const newMFC = new MFCMaster(mfcData);
     const savedMFC = await newMFC.save();
 
-    // Create audit log
     await createMFCAuditLog({
       mfcId: savedMFC._id.toString(),
       mfcNumber: savedMFC.mfcNumber,
@@ -172,6 +275,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
+        success: true,
         message: 'MFC record created successfully',
         data: savedMFC,
       },
@@ -195,7 +299,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: 'Failed to create MFC record' },
+      { error: 'Failed to create MFC record', details: error.message },
       { status: 500 }
     );
   }
@@ -207,19 +311,34 @@ export async function PUT(request: NextRequest) {
     await connectToDatabase();
 
     const body = await request.json();
-
-    // Validate request body
     const validatedData = updateMfcSchema.parse(body);
     const { id, ...updateData } = validatedData;
 
-    // Ensure data isolation
+    if (updateData.productIds && updateData.productIds.length > 0) {
+      const productValidation = await validateProductIds(
+        updateData.productIds,
+        updateData.companyId!,
+        updateData.locationId!
+      );
+
+      if (!productValidation.valid) {
+        return NextResponse.json(
+          {
+            error: 'Invalid product IDs provided',
+            invalidIds: productValidation.invalidIds,
+            message: `The following product IDs are invalid or do not exist: ${productValidation.invalidIds.join(', ')}`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const filter: any = { _id: id };
     if (updateData.companyId && updateData.locationId) {
       filter.companyId = updateData.companyId;
       filter.locationId = updateData.locationId;
     }
 
-    // Get old data for audit
     const oldMFC = await MFCMaster.findOne(filter);
     if (!oldMFC) {
       return NextResponse.json(
@@ -228,13 +347,12 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Check if MFC number already exists for other records
     if (updateData.mfcNumber) {
       const existingMFC = await MFCMaster.findOne({
         _id: { $ne: id },
         mfcNumber: updateData.mfcNumber,
-        companyId: updateData.companyId,
-        locationId: updateData.locationId,
+        companyId: updateData.companyId || oldMFC.companyId,
+        locationId: updateData.locationId || oldMFC.locationId,
       });
 
       if (existingMFC) {
@@ -247,7 +365,10 @@ export async function PUT(request: NextRequest) {
 
     const updatedMFC = await MFCMaster.findOneAndUpdate(
       filter,
-      { ...updateData, updatedAt: new Date() },
+      { 
+        ...updateData, 
+        updatedAt: new Date(),
+      },
       { new: true, runValidators: true }
     );
 
@@ -258,7 +379,6 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Create audit log
     await createMFCAuditLog({
       mfcId: updatedMFC._id.toString(),
       mfcNumber: updatedMFC.mfcNumber,
@@ -273,6 +393,7 @@ export async function PUT(request: NextRequest) {
     });
 
     return NextResponse.json({
+      success: true,
       message: 'MFC record updated successfully',
       data: updatedMFC,
     });
@@ -287,73 +408,83 @@ export async function PUT(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: 'Failed to update MFC record' },
+      { error: 'Failed to update MFC record', details: error.message },
       { status: 500 }
     );
   }
 }
 
-// DELETE - Delete MFC record with audit logging
+// DELETE - Bulk delete MFC records
 export async function DELETE(request: NextRequest) {
   try {
     await connectToDatabase();
 
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
     const companyId = searchParams.get('companyId');
     const locationId = searchParams.get('locationId');
-    const deletedBy = searchParams.get('deletedBy');
+    const deletedBy = searchParams.get('deletedBy') || 'system';
 
-    if (!id || !companyId || !locationId) {
+    if (!companyId || !locationId) {
       return NextResponse.json(
-        { error: 'ID, Company ID, and Location ID are required' },
+        { error: 'Company ID and Location ID are required' },
         { status: 400 }
       );
     }
 
-    // Get the record before deletion for audit
-    const mfcToDelete = await MFCMaster.findOne({
-      _id: id,
+    const body = await request.json();
+    const { ids } = body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json(
+        { error: 'Array of IDs is required' },
+        { status: 400 }
+      );
+    }
+
+    const recordsToDelete = await MFCMaster.find({
+      _id: { $in: ids },
       companyId,
       locationId,
     });
 
-    if (!mfcToDelete) {
+    if (recordsToDelete.length === 0) {
       return NextResponse.json(
-        { error: 'MFC record not found or access denied' },
+        { error: 'No records found to delete' },
         { status: 404 }
       );
     }
 
-    // Delete the record
-    const deletedMFC = await MFCMaster.findOneAndDelete({
-      _id: id,
+    const deleteResult = await MFCMaster.deleteMany({
+      _id: { $in: ids },
       companyId,
       locationId,
     });
 
-    // Create audit log
-    if (deletedMFC) {
-      await createMFCAuditLog({
-        mfcId: deletedMFC._id.toString(),
-        mfcNumber: deletedMFC.mfcNumber,
-        companyId: deletedMFC.companyId,
-        locationId: deletedMFC.locationId,
+    const auditPromises = recordsToDelete.map(record =>
+      createMFCAuditLog({
+        mfcId: record._id.toString(),
+        mfcNumber: record.mfcNumber,
+        companyId: record.companyId,
+        locationId: record.locationId,
         action: 'DELETE',
-        performedBy: deletedBy || 'system',
-        oldData: mfcToDelete.toObject(),
+        performedBy: deletedBy,
+        oldData: record.toObject(),
         ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
         userAgent: request.headers.get('user-agent') || 'unknown',
-      });
-    }
+      })
+    );
+
+    await Promise.all(auditPromises);
 
     return NextResponse.json({
-      message: 'MFC record deleted successfully',
+      success: true,
+      message: `Successfully deleted ${deleteResult.deletedCount} MFC records`,
+      deletedCount: deleteResult.deletedCount,
     });
   } catch (error: any) {
-    console.error('Error deleting MFC record:', error);
+    console.error('Error deleting MFC records:', error);
     return NextResponse.json(
-      { error: 'Failed to delete MFC record' },
+      { error: 'Failed to delete MFC records', details: error.message },
       { status: 500 }
     );
   }

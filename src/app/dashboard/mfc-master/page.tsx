@@ -41,6 +41,33 @@ interface MasterItem {
   code?: string;
   name?: string;
   columnCode?: string;
+  api?: string;
+  apiName?: string;
+  testType?: string;
+  detectorType?: string;
+  department?: string;
+  pharmacopeial?: string;
+  desc?: string;
+  companyId?: string;
+  locationId?: string;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface Product {
+  _id: string;
+  productName: string;
+  productCode: string;
+  genericName: string;
+  makeId: string;
+  marketedBy: string;
+  mfcs: string[];
+  companyId: string;
+  locationId: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface TestType extends MasterItem {}
@@ -71,6 +98,12 @@ const MFCMasterPage: React.FC = () => {
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [auditRecords, setAuditRecords] = useState<AuditRecord[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [auditFilters, setAuditFilters] = useState({
+    search: "",
+    action: "",
+    dateFrom: "",
+    dateTo: "",
+  });
 
   // Lookup data states
   const [testTypes, setTestTypes] = useState<TestType[]>([]);
@@ -79,7 +112,9 @@ const MFCMasterPage: React.FC = () => {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [columns, setColumns] = useState<Column[]>([]);
   const [mobilePhases, setMobilePhases] = useState<MobilePhase[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [lookupLoading, setLookupLoading] = useState(false);
+  const [apis, setApis] = useState<MasterItem[]>([]);
 
   // Get company and location IDs from localStorage
   const getStorageIds = () => {
@@ -97,7 +132,8 @@ const MFCMasterPage: React.FC = () => {
       label:
         item.detectorType ||
         item.testType ||
-        item.api ||
+        item.api || // This maps the "api" field from your response
+        item.apiName || // Keep this for backward compatibility
         item.department ||
         item.columnCode ||
         item.pharmacopeial ||
@@ -107,7 +143,16 @@ const MFCMasterPage: React.FC = () => {
         item.description ||
         item.value,
       ...item,
+      // Add this to ensure apiName is always available
+      apiName: item.api || item.apiName || item.name || item.label,
     }));
+  };
+
+  const getProductCodeTooltip = (
+    productData: Array<{ code: string; name: string }>
+  ): string => {
+    if (productData.length <= 2) return "";
+    return productData.map((p) => `${p.code} (${p.name})`).join("\n");
   };
 
   // Fetch lookup data
@@ -123,52 +168,115 @@ const MFCMasterPage: React.FC = () => {
 
       const params = new URLSearchParams({ companyId, locationId });
 
+      console.log("=== FETCHING LOOKUP DATA ===");
+      console.log("Company ID:", companyId);
+      console.log("Location ID:", locationId);
+
       const [
         testTypesRes,
         detectorTypesRes,
         pharmacopoeialsRes,
         departmentsRes,
         columnsRes,
-        mobilePhasesRes,
+        productsRes,
+        apiRes,
       ] = await Promise.all([
         fetch(`/api/admin/test-type?${params}`),
         fetch(`/api/admin/detector-type?${params}`),
         fetch(`/api/admin/pharmacopeial?${params}`),
         fetch(`/api/admin/department?${params}`),
         fetch(`/api/admin/column/getAll?${params}`),
-        fetch(`/api/admin/mobile-phase?${params}`),
+        fetch(`/api/admin/product?${params}`),
+        fetch(`/api/admin/api?${params}`),
       ]);
 
-      if (testTypesRes.ok) {
-        const testTypesData = await testTypesRes.json();
-        setTestTypes(normalizeToMasterFormat(testTypesData.data || []));
+      // Process each response separately to avoid stream conflicts
+      try {
+        if (testTypesRes.ok) {
+          const testTypesData = await testTypesRes.json();
+          setTestTypes(normalizeToMasterFormat(testTypesData.data || []));
+        }
+      } catch (error) {
+        console.error("Error processing test types:", error);
       }
 
-      if (detectorTypesRes.ok) {
-        const detectorTypesData = await detectorTypesRes.json();
-        setDetectorTypes(normalizeToMasterFormat(detectorTypesData.data || []));
+      try {
+        if (detectorTypesRes.ok) {
+          const detectorTypesData = await detectorTypesRes.json();
+          setDetectorTypes(
+            normalizeToMasterFormat(detectorTypesData.data || [])
+          );
+        }
+      } catch (error) {
+        console.error("Error processing detector types:", error);
       }
 
-      if (pharmacopoeialsRes.ok) {
-        const pharmacopoeialsData = await pharmacopoeialsRes.json();
-        setPharmacopoeials(
-          normalizeToMasterFormat(pharmacopoeialsData.data || [])
-        );
+      try {
+        if (pharmacopoeialsRes.ok) {
+          const pharmacopoeialsData = await pharmacopoeialsRes.json();
+          setPharmacopoeials(
+            normalizeToMasterFormat(pharmacopoeialsData.data || [])
+          );
+        }
+      } catch (error) {
+        console.error("Error processing pharmacopoeials:", error);
       }
 
-      if (departmentsRes.ok) {
-        const departmentsData = await departmentsRes.json();
-        setDepartments(normalizeToMasterFormat(departmentsData.data || []));
+      try {
+        if (departmentsRes.ok) {
+          const departmentsData = await departmentsRes.json();
+          setDepartments(normalizeToMasterFormat(departmentsData.data || []));
+        }
+      } catch (error) {
+        console.error("Error processing departments:", error);
       }
 
-      if (columnsRes.ok) {
-        const columnsData = await columnsRes.json();
-        setColumns(normalizeToMasterFormat(columnsData.data || []));
+      try {
+        if (columnsRes.ok) {
+          const columnsData = await columnsRes.json();
+          setColumns(normalizeToMasterFormat(columnsData.data || []));
+        }
+      } catch (error) {
+        console.error("Error processing columns:", error);
       }
 
-      if (mobilePhasesRes.ok) {
-        const mobilePhasesData = await mobilePhasesRes.json();
-        setMobilePhases(normalizeToMasterFormat(mobilePhasesData.data || []));
+      try {
+        if (productsRes.ok) {
+          const productsData = await productsRes.json();
+          console.log("=== PRODUCTS FETCHED ===");
+          console.log("Products response:", productsData);
+          console.log("Products array length:", productsData.data?.length || 0);
+
+          if (productsData.data && Array.isArray(productsData.data)) {
+            setProducts(productsData.data);
+            console.log("First few products:", productsData.data.slice(0, 3));
+          } else {
+            console.warn("Products data is not an array:", productsData);
+            setProducts([]);
+          }
+        } else {
+          console.error("Failed to fetch products:", productsRes.status);
+          setProducts([]);
+        }
+      } catch (error) {
+        console.error("Error processing products:", error);
+        setProducts([]);
+      }
+
+      try {
+        if (apiRes.ok) {
+          const apiData = await apiRes.json();
+          console.log("=== API DATA FETCHED ===");
+          console.log("API response:", apiData);
+
+          setApis(normalizeToMasterFormat(apiData.data || []));
+        } else {
+          console.error("Failed to fetch API data:", apiRes.status);
+          setApis([]);
+        }
+      } catch (error) {
+        console.error("Error processing API data:", error);
+        setApis([]);
       }
     } catch (error) {
       console.error("Error fetching lookup data:", error);
@@ -183,7 +291,124 @@ const MFCMasterPage: React.FC = () => {
     return found ? found.label : id;
   };
 
+  useEffect(() => {
+    if (mfcRecords.length > 0) {
+      console.log("Sample MFC Record:", mfcRecords[0]);
+      console.log(
+        "Sample API object:",
+        mfcRecords[0]?.generics?.[0]?.apis?.[0]
+      );
+      console.log("APIs lookup data:", apis.slice(0, 3));
+    }
+  }, [mfcRecords, apis]);
+  const renderCreateData = (audit: AuditRecord) => (
+    <div className="bg-green-50 p-3">
+      <h5 className="font-medium text-green-800 mb-2">Created Record:</h5>
+      <div className="grid grid-cols-2 gap-2 text-sm">
+        {Object.entries(audit.newData || {}).map(([key, value]) => (
+          <div key={key} className="flex">
+            <span className="font-medium w-1/3">{key}:</span>
+            <span className="w-2/3">{formatChangeValue(value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderUpdateChanges = (audit: AuditRecord) => (
+    <div>
+      <h5 className="font-medium text-blue-800 mb-2">Changes Made:</h5>
+      {audit.changes.map((change, index) => (
+        <div key={index} className="mb-3 bg-blue-50 p-3 rounded">
+          <div className="font-medium text-sm mb-1">{change.field}</div>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="text-red-600 font-medium">Before:</span>
+              <div className="bg-red-50 p-2 rounded mt-1">
+                {formatChangeValue(change.oldValue)}
+              </div>
+            </div>
+            <div>
+              <span className="text-green-600 font-medium">After:</span>
+              <div className="bg-green-50 p-2 rounded mt-1">
+                {formatChangeValue(change.newValue)}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderDeleteData = (audit: AuditRecord) => (
+    <div className="bg-red-50 p-3">
+      <h5 className="font-medium text-red-800 mb-2">Deleted Record:</h5>
+      <div className="grid grid-cols-2 gap-2 text-sm">
+        {Object.entries(audit.oldData || {}).map(([key, value]) => (
+          <div key={key} className="flex">
+            <span className="font-medium w-1/3">{key}:</span>
+            <span className="w-2/3">{formatChangeValue(value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderAuditRecord = (audit: AuditRecord) => {
+    return (
+      <div className="border border-gray-200 rounded-lg p-4 mb-4">
+        {/* Header */}
+        <div className="bg-gray-50 p-3 rounded-t border-b">
+          <div className="flex justify-between items-center">
+            <h4 className="font-semibold text-lg">
+              {audit.action} - {audit.mfcNumber}
+            </h4>
+            <span className="text-sm text-gray-600">
+              {new Date(audit.performedAt).toLocaleString()}
+            </span>
+          </div>
+          <p className="text-sm text-gray-600">
+            By: {audit.performedBy} | IP: {audit.ipAddress || "N/A"}
+          </p>
+          {audit.reason && (
+            <p className="text-sm text-blue-600 mt-1">Reason: {audit.reason}</p>
+          )}
+        </div>
+
+        {/* Changes */}
+        {audit.action === "CREATE" && renderCreateData(audit)}
+        {audit.action === "UPDATE" && renderUpdateChanges(audit)}
+        {audit.action === "DELETE" && renderDeleteData(audit)}
+      </div>
+    );
+  };
+
+  const applyAuditFilters = () => {
+    const recordForAudit = editingRecord || selectedRecord;
+    fetchAuditRecords(recordForAudit?._id as string | undefined, auditFilters);
+  };
+
+  const clearAuditFilters = () => {
+    setAuditFilters({
+      search: "",
+      action: "",
+      dateFrom: "",
+      dateTo: "",
+    });
+    const recordForAudit = editingRecord || selectedRecord;
+    fetchAuditRecords(recordForAudit?._id as string | undefined);
+  };
+
   const getTestTypeName = (id: string) => getLabel(id, testTypes);
+  const getApiName = (id: string) => {
+    if (!id) return "";
+    const found = apis.find((item) => item.value === id || item._id === id);
+    if (found) {
+      // Return the actual API name from the lookup
+      return found.api || found.apiName || found.label || found.name || id;
+    }
+    return id;
+  };
   const getDetectorTypeName = (id: string) => getLabel(id, detectorTypes);
   const getPharmacopoeialsName = (id: string) => getLabel(id, pharmacopoeials);
   const getDepartmentName = (id: string) => getLabel(id, departments);
@@ -195,6 +420,106 @@ const MFCMasterPage: React.FC = () => {
     return found ? found.columnCode || found.label || columnId : columnId;
   };
   const getMobilePhaseName = (id: string) => getLabel(id, mobilePhases);
+
+  // FIXED: Get product codes for MFC using productIds field
+  const getProductCodesForMFC = (
+    mfcRecord: IMFCMaster
+  ): Array<{ code: string; name: string }> => {
+    if (!mfcRecord || !products.length) {
+      console.log("No MFC record or no products available");
+      return [];
+    }
+
+    // Get productIds from the MFC record - handle both direct property and nested structure
+    interface ProductId {
+      id?: string;
+      _id?: string;
+    }
+
+    let productIds: Array<string | ProductId> = [];
+
+    // Try to get productIds from different possible locations in the record
+    if ((mfcRecord as any).productIds) {
+      productIds = (mfcRecord as any).productIds;
+    } else if (mfcRecord.productIds) {
+      productIds = mfcRecord.productIds.map((id) => id.toString());
+    }
+
+    console.log("=== PROCESSING MFC RECORD ===");
+    console.log("MFC Record:", mfcRecord.mfcNumber);
+    console.log("MFC Record Full Object:", mfcRecord);
+    console.log("Product IDs in MFC:", productIds);
+    console.log("Available products count:", products.length);
+
+    if (!productIds || productIds.length === 0) {
+      console.log("No productIds found in MFC record");
+      return [];
+    }
+
+    // Find products that match the productIds in the MFC record
+    const relatedProducts = products.filter((product) => {
+      const isRelated = productIds.some((pid: any) => {
+        // Handle different formats of product IDs
+        let productIdToCompare = pid;
+
+        // If pid is an object with id property
+        if (typeof pid === "object" && pid !== null) {
+          if (pid.id) {
+            productIdToCompare = pid.id;
+          } else if (pid._id) {
+            productIdToCompare = pid._id;
+          } else {
+            productIdToCompare = pid.toString();
+          }
+        }
+
+        // Convert to string for comparison
+        const pidString = String(productIdToCompare);
+        const productIdString = String(product._id);
+
+        const matches = pidString === productIdString;
+
+        if (matches) {
+          console.log(
+            `✓ Found matching product: ${product.productCode} (${product.productName}) - ID: ${product._id}`
+          );
+        }
+
+        return matches;
+      });
+
+      return isRelated;
+    });
+
+    console.log(
+      `Found ${relatedProducts.length} products for MFC ${mfcRecord.mfcNumber}`
+    );
+
+    const result = relatedProducts.map((product) => ({
+      code: product.productCode,
+      name: product.productName,
+    }));
+
+    console.log("Final product codes result:", result);
+    return result;
+  };
+
+  // Format product codes display
+  const formatProductCodes = (
+    productData: Array<{ code: string; name: string }>
+  ): string => {
+    if (productData.length === 0) return "-";
+
+    if (productData.length <= 2) {
+      return productData.map((p) => `${p.code} (${p.name})`).join(", ");
+    }
+
+    const first2 = productData
+      .slice(0, 2)
+      .map((p) => `${p.code} (${p.name})`)
+      .join(", ");
+    return `${first2} +${productData.length - 2} more`;
+  };
 
   // Fetch MFC records
   const fetchMFCRecords = async (page = 1, search = "") => {
@@ -217,13 +542,33 @@ const MFCMasterPage: React.FC = () => {
         page: page.toString(),
         limit: "10",
         search: search.trim(),
+        populate: "true", // Request populated data
       });
+
+      console.log("=== FETCHING MFC RECORDS ===");
+      console.log("Request URL:", `/api/admin/mfc?${params}`);
 
       const response = await fetch(`/api/admin/mfc?${params}`);
       const data = await response.json();
 
+      console.log("MFC Records Response:", data);
+
       if (response.ok) {
-        setMfcRecords(data.data || []);
+        const records = data.data || [];
+        console.log("Fetched MFC records:", records.length);
+        console.log("Sample record:", records[0]);
+
+        // Log productIds for each record
+        records.forEach((record: any, index: number) => {
+          console.log(`Record ${index + 1} (${record.mfcNumber}):`, {
+            id: record._id,
+            productIds: record.productIds,
+            productIdsType: typeof record.productIds,
+            productIdsLength: record.productIds?.length || 0,
+          });
+        });
+
+        setMfcRecords(records);
         setPagination(
           data.pagination || {
             page: 1,
@@ -246,7 +591,15 @@ const MFCMasterPage: React.FC = () => {
   };
 
   // Fetch audit records
-  const fetchAuditRecords = async (mfcId?: string) => {
+  const fetchAuditRecords = async (
+    mfcId?: string,
+    filters?: {
+      search?: string;
+      action?: string;
+      dateFrom?: string;
+      dateTo?: string;
+    }
+  ) => {
     try {
       setAuditLoading(true);
       const { companyId, locationId } = getStorageIds();
@@ -264,9 +617,11 @@ const MFCMasterPage: React.FC = () => {
         limit: "50",
       });
 
-      if (mfcId) {
-        params.append("mfcId", mfcId);
-      }
+      if (mfcId) params.append("mfcId", mfcId);
+      if (filters?.search) params.append("search", filters.search);
+      if (filters?.action) params.append("action", filters.action);
+      if (filters?.dateFrom) params.append("dateFrom", filters.dateFrom);
+      if (filters?.dateTo) params.append("dateTo", filters.dateTo);
 
       const response = await fetch(`/api/admin/mfc/audit?${params}`);
       const data = await response.json();
@@ -308,9 +663,18 @@ const MFCMasterPage: React.FC = () => {
         return;
       }
 
+      // Extract productIds from form data (should be array of objects with id property)
+      const productIds =
+        formData.productIds?.map((product: any) =>
+          typeof product === "object" ? product.id : product
+        ) || [];
+
+      console.log("=== FORM SUBMISSION ===");
+      console.log("Form Data:", formData);
+      console.log("Extracted Product IDs:", productIds);
+
       const transformedPayload = {
         mfcNumber: trimmedMFCNumber,
-        productIds: formData.productIds,
         generics: [
           {
             genericName: formData.genericName,
@@ -319,22 +683,30 @@ const MFCMasterPage: React.FC = () => {
         ],
         departmentId: formData.departmentId,
         wash: formData.wash,
+        productIds, // Include productIds in the payload
         companyId,
         locationId,
         createdBy: session?.user?.userId || "unknown",
       };
 
+      console.log("Transformed Payload:", transformedPayload);
+
       let response;
       if (editingRecord) {
-        response = await fetch("/api/admin/mfc", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...transformedPayload,
-            id: editingRecord._id,
-          }),
-        });
+        // For editing, use the [id] route
+        response = await fetch(
+          `/api/admin/mfc/${editingRecord._id}?companyId=${companyId}&locationId=${locationId}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...transformedPayload,
+              updatedBy: session?.user?.userId || "unknown",
+            }),
+          }
+        );
       } else {
+        // For creating new record
         response = await fetch("/api/admin/mfc", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -343,6 +715,7 @@ const MFCMasterPage: React.FC = () => {
       }
 
       const data = await response.json();
+      console.log("API Response:", data);
 
       if (response.ok) {
         alert(
@@ -352,6 +725,8 @@ const MFCMasterPage: React.FC = () => {
         setEditingRecord(null);
         setErrorMessage("");
         fetchMFCRecords(pagination.page, searchTerm);
+        // Re-fetch products to get updated MFC associations
+        fetchLookupData();
       } else {
         setErrorMessage(
           data.error ||
@@ -389,16 +764,19 @@ const MFCMasterPage: React.FC = () => {
         return;
       }
 
-      const params = new URLSearchParams({
-        id: record._id as string,
-        companyId,
-        locationId,
-        deletedBy: session?.user?.userId || "unknown",
-      });
-
-      const response = await fetch(`/api/admin/mfc?${params}`, {
-        method: "DELETE",
-      });
+      // Use the dynamic route with record ID and query parameters
+      const response = await fetch(
+        `/api/admin/mfc/${record._id}?locationId=${locationId}&companyId=${companyId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            deletedBy: session?.user?.userId || "unknown",
+          }),
+        }
+      );
 
       const data = await response.json();
 
@@ -412,6 +790,8 @@ const MFCMasterPage: React.FC = () => {
             : pagination.page;
         fetchMFCRecords(currentPage, searchTerm);
         setSelectedRecord(null);
+        // Re-fetch products to get updated MFC associations
+        fetchLookupData();
       } else {
         setErrorMessage(data.error || "Failed to delete MFC record");
       }
@@ -430,16 +810,46 @@ const MFCMasterPage: React.FC = () => {
     setErrorMessage("");
   };
 
-  // Handle edit
-  const handleEdit = (record?: IMFCMaster) => {
+  // Handle edit - FIXED to fetch the complete record with productIds
+  const handleEdit = async (record?: IMFCMaster) => {
     const recordToEdit = record || selectedRecord;
     if (!recordToEdit) {
       alert("Please select a record to edit.");
       return;
     }
-    setEditingRecord(recordToEdit);
-    setShowForm(true);
-    setErrorMessage("");
+
+    try {
+      const { companyId, locationId } = getStorageIds();
+
+      if (!companyId || !locationId) {
+        setErrorMessage(
+          "Company ID and Location ID not found. Please login again."
+        );
+        return;
+      }
+
+      // Fetch the complete record with populated productIds
+      const response = await fetch(
+        `/api/admin/mfc/${recordToEdit._id}?companyId=${companyId}&locationId=${locationId}&populate=true`
+      );
+      const data = await response.json();
+
+      console.log("=== EDIT RECORD FETCH ===");
+      console.log("Edit response:", data);
+
+      if (response.ok && data.data) {
+        console.log("Setting editing record with populated data:", data.data);
+        setEditingRecord(data.data);
+        setShowForm(true);
+        setErrorMessage("");
+      } else {
+        console.error("Failed to fetch record for editing:", data.error);
+        setErrorMessage(data.error || "Failed to fetch record for editing");
+      }
+    } catch (error) {
+      console.error("Error fetching record for edit:", error);
+      setErrorMessage("Failed to fetch record for editing");
+    }
   };
 
   // Toolbar Handlers
@@ -541,55 +951,100 @@ const MFCMasterPage: React.FC = () => {
   };
 
   // Format audit change display
-  const formatChangeValue = (value: any) => {
+  // Format audit change display - improved version
+  const formatChangeValue = (value: any, fieldName?: string) => {
     if (value === null || value === undefined) return "N/A";
     if (typeof value === "boolean") return value ? "Yes" : "No";
-    if (typeof value === "object") return JSON.stringify(value);
+
+    // Special handling for generics field - make it more readable
+    if (
+      fieldName === "generics" ||
+      (typeof value === "object" &&
+        Array.isArray(value) &&
+        value.length > 0 &&
+        value[0].genericName)
+    ) {
+      if (Array.isArray(value)) {
+        return value
+          .map((generic, index) => {
+            const genericName = generic.genericName || "Unknown Generic";
+            const apiCount = generic.apis?.length || 0;
+            const testTypeCount =
+              generic.apis?.reduce(
+                (total: number, api: any) =>
+                  total + (api.testTypes?.length || 0),
+                0
+              ) || 0;
+
+            return `Generic ${
+              index + 1
+            }: ${genericName} (${apiCount} APIs, ${testTypeCount} Test Types)`;
+          })
+          .join("; ");
+      }
+    }
+
+    // Special handling for other complex objects
+    if (typeof value === "object") {
+      if (Array.isArray(value)) {
+        // For arrays, show count and brief summary
+        if (value.length > 3) {
+          return `Array with ${value.length} items: [${value
+            .slice(0, 2)
+            .map((item) =>
+              typeof item === "object"
+                ? JSON.stringify(item).substring(0, 30) + "..."
+                : String(item)
+            )
+            .join(", ")}... +${value.length - 2} more]`;
+        } else {
+          return value
+            .map((item) =>
+              typeof item === "object"
+                ? JSON.stringify(item).substring(0, 50) +
+                  (JSON.stringify(item).length > 50 ? "..." : "")
+                : String(item)
+            )
+            .join(", ");
+        }
+      } else {
+        // For objects, show a summary
+        const jsonStr = JSON.stringify(value, null, 2);
+        if (jsonStr.length > 100) {
+          const keys = Object.keys(value);
+          return `Object with ${keys.length} properties: {${keys
+            .slice(0, 3)
+            .join(", ")}${keys.length > 3 ? "..." : ""}}`;
+        }
+        return jsonStr;
+      }
+    }
 
     const valueStr = String(value);
 
+    // Handle ObjectId lookups
     if (valueStr.length === 24 && /^[0-9a-fA-F]{24}$/.test(valueStr)) {
       const testTypeName = getTestTypeName(valueStr);
       const detectorTypeName = getDetectorTypeName(valueStr);
       const pharmacopoeialsName = getPharmacopoeialsName(valueStr);
       const departmentName = getDepartmentName(valueStr);
       const columnName = getColumnName(valueStr);
-      const mobilePhaseName = getMobilePhaseName(valueStr);
+      const apiName = getApiName(valueStr);
 
-      if (testTypeName !== valueStr) return `${testTypeName} (${valueStr})`;
-      if (detectorTypeName !== valueStr)
-        return `${detectorTypeName} (${valueStr})`;
-      if (pharmacopoeialsName !== valueStr)
-        return `${pharmacopoeialsName} (${valueStr})`;
-      if (departmentName !== valueStr) return `${departmentName} (${valueStr})`;
-      if (columnName !== valueStr) return `${columnName} (${valueStr})`;
-      if (mobilePhaseName !== valueStr)
-        return `${mobilePhaseName} (${valueStr})`;
+      if (testTypeName !== valueStr) return `${testTypeName}`;
+      if (detectorTypeName !== valueStr) return `${detectorTypeName}`;
+      if (pharmacopoeialsName !== valueStr) return `${pharmacopoeialsName}`;
+      if (departmentName !== valueStr) return `${departmentName}`;
+      if (columnName !== valueStr) return `${columnName}`;
+      if (apiName !== valueStr) return `${apiName}`;
+    }
+
+    // Truncate very long strings
+    if (valueStr.length > 100) {
+      return valueStr.substring(0, 100) + "...";
     }
 
     return valueStr;
-  };
-
-  // Get summary display for nested data
-  const getRecordSummary = (record: IMFCMaster) => {
-    const genericCount = record.generics?.length || 0;
-    const apiCount =
-      record.generics?.reduce(
-        (total, generic) => total + (generic.apis?.length || 0),
-        0
-      ) || 0;
-    const testTypeCount =
-      record.generics?.reduce(
-        (total, generic) =>
-          total +
-          (generic.apis?.reduce(
-            (apiTotal, api) => apiTotal + (api.testTypes?.length || 0),
-            0
-          ) || 0),
-        0
-      ) || 0;
-
-    return { genericCount, apiCount, testTypeCount };
   };
 
   // Get test type flags summary
@@ -605,6 +1060,31 @@ const MFCMasterPage: React.FC = () => {
     if (testType.isLinked) flags.push("Linked");
     return flags.length > 0 ? flags.join(", ") : "-";
   };
+
+  // Debug effect to monitor data changes
+  useEffect(() => {
+    if (mfcRecords.length > 0 && products.length > 0) {
+      console.log("=== DEBUG: Data Synchronization ===");
+      console.log("Total MFC Records:", mfcRecords.length);
+      console.log("Total Products:", products.length);
+
+      mfcRecords.forEach((record, index) => {
+        const productCodes = getProductCodesForMFC(record);
+        console.log(
+          `MFC ${record.mfcNumber}: ${productCodes.length} products found`
+        );
+        if (
+          productCodes.length === 0 &&
+          (record as any).productIds?.length > 0
+        ) {
+          console.warn(
+            `⚠️  MFC ${record.mfcNumber} has productIds but no matching products found`
+          );
+          console.log("ProductIds:", (record as any).productIds);
+        }
+      });
+    }
+  }, [mfcRecords, products]);
 
   // Load data on component mount
   useEffect(() => {
@@ -736,10 +1216,10 @@ const MFCMasterPage: React.FC = () => {
                       </span>
                     </div>
                     <div className="text-xs">
-                      Summary: {getRecordSummary(selectedRecord).genericCount}{" "}
-                      Generic(s), {getRecordSummary(selectedRecord).apiCount}{" "}
-                      API(s), {getRecordSummary(selectedRecord).testTypeCount}{" "}
-                      Test Type(s)
+                      Products:{" "}
+                      {formatProductCodes(
+                        getProductCodesForMFC(selectedRecord)
+                      )}
                     </div>
                   </div>
                 )}
@@ -772,7 +1252,7 @@ const MFCMasterPage: React.FC = () => {
                 <div className="flex-1">
                   <input
                     type="text"
-                    placeholder="Search by MFC Number, Generic Name, API Name, Product ID, or Column Code..."
+                    placeholder="Search by MFC Number, Generic Name, API Name, Column Code, or Product Code..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     disabled={isLoading}
@@ -842,7 +1322,7 @@ const MFCMasterPage: React.FC = () => {
                         rowSpan={2}
                         className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
                       >
-                        Product IDs
+                        Product Codes
                       </th>
                       <th
                         rowSpan={2}
@@ -914,13 +1394,13 @@ const MFCMasterPage: React.FC = () => {
                         rowSpan={2}
                         className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
                       >
-                        Flags
+                        Wash Time
                       </th>
                       <th
                         rowSpan={2}
                         className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
                       >
-                        Actions
+                        Flags
                       </th>
                     </tr>
                     <tr>
@@ -977,6 +1457,9 @@ const MFCMasterPage: React.FC = () => {
                                   const testTypesInApi =
                                     api.testTypes?.length || 1;
 
+                                  const productData =
+                                    getProductCodesForMFC(record);
+
                                   tableRows.push(
                                     <tr
                                       key={`${recordIndex}-${genericIndex}-${apiIndex}-${testTypeIndex}`}
@@ -988,22 +1471,25 @@ const MFCMasterPage: React.FC = () => {
                                       }`}
                                     >
                                       {isFirstRowForRecord && (
-                                        <>
-                                          <td
-                                            rowSpan={totalTestTypesInRecord}
-                                            className="px-2 py-2 border border-gray-300 font-mono text-xs font-medium bg-blue-50"
-                                          >
-                                            {record.mfcNumber}
-                                          </td>
-                                          <td
-                                            rowSpan={totalTestTypesInRecord}
-                                            className="px-2 py-2 border border-gray-300 text-xs font-mono"
-                                          >
-                                            {record.productIds
-                                              ?.map((pi) => pi.id)
-                                              .join(", ") || "-"}
-                                          </td>
-                                        </>
+                                        <td
+                                          rowSpan={totalTestTypesInRecord}
+                                          className="px-2 py-2 border border-gray-300 font-mono text-xs font-medium bg-blue-50"
+                                        >
+                                          {record.mfcNumber}
+                                        </td>
+                                      )}
+                                      {isFirstRowForRecord && (
+                                        <td
+                                          rowSpan={totalTestTypesInRecord}
+                                          className="px-2 py-2 border border-gray-300 text-xs bg-purple-50"
+                                          title={getProductCodeTooltip(
+                                            productData
+                                          )}
+                                        >
+                                          <div className="max-w-32">
+                                            {formatProductCodes(productData)}
+                                          </div>
+                                        </td>
                                       )}
 
                                       {isFirstRowForGeneric && (
@@ -1018,12 +1504,12 @@ const MFCMasterPage: React.FC = () => {
                                       {isFirstRowForApi && (
                                         <td
                                           rowSpan={testTypesInApi}
-                                          className="px-2 py-2 border border-gray-300 text-xs bg-yellow-50"
+                                          className="px-2 py-2 border border-gray-300 ftext-xs bg-yellow-50"
                                         >
-                                          {api.apiName}
+                                          {/* Use getApiName function with the apiName ID to lookup the actual name */}
+                                          {getApiName(api.apiName)}
                                         </td>
                                       )}
-
                                       <td className="px-2 py-2 border border-gray-300 text-xs">
                                         <div className="font-medium text-gray-900">
                                           {getTestTypeName(testType.testTypeId)}
@@ -1035,12 +1521,6 @@ const MFCMasterPage: React.FC = () => {
                                           {getColumnName(testType.columnCode) ||
                                             testType.columnCode}
                                         </div>
-                                        {getColumnName(testType.columnCode) !==
-                                          testType.columnCode && (
-                                          <div className="text-gray-400 text-xs font-mono">
-                                            {testType.columnCode}
-                                          </div>
-                                        )}
                                       </td>
 
                                       <td className="px-2 py-2 border border-gray-300 text-xs text-center">
@@ -1134,13 +1614,6 @@ const MFCMasterPage: React.FC = () => {
                                             testType.detectorTypeId
                                           )}
                                         </div>
-                                        {getDetectorTypeName(
-                                          testType.detectorTypeId
-                                        ) !== testType.detectorTypeId && (
-                                          <div className="text-gray-400 text-xs font-mono">
-                                            {testType.detectorTypeId}
-                                          </div>
-                                        )}
                                       </td>
 
                                       <td className="px-2 py-2 border border-gray-300 text-xs">
@@ -1149,13 +1622,6 @@ const MFCMasterPage: React.FC = () => {
                                             testType.pharmacopoeialId
                                           )}
                                         </div>
-                                        {getPharmacopoeialsName(
-                                          testType.pharmacopoeialId
-                                        ) !== testType.pharmacopoeialId && (
-                                          <div className="text-gray-400 text-xs font-mono">
-                                            {testType.pharmacopoeialId}
-                                          </div>
-                                        )}
                                       </td>
 
                                       <td className="px-2 py-2 border border-gray-300 text-xs text-center">
@@ -1177,30 +1643,6 @@ const MFCMasterPage: React.FC = () => {
                                       <td className="px-2 py-2 border border-gray-300 text-xs">
                                         {getTestTypeFlags(testType)}
                                       </td>
-
-                                      {isFirstRowForRecord && (
-                                        <td
-                                          rowSpan={totalTestTypesInRecord}
-                                          className="px-2 py-2 border border-gray-300 text-xs"
-                                        >
-                                          <div className="flex gap-2">
-                                            <button
-                                              onClick={() => handleEdit(record)}
-                                              className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                                            >
-                                              Edit
-                                            </button>
-                                            <button
-                                              onClick={() =>
-                                                handleDelete(record)
-                                              }
-                                              className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                                            >
-                                              Delete
-                                            </button>
-                                          </div>
-                                        </td>
-                                      )}
                                     </tr>
                                   );
                                 }
@@ -1255,7 +1697,7 @@ const MFCMasterPage: React.FC = () => {
 
       {/* Search Modal */}
       {showSearchModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-200 bg-gray-100">
               <h2 className="text-lg font-bold text-gray-900">
@@ -1267,7 +1709,7 @@ const MFCMasterPage: React.FC = () => {
                 <div className="flex gap-4">
                   <input
                     type="text"
-                    placeholder="Search by MFC Number, Generic Name, API Name, Product ID, or Column Code..."
+                    placeholder="Search by MFC Number, Generic Name, API Name, Column Code, or Product Code..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1309,7 +1751,7 @@ const MFCMasterPage: React.FC = () => {
                           MFC Number
                         </th>
                         <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
-                          Product IDs
+                          Product Codes
                         </th>
                         <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
                           Generic Name
@@ -1330,54 +1772,67 @@ const MFCMasterPage: React.FC = () => {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {mfcRecords.length > 0 ? (
-                        mfcRecords.map((record, index) => (
-                          <tr
-                            key={index}
-                            onClick={() => handleRowSelect(record)}
-                            className={`cursor-pointer hover:bg-gray-50 ${
-                              selectedRecord?._id === record._id
-                                ? "bg-blue-100"
-                                : ""
-                            }`}
-                          >
-                            <td className="px-2 py-2 border border-gray-300 font-mono text-xs">
-                              {record.mfcNumber}
-                            </td>
-                            <td className="px-2 py-2 border border-gray-300 text-xs font-mono">
-                              {record.productIds
-                                ?.map((pi) => pi.id)
-                                .join(", ") || "-"}
-                            </td>
-                            <td className="px-2 py-2 border border-gray-300 text-xs">
-                              {record.generics?.[0]?.genericName || "-"}
-                            </td>
-                            <td className="px-2 py-2 border border-gray-300 text-xs">
-                              {getRecordSummary(record).apiCount}
-                            </td>
-                            <td className="px-2 py-2 border border-gray-300 text-xs">
-                              {getRecordSummary(record).testTypeCount}
-                            </td>
-                            <td className="px-2 py-2 border border-gray-300 text-xs">
-                              {getDepartmentName(record.departmentId)}
-                            </td>
-                            <td className="px-2 py-2 border border-gray-300 text-xs">
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => handleEdit(record)}
-                                  className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(record)}
-                                  className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
+                        mfcRecords.map((record, index) => {
+                          const productCodes = getProductCodesForMFC(record);
+                          return (
+                            <tr
+                              key={index}
+                              onClick={() => handleRowSelect(record)}
+                              className={`cursor-pointer hover:bg-gray-50 ${
+                                selectedRecord?._id === record._id
+                                  ? "bg-blue-100"
+                                  : ""
+                              }`}
+                            >
+                              <td className="px-2 py-2 border border-gray-300 font-mono text-xs">
+                                {record.mfcNumber}
+                              </td>
+                              <td
+                                className="px-2 py-2 border border-gray-300 text-xs"
+                                title={
+                                  productCodes.length > 3
+                                    ? productCodes
+                                        .map((p) => `${p.code} (${p.name})`)
+                                        .join(", ")
+                                    : ""
+                                }
+                              >
+                                <div className="max-w-32">
+                                  {formatProductCodes(productCodes)}
+                                </div>
+                              </td>
+                              <td className="px-2 py-2 border border-gray-300 text-xs">
+                                {record.generics?.[0]?.genericName || "-"}
+                              </td>
+
+                              <td className="px-2 py-2 border border-gray-300 text-xs">
+                                {getDepartmentName(record.departmentId)}
+                              </td>
+                              <td className="px-2 py-2 border border-gray-300 text-xs">
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEdit(record);
+                                    }}
+                                    className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDelete(record);
+                                    }}
+                                    className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
                       ) : (
                         <tr>
                           <td
@@ -1399,99 +1854,156 @@ const MFCMasterPage: React.FC = () => {
 
       {/* Audit Modal */}
       {showAuditModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[80vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">Audit Trail</h2>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[85vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
+              <h2 className="text-xl font-semibold text-gray-800">
+                Audit Trail
+              </h2>
+              <button
+                onClick={() => setShowAuditModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
             </div>
-            <div className="p-6">
+
+            {/* Filters */}
+            <div className="p-4 border-b bg-gray-50">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <input
+                  type="text"
+                  placeholder="🔍 Search by MFC Number, User..."
+                  value={auditFilters.search}
+                  onChange={(e) =>
+                    setAuditFilters({ ...auditFilters, search: e.target.value })
+                  }
+                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                />
+
+                <select
+                  value={auditFilters.action}
+                  onChange={(e) =>
+                    setAuditFilters({ ...auditFilters, action: e.target.value })
+                  }
+                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                >
+                  <option value="">All Actions</option>
+                  <option value="CREATE">CREATE</option>
+                  <option value="UPDATE">UPDATE</option>
+                  <option value="DELETE">DELETE</option>
+                </select>
+
+                <input
+                  type="date"
+                  value={auditFilters.dateFrom}
+                  onChange={(e) =>
+                    setAuditFilters({
+                      ...auditFilters,
+                      dateFrom: e.target.value,
+                    })
+                  }
+                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                />
+
+                <input
+                  type="date"
+                  value={auditFilters.dateTo}
+                  onChange={(e) =>
+                    setAuditFilters({ ...auditFilters, dateTo: e.target.value })
+                  }
+                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto">
               {auditLoading ? (
-                <div className="flex justify-center items-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                  <span className="ml-3 text-gray-600">
+                <div className="flex justify-center items-center h-full py-12">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                  <span className="ml-3 text-gray-600 text-sm">
                     Loading audit records...
                   </span>
                 </div>
               ) : auditRecords.length > 0 ? (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 text-xs">
-                    <thead className="bg-gray-100">
+                  <table className="min-w-full text-sm border-collapse">
+                    <thead className="sticky top-0 bg-gray-100 text-gray-700 text-xs uppercase tracking-wide">
                       <tr>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
-                          MFC Number
-                        </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
-                          Action
-                        </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
-                          Performed By
-                        </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
-                          Performed At
-                        </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
-                          Field
-                        </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
-                          Old Value
-                        </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
-                          New Value
-                        </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
-                          Reason
-                        </th>
+                        {[
+                          "MFC Number",
+                          "Action",
+                          "Performed By",
+                          "Performed At",
+                          "Field",
+                          "Old Value",
+                          "New Value",
+                        ].map((col) => (
+                          <th
+                            key={col}
+                            className="px-3 py-2 border text-left font-medium"
+                          >
+                            {col}
+                          </th>
+                        ))}
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="divide-y">
                       {auditRecords.map((audit) =>
                         audit.changes.map((change, index) => (
-                          <tr key={`${audit._id}-${index}`}>
+                          <tr
+                            key={`${audit._id}-${index}`}
+                            className="odd:bg-white even:bg-gray-50"
+                          >
                             {index === 0 && (
                               <>
                                 <td
                                   rowSpan={audit.changes.length}
-                                  className="px-2 py-2 border border-gray-300 font-mono text-xs"
+                                  className="px-3 py-2 border font-mono text-xs"
                                 >
                                   {audit.mfcNumber}
                                 </td>
                                 <td
                                   rowSpan={audit.changes.length}
-                                  className="px-2 py-2 border border-gray-300 text-xs"
+                                  className="px-3 py-2 border text-xs font-semibold"
                                 >
-                                  {audit.action}
+                                  <span
+                                    className={`px-2 py-1 rounded text-xs ${
+                                      audit.action === "CREATE"
+                                        ? "bg-green-100 text-green-700"
+                                        : audit.action === "UPDATE"
+                                        ? "bg-yellow-100 text-yellow-700"
+                                        : "bg-red-100 text-red-700"
+                                    }`}
+                                  >
+                                    {audit.action}
+                                  </span>
                                 </td>
                                 <td
                                   rowSpan={audit.changes.length}
-                                  className="px-2 py-2 border border-gray-300 text-xs"
+                                  className="px-3 py-2 border text-xs"
                                 >
                                   {audit.performedBy}
                                 </td>
                                 <td
                                   rowSpan={audit.changes.length}
-                                  className="px-2 py-2 border border-gray-300 text-xs"
+                                  className="px-3 py-2 border text-xs"
                                 >
                                   {new Date(audit.performedAt).toLocaleString()}
                                 </td>
                               </>
                             )}
-                            <td className="px-2 py-2 border border-gray-300 text-xs">
+                            <td className="px-3 py-2 border text-xs">
                               {change.field}
                             </td>
-                            <td className="px-2 py-2 border border-gray-300 text-xs">
+                            <td className="px-3 py-2 border text-xs">
                               {formatChangeValue(change.oldValue)}
                             </td>
-                            <td className="px-2 py-2 border border-gray-300 text-xs">
+                            <td className="px-3 py-2 border text-xs">
                               {formatChangeValue(change.newValue)}
                             </td>
-                            {index === 0 && (
-                              <td
-                                rowSpan={audit.changes.length}
-                                className="px-2 py-2 border border-gray-300 text-xs"
-                              >
-                                {audit.reason || "-"}
-                              </td>
-                            )}
                           </tr>
                         ))
                       )}
@@ -1499,18 +2011,20 @@ const MFCMasterPage: React.FC = () => {
                   </table>
                 </div>
               ) : (
-                <div className="text-center text-gray-500 py-8">
+                <div className="text-center text-gray-500 py-12">
                   No audit records found
                 </div>
               )}
-              <div className="mt-4 flex justify-end">
-                <button
-                  onClick={() => setShowAuditModal(false)}
-                  className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-                >
-                  Close
-                </button>
-              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3 border-t bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setShowAuditModal(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 text-sm"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
@@ -1518,7 +2032,7 @@ const MFCMasterPage: React.FC = () => {
 
       {/* Help Modal */}
       {showHelpModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl">
             <div className="px-6 py-4 border-b border-gray-200 bg-gray-100">
               <h2 className="text-lg font-bold text-gray-900">
@@ -1577,11 +2091,18 @@ const MFCMasterPage: React.FC = () => {
               <h3 className="text-md font-semibold mb-2">Form Fields</h3>
               <p className="text-sm text-gray-600 mb-4">
                 The form includes fields for MFC Number, Generic Name,
-                Department, APIs, Test Types, and Product IDs. Ensure all
-                required fields are filled, especially for APIs and Test Types,
-                which include nested configurations for test parameters and
-                flags (Bulk, FP, Stability Partial, Stability Final, AMV, PV,
-                CV, Is Linked).
+                Department, APIs, and Test Types. Ensure all required fields are
+                filled, especially for APIs and Test Types, which include nested
+                configurations for test parameters and flags (Bulk, FP,
+                Stability Partial, Stability Final, AMV, PV, CV, Is Linked).
+              </p>
+              <h3 className="text-md font-semibold mb-2">Product Codes</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                The Product Codes column shows all product codes that are
+                associated with each MFC record. Products are linked to MFC
+                records through their productIds. If more than 3 product codes
+                exist, a truncated display with a "+X more" indicator is shown.
+                Hover over the cell to see all product codes.
               </p>
               <div className="flex justify-end">
                 <button

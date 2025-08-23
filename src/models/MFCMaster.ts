@@ -2,6 +2,7 @@ import mongoose, { Schema, Document, Types } from 'mongoose';
 
 export interface ITestType {
   testTypeId: string;
+  selectMakeSpecific: boolean;   // ✅ Added before columnCode
   columnCode: string;
   mobilePhaseCodes: string[];
   detectorTypeId: string;
@@ -12,9 +13,9 @@ export interface ITestType {
   bracketingFrequency: number;
   injectionTime: number;
   runTime: number;
+  washTime: number;
   testApplicability: boolean;
   numberOfInjections?: number;
-
   bulk: boolean;
   fp: boolean;
   stabilityPartial: boolean;
@@ -39,10 +40,10 @@ export interface IMFCMaster extends Document {
   mfcNumber: string;
   companyId: string;
   locationId: string;
-  productIds: Types.ObjectId[]; // 👈 changed here
+  productIds: Types.ObjectId[];
   generics: IGeneric[];
   departmentId: string;
-  wash: string;
+  wash: number;
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
@@ -50,6 +51,7 @@ export interface IMFCMaster extends Document {
 
 const TestTypeSchema = new Schema<ITestType>({
   testTypeId: { type: String, required: true },
+  selectMakeSpecific: { type: Boolean, default: false },  // ✅ Added before columnCode
   columnCode: { type: String, required: true },
   mobilePhaseCodes: [{ type: String, required: true }],
   detectorTypeId: { type: String, required: true },
@@ -60,9 +62,9 @@ const TestTypeSchema = new Schema<ITestType>({
   bracketingFrequency: { type: Number, default: 0 },
   injectionTime: { type: Number, default: 0 },
   runTime: { type: Number, default: 0 },
+  washTime: { type: Number, default: 0 },   // ✅ Already added after runTime
   testApplicability: { type: Boolean, default: false },
   numberOfInjections: { type: Number, default: 0 },
-
   bulk: { type: Boolean, default: false },
   fp: { type: Boolean, default: false },
   stabilityPartial: { type: Boolean, default: false },
@@ -70,7 +72,7 @@ const TestTypeSchema = new Schema<ITestType>({
   amv: { type: Boolean, default: false },
   pv: { type: Boolean, default: false },
   cv: { type: Boolean, default: false },
-  isLinked: { type: Boolean, default: false }
+  isLinked: { type: Boolean, default: false },
 });
 
 const APISchema = new Schema<IAPI>({
@@ -87,10 +89,10 @@ const MFCMasterSchema = new Schema<IMFCMaster>({
   mfcNumber: { type: String, required: true },
   companyId: { type: String, required: true, index: true },
   locationId: { type: String, required: true, index: true },
-  productIds: [{ type: Schema.Types.ObjectId, ref: 'ProductMaster' }], // 👈 new way
+  productIds: [{ type: Schema.Types.ObjectId, ref: 'ProductMaster' }],
   generics: [GenericSchema],
   departmentId: { type: String, required: true },
-  wash: { type: String, default: '' },
+  wash: { type: Number, default: 0 },
   createdBy: { type: String, required: true },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
