@@ -11,6 +11,7 @@ import ColumnPopup from "./ColumnPopUp";
 // Validation schemas
 const testTypeSchema = z.object({
   testTypeId: z.string().min(1, "Test Type is required"),
+  selectMakeSpecific: z.boolean(),
   columnCode: z.string().min(1, "ColumnCode is required"),
   mobilePhaseCodes: z
     .array(z.string())
@@ -26,6 +27,19 @@ const testTypeSchema = z.object({
   bracketingFrequency: z.number().min(0, "Bracketing Frequency must be >= 0"),
   injectionTime: z.number().min(0, "Injection Time must be >= 0"),
   runTime: z.number().min(0, "Run Time must be >= 0"),
+  washTime: z.number().min(0, "Wash Time must be >= 0"),
+  numberOfInjectionsAMV: z
+    .number()
+    .min(0, "AMV Injections must be >= 0")
+    .optional(),
+  numberOfInjectionsPV: z
+    .number()
+    .min(0, "PV Injections must be >= 0")
+    .optional(),
+  numberOfInjectionsCV: z
+    .number()
+    .min(0, "CV Injections must be >= 0")
+    .optional(),
   numberOfInjections: z
     .number()
     .min(0, "Number of Injections must be >= 0")
@@ -68,17 +82,43 @@ const mfcFormSchema = z
   .superRefine((data, ctx) => {
     data.apis.forEach((api, apiIndex) => {
       api.testTypes.forEach((testType, testTypeIndex) => {
-        if (testType.amv || testType.pv || testType.cv) {
-          if (!testType.numberOfInjections || testType.numberOfInjections < 0) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: [
-                `apis.${apiIndex}.testTypes.${testTypeIndex}.numberOfInjections`,
-              ],
-              message:
-                "Number of Injections is required when AMV, PV, or CV is selected",
-            });
-          }
+        if (
+          testType.amv &&
+          (!testType.numberOfInjectionsAMV ||
+            testType.numberOfInjectionsAMV < 0)
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [
+              `apis.${apiIndex}.testTypes.${testTypeIndex}.numberOfInjectionsAMV`,
+            ],
+            message:
+              "Number of AMV Injections is required when AMV is selected",
+          });
+        }
+        if (
+          testType.pv &&
+          (!testType.numberOfInjectionsPV || testType.numberOfInjectionsPV < 0)
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [
+              `apis.${apiIndex}.testTypes.${testTypeIndex}.numberOfInjectionsPV`,
+            ],
+            message: "Number of PV Injections is required when PV is selected",
+          });
+        }
+        if (
+          testType.cv &&
+          (!testType.numberOfInjectionsCV || testType.numberOfInjectionsCV < 0)
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [
+              `apis.${apiIndex}.testTypes.${testTypeIndex}.numberOfInjectionsCV`,
+            ],
+            message: "Number of CV Injections is required when CV is selected",
+          });
         }
       });
     });
@@ -97,14 +137,12 @@ interface LinkingSuggestion {
     apiName: string;
   }>;
   allIdenticalTestTypes?: Array<{
-    // Add this new property
     apiIndex: number;
     testTypeIndex: number;
     apiName: string;
   }>;
   message: string;
 }
-
 
 interface ApiPopupProps {
   apiData: ApiData;
@@ -145,11 +183,11 @@ const areTestTypesIdentical = (
   testType1: TestTypeData,
   testType2: TestTypeData
 ): boolean => {
-  // List all fields that need to be compared (excluding isLinked)
   const fieldsToCompare = [
     "testTypeId",
+    "selectMakeSpecific",
     "columnCode",
-    "mobilePhaseCodes", // Added this field to the array
+    "mobilePhaseCodes",
     "detectorTypeId",
     "pharmacopoeialId",
     "sampleInjection",
@@ -158,6 +196,7 @@ const areTestTypesIdentical = (
     "bracketingFrequency",
     "injectionTime",
     "runTime",
+    "washTime",
     "numberOfInjections",
     "bulk",
     "fp",
@@ -170,136 +209,142 @@ const areTestTypesIdentical = (
 
   for (const field of fieldsToCompare) {
     if (field === "mobilePhaseCodes") {
-      // Special handling for mobilePhaseCodes array
-      const codes1 = testType1.mobilePhaseCodes?.filter((code) => code && code.trim() !== "") || [];
-      const codes2 = testType2.mobilePhaseCodes?.filter((code) => code && code.trim() !== "") || [];
-      
+      const codes1 =
+        testType1.mobilePhaseCodes?.filter(
+          (code) => code && code.trim() !== ""
+        ) || [];
+      const codes2 =
+        testType2.mobilePhaseCodes?.filter(
+          (code) => code && code.trim() !== ""
+        ) || [];
+
       if (codes1.length !== codes2.length) return false;
-      
-      // Sort both arrays to compare regardless of order
+
       const sorted1 = [...codes1].sort();
       const sorted2 = [...codes2].sort();
-      
+
       for (let i = 0; i < sorted1.length; i++) {
         if (sorted1[i] !== sorted2[i]) return false;
       }
     } else {
-      // Regular field comparison
       const val1 = testType1[field as keyof TestTypeData];
       const val2 = testType2[field as keyof TestTypeData];
-      
-      // Handle undefined/null values - treat them as equal to 0 for numbers, false for booleans
-      if (typeof val1 === 'number' || typeof val2 === 'number') {
+
+      if (typeof val1 === "number" || typeof val2 === "number") {
         const num1 = val1 ?? 0;
         const num2 = val2 ?? 0;
         if (num1 !== num2) return false;
-      } else if (typeof val1 === 'boolean' || typeof val2 === 'boolean') {
+      } else if (typeof val1 === "boolean" || typeof val2 === "boolean") {
         const bool1 = val1 ?? false;
         const bool2 = val2 ?? false;
         if (bool1 !== bool2) return false;
       } else {
-        // For strings and other types
         if (val1 !== val2) return false;
       }
     }
   }
-  
+
   return true;
 };
 
 // Helper function to find linking suggestions across all APIs
-const findLinkingSuggestions = (apis: ApiData[], getApiLabel?: (name: string) => string): LinkingSuggestion[] => {
+const findLinkingSuggestions = (
+  apis: ApiData[],
+  getApiLabel?: (name: string) => string
+): LinkingSuggestion[] => {
   const suggestions: LinkingSuggestion[] = [];
-  const processedGroups = new Set<string>(); // Track processed groups
-  
-  // Find all groups of identical test types
-  const identicalGroups: Array<Array<{apiIndex: number; testTypeIndex: number; apiName: string}>> = [];
-  const assignedToGroup = new Set<string>(); // Track which test types are already in a group
-  
-  // Compare all test types to find identical ones
+  const processedGroups = new Set<string>();
+  const identicalGroups: Array<
+    Array<{ apiIndex: number; testTypeIndex: number; apiName: string }>
+  > = [];
+  const assignedToGroup = new Set<string>();
+
   for (let apiIndex1 = 0; apiIndex1 < apis.length; apiIndex1++) {
     const api1 = apis[apiIndex1];
-    for (let testTypeIndex1 = 0; testTypeIndex1 < api1.testTypes.length; testTypeIndex1++) {
+    for (
+      let testTypeIndex1 = 0;
+      testTypeIndex1 < api1.testTypes.length;
+      testTypeIndex1++
+    ) {
       const key1 = `${apiIndex1}-${testTypeIndex1}`;
-      
-      // Skip if already assigned to a group
+
       if (assignedToGroup.has(key1)) continue;
-      
+
       const testType1 = api1.testTypes[testTypeIndex1];
-      const currentGroup: Array<{apiIndex: number; testTypeIndex: number; apiName: string}> = [{
-        apiIndex: apiIndex1,
-        testTypeIndex: testTypeIndex1,
-        apiName: api1.apiName
-      }];
-      
-      // Mark as assigned
+      const currentGroup: Array<{
+        apiIndex: number;
+        testTypeIndex: number;
+        apiName: string;
+      }> = [
+        {
+          apiIndex: apiIndex1,
+          testTypeIndex: testTypeIndex1,
+          apiName: api1.apiName,
+        },
+      ];
+
       assignedToGroup.add(key1);
-      
-      // Find all other identical test types
+
       for (let apiIndex2 = apiIndex1; apiIndex2 < apis.length; apiIndex2++) {
         const api2 = apis[apiIndex2];
-        const startIndex = (apiIndex2 === apiIndex1) ? testTypeIndex1 + 1 : 0;
-        
-        for (let testTypeIndex2 = startIndex; testTypeIndex2 < api2.testTypes.length; testTypeIndex2++) {
+        const startIndex = apiIndex2 === apiIndex1 ? testTypeIndex1 + 1 : 0;
+
+        for (
+          let testTypeIndex2 = startIndex;
+          testTypeIndex2 < api2.testTypes.length;
+          testTypeIndex2++
+        ) {
           const key2 = `${apiIndex2}-${testTypeIndex2}`;
-          
-          // Skip if already assigned to a group
+
           if (assignedToGroup.has(key2)) continue;
-          
+
           const testType2 = api2.testTypes[testTypeIndex2];
-          
-          // Use the areTestTypesIdentical function to check if they're identical
+
           if (areTestTypesIdentical(testType1, testType2)) {
             currentGroup.push({
               apiIndex: apiIndex2,
               testTypeIndex: testTypeIndex2,
-              apiName: api2.apiName
+              apiName: api2.apiName,
             });
             assignedToGroup.add(key2);
           }
         }
       }
-      
-      // Only add groups with AT LEAST 2 members (need actual matches, not just the original)
-      // This prevents showing suggestions for test types that have no matches
+
       if (currentGroup.length >= 2) {
         identicalGroups.push(currentGroup);
       }
     }
   }
-  
-  // Create ONE suggestion per group of identical test types
+
   identicalGroups.forEach((group) => {
-    // Double-check: skip if group has less than 2 members (shouldn't happen but safety check)
     if (group.length < 2) return;
-    
-    // Sort the group for consistent processing
+
     group.sort((a, b) => {
       if (a.apiIndex !== b.apiIndex) return a.apiIndex - b.apiIndex;
       return a.testTypeIndex - b.testTypeIndex;
     });
-    
-    // Create a list of all test types in the group
-    const testTypeDescriptions = group.map(item => 
-      `${getApiLabel ? getApiLabel(item.apiName) : item.apiName} (Test Type ${item.testTypeIndex + 1})`
+
+    const testTypeDescriptions = group.map(
+      (item) =>
+        `${getApiLabel ? getApiLabel(item.apiName) : item.apiName} (Test Type ${
+          item.testTypeIndex + 1
+        })`
     );
-    
-    // Remove any duplicate descriptions and join them
-    const uniqueDescriptions = [...new Set(testTypeDescriptions)].join(', ');
-    
-    // Create a single suggestion for the entire group
-    // Use the first item as the "primary" for the suggestion
+
+    const uniqueDescriptions = [...new Set(testTypeDescriptions)].join(", ");
+
     const primaryItem = group[0];
-    
+
     suggestions.push({
       apiIndex: primaryItem.apiIndex,
       testTypeIndex: primaryItem.testTypeIndex,
-      matchingTestTypes: group.slice(1), // All other members except the first
-      allIdenticalTestTypes: group, // Include the complete group for reference
-      message: `These test types are identical and can be linked: ${uniqueDescriptions}`
+      matchingTestTypes: group.slice(1),
+      allIdenticalTestTypes: group,
+      message: `These test types are identical and can be linked: ${uniqueDescriptions}`,
     });
   });
-  
+
   return suggestions;
 };
 
@@ -350,8 +395,12 @@ const transformInitialData = (
       apiName: api.apiName || "",
       testTypes: (api.testTypes || []).map((testType: any) => ({
         testTypeId: testType.testTypeId || "",
+        selectMakeSpecific: testType.selectMakeSpecific || false,
         columnCode: testType.columnCode || "",
-        mobilePhaseCodes: testType.mobilePhaseCodes || ["", "", "", ""],
+        mobilePhaseCodes: testType.mobilePhaseCodes || ["", "", "", "", "", ""], // 6 phases now
+        numberOfInjectionsAMV: testType.numberOfInjectionsAMV || 0,
+        numberOfInjectionsPV: testType.numberOfInjectionsPV || 0,
+        numberOfInjectionsCV: testType.numberOfInjectionsCV || 0,
         detectorTypeId: testType.detectorTypeId || "",
         pharmacopoeialId: testType.pharmacopoeialId || "",
         sampleInjection: testType.sampleInjection || 0,
@@ -360,6 +409,7 @@ const transformInitialData = (
         bracketingFrequency: testType.bracketingFrequency || 0,
         injectionTime: testType.injectionTime || 0,
         runTime: testType.runTime || 0,
+        washTime: testType.washTime || 0,
         numberOfInjections: testType.numberOfInjections || 0,
         bulk: testType.bulk || false,
         fp: testType.fp || false,
@@ -394,7 +444,6 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
     getApiOptions,
   } = useMasterDataContext();
 
-  // Initialize form with proper default values
   const {
     register,
     handleSubmit,
@@ -404,37 +453,49 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
     watch,
     setValue,
     getValues,
+    clearErrors,
   } = useForm<ApiData>({
     defaultValues: {
       apiName: apiData?.apiName || "",
-      testTypes: apiData?.testTypes?.length > 0 
-        ? apiData.testTypes.map(tt => ({
-            ...tt,
-            // Ensure mobile phase codes are always an array of strings
-            mobilePhaseCodes: tt.mobilePhaseCodes || ["", "", "", ""]
-          }))
-        : [{
-            testTypeId: "",
-            columnCode: "",
-            mobilePhaseCodes: ["", "", "", ""],
-            detectorTypeId: "",
-            pharmacopoeialId: "",
-            sampleInjection: 0,
-            standardInjection: 0,
-            blankInjection: 0,
-            bracketingFrequency: 0,
-            injectionTime: 0,
-            runTime: 0,
-            numberOfInjections: 0,
-            bulk: false,
-            fp: false,
-            stabilityPartial: false,
-            stabilityFinal: false,
-            amv: false,
-            pv: false,
-            cv: false,
-            isLinked: false,
-          }]
+      testTypes:
+        apiData?.testTypes?.length > 0
+          ? apiData.testTypes.map((tt) => ({
+              ...tt,
+              mobilePhaseCodes: tt.mobilePhaseCodes || ["", "", "", "", "", ""],
+              selectMakeSpecific: tt.selectMakeSpecific || false,
+              washTime: tt.washTime || 0,
+              numberOfInjectionsAMV: tt.numberOfInjectionsAMV || 0,
+              numberOfInjectionsPV: tt.numberOfInjectionsPV || 0,
+              numberOfInjectionsCV: tt.numberOfInjectionsCV || 0,
+            }))
+          : [
+              {
+                testTypeId: "",
+                selectMakeSpecific: false,
+                columnCode: "",
+                mobilePhaseCodes: ["", "", "", "", "", ""],
+                detectorTypeId: "",
+                pharmacopoeialId: "",
+                sampleInjection: 0,
+                standardInjection: 0,
+                blankInjection: 0,
+                bracketingFrequency: 0,
+                injectionTime: 0,
+                runTime: 0,
+                washTime: 0,
+                numberOfInjectionsAMV: 0,
+                numberOfInjectionsPV: 0,
+                numberOfInjectionsCV: 0,
+                bulk: false,
+                fp: false,
+                stabilityPartial: false,
+                stabilityFinal: false,
+                amv: false,
+                pv: false,
+                cv: false,
+                isLinked: false,
+              },
+            ],
     },
     resolver: zodResolver(apiSchema),
   });
@@ -451,9 +512,16 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [linkingSuggestions, setLinkingSuggestions] = useState<LinkingSuggestion[]>([]);
+  const [linkingSuggestions, setLinkingSuggestions] = useState<
+    LinkingSuggestion[]
+  >([]);
   const [showColumnPopup, setShowColumnPopup] = useState(false);
-const [currentColumnTestTypeIndex, setCurrentColumnTestTypeIndex] = useState<number | null>(null);
+  const [currentColumnTestTypeIndex, setCurrentColumnTestTypeIndex] = useState<
+    number | null
+  >(null);
+  const [columnDisplayTexts, setColumnDisplayTexts] = useState<{
+    [key: number]: string;
+  }>({});
 
   const testTypeOptions = getTestTypeOptions();
   const detectorTypeOptions = getDetectorTypeOptions();
@@ -463,17 +531,16 @@ const [currentColumnTestTypeIndex, setCurrentColumnTestTypeIndex] = useState<num
 
   const watchedValues = watch();
 
-  // Check for linking suggestions
   const checkLinkingSuggestions = () => {
     const currentApiData = getValues();
     const allApisForChecking = [...allApis];
-    
+
     if (currentApiIndex >= 0 && currentApiIndex < allApisForChecking.length) {
       allApisForChecking[currentApiIndex] = currentApiData;
     } else if (currentApiIndex === -1) {
       allApisForChecking.push(currentApiData);
     }
-    
+
     const suggestions = findLinkingSuggestions(
       allApisForChecking,
       (apiName) => {
@@ -482,46 +549,56 @@ const [currentColumnTestTypeIndex, setCurrentColumnTestTypeIndex] = useState<num
       }
     );
 
-    
-    
-    // Filter to show only suggestions that include test types from the current API
-    const currentApiIndexToCheck = currentApiIndex >= 0 ? currentApiIndex : allApisForChecking.length - 1;
-    
+    const currentApiIndexToCheck =
+      currentApiIndex >= 0 ? currentApiIndex : allApisForChecking.length - 1;
+
     const relevantSuggestions = suggestions.filter((suggestion) => {
-      // Only show suggestions with 2 or more test types
-      if (!suggestion.allIdenticalTestTypes || suggestion.allIdenticalTestTypes.length < 2) {
+      if (
+        !suggestion.allIdenticalTestTypes ||
+        suggestion.allIdenticalTestTypes.length < 2
+      ) {
         return false;
       }
-      // Check if any test type in the group belongs to the current API
-      return suggestion.allIdenticalTestTypes.some(
-        (item) => item.apiIndex === currentApiIndexToCheck
+
+      // Only show suggestions for test types that are not manually linked
+      const hasUnlinkedTestTypes = suggestion.allIdenticalTestTypes.some(
+        (item) => {
+          if (item.apiIndex === currentApiIndexToCheck) {
+            const testType = currentApiData.testTypes[item.testTypeIndex];
+            return !testType.isLinked; // Only suggest if not manually linked
+          }
+          return false;
+        }
       );
+
+      return hasUnlinkedTestTypes;
     });
-    
+
     setLinkingSuggestions(relevantSuggestions);
   };
 
-  // Handle linking change
-  const handleLinkingChange = (suggestionIndex: number, shouldLink: boolean) => {
+  const handleLinkingChange = (
+    suggestionIndex: number,
+    shouldLink: boolean
+  ) => {
     const suggestion = linkingSuggestions[suggestionIndex];
 
     if (shouldLink && suggestion.allIdenticalTestTypes) {
-      // Set isLinked = true for ALL test types in the group
       suggestion.allIdenticalTestTypes.forEach((item) => {
-        if (item.apiIndex === (currentApiIndex >= 0 ? currentApiIndex : allApis.length)) {
-          // This is in the current API popup
+        if (
+          item.apiIndex ===
+          (currentApiIndex >= 0 ? currentApiIndex : allApis.length)
+        ) {
           setValue(`testTypes.${item.testTypeIndex}.isLinked`, true);
         }
       });
 
-      // Remove this suggestion
       setLinkingSuggestions((prev) =>
         prev.filter((_, index) => index !== suggestionIndex)
       );
     }
   };
 
-  // Handle test type field changes
   const handleTestTypeChange = (
     testTypeIndex: number,
     field: string,
@@ -529,21 +606,58 @@ const [currentColumnTestTypeIndex, setCurrentColumnTestTypeIndex] = useState<num
   ) => {
     const currentValues = getValues();
     const currentTestType = currentValues.testTypes[testTypeIndex];
-    
-    // If test type was linked, unlink it when changing
-    if (currentTestType.isLinked) {
-      setValue(`testTypes.${testTypeIndex}.isLinked`, false);
+
+    // Only auto-unlink if it's not a manual link change and the field affects linking logic
+    if (field !== "isLinked" && currentTestType.isLinked) {
+      // Don't auto-unlink if user manually set the link
+      const linkingFields = [
+        "testTypeId",
+        "selectMakeSpecific",
+        "columnCode",
+        "mobilePhaseCodes",
+        "detectorTypeId",
+        "pharmacopoeialId",
+        "sampleInjection",
+        "standardInjection",
+        "blankInjection",
+        "bracketingFrequency",
+        "injectionTime",
+        "runTime",
+        "washTime",
+        "numberOfInjectionsAMV",
+        "numberOfInjectionsPV",
+        "numberOfInjectionsCV",
+        "bulk",
+        "fp",
+        "stabilityPartial",
+        "stabilityFinal",
+        "amv",
+        "pv",
+        "cv",
+      ];
+
+      if (linkingFields.includes(field)) {
+        // Show a confirmation dialog before unlinking
+        const shouldUnlink = confirm(
+          "This test type is currently linked. Changing this field will unlink it from other identical test types. Continue?"
+        );
+
+        if (shouldUnlink) {
+          setValue(`testTypes.${testTypeIndex}.isLinked`, false);
+        } else {
+          return; // Don't make the change
+        }
+      }
     }
-    
+
     setValue(`testTypes.${testTypeIndex}.${field}` as any, value);
-    
-    // Recheck linking suggestions after change
+
     setTimeout(() => {
       checkLinkingSuggestions();
     }, 100);
   };
 
-  // Mobile Phase Code Fields Component
+  // Updated MobilePhaseCodeFields component for 6 phases
   const MobilePhaseCodeFields = ({
     testTypeIndex,
     control,
@@ -551,12 +665,21 @@ const [currentColumnTestTypeIndex, setCurrentColumnTestTypeIndex] = useState<num
     testTypeIndex: number;
     control: any;
   }) => {
+    const phaseLabels = [
+      "Phase 1",
+      "Phase 2",
+      "Phase 3",
+      "Phase 4",
+      "Wash 1",
+      "Wash 2",
+    ];
+
     return (
-      <div className="grid grid-cols-4 gap-2">
-        {[0, 1, 2, 3].map((index) => (
+      <div className="grid grid-cols-6 gap-2">
+        {[0, 1, 2, 3, 4, 5].map((index) => (
           <div key={index}>
             <label className="block text-xs text-gray-500 mb-1">
-              Phase {index + 1}
+              {phaseLabels[index]}
             </label>
             <Controller
               name={`testTypes.${testTypeIndex}.mobilePhaseCodes.${index}`}
@@ -584,23 +707,37 @@ const [currentColumnTestTypeIndex, setCurrentColumnTestTypeIndex] = useState<num
     );
   };
 
-  // Initialize position and reset form when apiData changes
-  useEffect(() => {
-    if (apiData) {
-      const processedData = {
-        apiName: apiData.apiName || "",
-        testTypes: apiData.testTypes?.map(tt => ({
-          ...tt,
-          mobilePhaseCodes: Array.isArray(tt.mobilePhaseCodes) 
-            ? tt.mobilePhaseCodes.map(code => code || "")
-            : ["", "", "", ""]
-        })) || []
-      };
-      reset(processedData);
-    }
-  }, [apiData, reset]);
+useEffect(() => {
+  if (apiData) {
+    const processedData = {
+      apiName: apiData.apiName || "",
+      testTypes:
+        apiData.testTypes?.map((tt, index) => {
+          // If it's make specific and has columnCode as ID, fetch display text
+          if (tt.selectMakeSpecific && tt.columnCode) {
+            // You might need to fetch the column details to show display text
+            // For now, store the ID and set placeholder text
+            setColumnDisplayTexts(prev => ({
+              ...prev,
+              [index]: "Loading column details..." // You can improve this by fetching actual data
+            }));
+          }
+          
+          return {
+            ...tt,
+            mobilePhaseCodes: Array.isArray(tt.mobilePhaseCodes)
+              ? tt.mobilePhaseCodes.map((code) => code || "")
+              : ["", "", "", "", "", ""],
+            numberOfInjectionsAMV: tt.numberOfInjectionsAMV || 0,
+            numberOfInjectionsPV: tt.numberOfInjectionsPV || 0,
+            numberOfInjectionsCV: tt.numberOfInjectionsCV || 0,
+          };
+        }) || [],
+    };
+    reset(processedData);
+  }
+}, [apiData, reset]);
 
-  // Check linking suggestions when data changes
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (watchedValues.apiName || watchedValues.testTypes?.length > 0) {
@@ -610,7 +747,6 @@ const [currentColumnTestTypeIndex, setCurrentColumnTestTypeIndex] = useState<num
     return () => clearTimeout(timeoutId);
   }, [watchedValues.apiName, JSON.stringify(watchedValues.testTypes)]);
 
-  // Dragging functionality
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
     const closestElement = e.currentTarget.closest(".bg-white");
@@ -652,55 +788,81 @@ const [currentColumnTestTypeIndex, setCurrentColumnTestTypeIndex] = useState<num
     });
   }, []);
 
-  // Form submission handler
   const onSubmitForm = (data: ApiData) => {
-    // Ensure mobile phase codes are properly formatted
     const processedData = {
       ...data,
-      testTypes: data.testTypes.map(tt => ({
+      testTypes: data.testTypes.map((tt) => ({
         ...tt,
-        mobilePhaseCodes: tt.mobilePhaseCodes?.map(code => code || "") || ["", "", "", ""]
-      }))
+        mobilePhaseCodes: tt.mobilePhaseCodes?.map((code) => code || "") || [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+        ],
+      })),
     };
-    
+
     console.log("Saving API data:", processedData);
     onSave(processedData);
   };
 
-  // Error handler for form submission
   const onSubmitError = (errors: any) => {
     console.error("Form validation errors:", errors);
-    
+
     if (errors.apiName) {
       alert(`API Name: ${errors.apiName.message}`);
     }
-    
+
     if (errors.testTypes) {
       errors.testTypes.forEach((testTypeError: any, index: number) => {
         if (testTypeError) {
           const errorMessages = [];
-          
+
           if (testTypeError.testTypeId) {
-            errorMessages.push(`Test Type: ${testTypeError.testTypeId.message}`);
+            errorMessages.push(
+              `Test Type: ${testTypeError.testTypeId.message}`
+            );
           }
           if (testTypeError.columnCode) {
             errorMessages.push(`Column: ${testTypeError.columnCode.message}`);
           }
           if (testTypeError.mobilePhaseCodes) {
-            errorMessages.push(`Mobile Phases: ${testTypeError.mobilePhaseCodes.message}`);
+            errorMessages.push(
+              `Mobile Phases: ${testTypeError.mobilePhaseCodes.message}`
+            );
           }
           if (testTypeError.detectorTypeId) {
-            errorMessages.push(`Detector: ${testTypeError.detectorTypeId.message}`);
+            errorMessages.push(
+              `Detector: ${testTypeError.detectorTypeId.message}`
+            );
           }
           if (testTypeError.pharmacopoeialId) {
-            errorMessages.push(`Pharmacopoeial: ${testTypeError.pharmacopoeialId.message}`);
+            errorMessages.push(
+              `Pharmacopoeial: ${testTypeError.pharmacopoeialId.message}`
+            );
           }
-          if (testTypeError.numberOfInjections) {
-            errorMessages.push(`Injections: ${testTypeError.numberOfInjections.message}`);
+          if (testTypeError.numberOfInjectionsAMV) {
+            errorMessages.push(
+              `AMV Injections: ${testTypeError.numberOfInjectionsAMV.message}`
+            );
           }
-          
+          if (testTypeError.numberOfInjectionsPV) {
+            errorMessages.push(
+              `PV Injections: ${testTypeError.numberOfInjectionsPV.message}`
+            );
+          }
+          if (testTypeError.numberOfInjectionsCV) {
+            errorMessages.push(
+              `CV Injections: ${testTypeError.numberOfInjectionsCV.message}`
+            );
+          }
+
           if (errorMessages.length > 0) {
-            alert(`Test Type ${index + 1} Errors:\n${errorMessages.join('\n')}`);
+            alert(
+              `Test Type ${index + 1} Errors:\n${errorMessages.join("\n")}`
+            );
           }
         }
       });
@@ -708,15 +870,39 @@ const [currentColumnTestTypeIndex, setCurrentColumnTestTypeIndex] = useState<num
   };
 
   const openColumnPopup = (testTypeIndex: number) => {
-  setCurrentColumnTestTypeIndex(testTypeIndex);
-  setShowColumnPopup(true);
-};
+    setCurrentColumnTestTypeIndex(testTypeIndex);
+    setShowColumnPopup(true);
+  };
 
-// Add this function to handle column selection:
-const handleColumnSelect = (columnData: { id: string; displayText: string; columnCode: string }) => {
+  const handleColumnSelect = (columnData: {
+  id: string;
+  displayText: string;
+  columnCode: string;
+}) => {
+  console.log("=== handleColumnSelect Debug ===");
+  console.log("columnData received:", columnData);
+  console.log("currentColumnTestTypeIndex:", currentColumnTestTypeIndex);
+  
   if (currentColumnTestTypeIndex !== null) {
-    setValue(`testTypes.${currentColumnTestTypeIndex}.columnCode`, columnData.columnCode);
-    handleTestTypeChange(currentColumnTestTypeIndex, "columnCode", columnData.columnCode);
+    console.log("Setting columnCode to:", columnData.id);
+    
+    setValue(
+      `testTypes.${currentColumnTestTypeIndex}.columnCode`,
+      columnData.id
+    );
+    
+    setColumnDisplayTexts(prev => ({
+      ...prev,
+      [currentColumnTestTypeIndex]: columnData.displayText
+    }));
+
+    handleTestTypeChange(
+      currentColumnTestTypeIndex,
+      "columnCode",
+      columnData.id
+    );
+    
+    clearErrors(`testTypes.${currentColumnTestTypeIndex}.columnCode`);
   }
   setShowColumnPopup(false);
   setCurrentColumnTestTypeIndex(null);
@@ -758,7 +944,10 @@ const handleColumnSelect = (columnData: { id: string; displayText: string; colum
           </div>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmitForm, onSubmitError)} className="p-6">
+        <form
+          onSubmit={handleSubmit(onSubmitForm, onSubmitError)}
+          className="p-6"
+        >
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               API Name *
@@ -777,7 +966,9 @@ const handleColumnSelect = (columnData: { id: string; displayText: string; colum
               ))}
             </select>
             {errors.apiName?.message && (
-              <p className="mt-1 text-sm text-red-600">{errors.apiName.message}</p>
+              <p className="mt-1 text-sm text-red-600">
+                {errors.apiName.message}
+              </p>
             )}
           </div>
 
@@ -786,7 +977,10 @@ const handleColumnSelect = (columnData: { id: string; displayText: string; colum
               Test Type Details
             </label>
             {testTypeFields.map((field, testTypeIndex) => (
-              <div key={field.id} className="bg-gray-50 p-4 rounded-lg border mb-4">
+              <div
+                key={field.id}
+                className="bg-gray-50 p-4 rounded-lg border mb-4"
+              >
                 <div className="flex justify-between items-center mb-4">
                   <h4 className="text-md font-medium text-gray-700">
                     Test Type {testTypeIndex + 1}
@@ -815,17 +1009,25 @@ const handleColumnSelect = (columnData: { id: string; displayText: string; colum
                     <select
                       {...register(`testTypes.${testTypeIndex}.testTypeId`)}
                       onChange={(e) => {
-                        register(`testTypes.${testTypeIndex}.testTypeId`).onChange(e);
-                        handleTestTypeChange(testTypeIndex, "testTypeId", e.target.value);
+                        register(
+                          `testTypes.${testTypeIndex}.testTypeId`
+                        ).onChange(e);
+                        handleTestTypeChange(
+                          testTypeIndex,
+                          "testTypeId",
+                          e.target.value
+                        );
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">Select Test Type</option>
-                      {testTypeOptions.map((option: { value: string; label: string }) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
+                      {testTypeOptions.map(
+                        (option: { value: string; label: string }) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        )
+                      )}
                     </select>
                     {errors.testTypes?.[testTypeIndex]?.testTypeId?.message && (
                       <p className="mt-1 text-sm text-red-600">
@@ -835,53 +1037,110 @@ const handleColumnSelect = (columnData: { id: string; displayText: string; colum
                   </div>
 
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Select Make Specific
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        {...register(
+                          `testTypes.${testTypeIndex}.selectMakeSpecific`
+                        )}
+                        onChange={(e) => {
+                          register(
+                            `testTypes.${testTypeIndex}.selectMakeSpecific`
+                          ).onChange(e);
+                          handleTestTypeChange(
+                            testTypeIndex,
+                            "selectMakeSpecific",
+                            e.target.checked
+                          );
+                        }}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-2"
+                      />
+                      <span className="text-sm text-gray-700">
+                        Make Specific
+                      </span>
+                    </label>
+                  </div>
+
+                  <div>
   <label className="block text-sm font-medium text-gray-700 mb-1">
     Column Code *
   </label>
   <div className="flex gap-2">
-    <select
-      {...register(`testTypes.${testTypeIndex}.columnCode`)}
-      onChange={(e) => {
-        register(`testTypes.${testTypeIndex}.columnCode`).onChange(e);
-        handleTestTypeChange(testTypeIndex, "columnCode", e.target.value);
-      }}
-      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-    >
-      <option value="">Select Column</option>
-      {columnOptions.map((option: { value: string; label: string }) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
-    <button
-      type="button"
-      onClick={() => openColumnPopup(testTypeIndex)}
-      className="px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
-      title="Browse Columns"
-    >
-      <svg
-        className="w-4 h-4"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+    {watchedValues?.testTypes?.[testTypeIndex]?.selectMakeSpecific ? (
+      // Make Specific enabled - show input field
+      <>
+        <input
+          type="text"
+          value={columnDisplayTexts[testTypeIndex] || ""}
+          readOnly
+          placeholder="Click Browse to select column"
+          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
         />
-      </svg>
-    </button>
-  </div>
+        {/* Hidden input to store the actual columnId */}
+        <input
+          type="hidden"
+          {...register(`testTypes.${testTypeIndex}.columnCode`)}
+        />
+      </>
+    ) : (
+      // Make Specific disabled - show dropdown
+      <select
+        {...register(`testTypes.${testTypeIndex}.columnCode`)}
+        onChange={(e) => {
+          register(
+            `testTypes.${testTypeIndex}.columnCode`
+          ).onChange(e);
+          handleTestTypeChange(
+            testTypeIndex,
+            "columnCode",
+            e.target.value
+          );
+        }}
+        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        <option value="">Select Column</option>
+        {columnOptions.map(
+          (option: { value: string; label: string }) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          )
+        )}
+      </select>
+    )}
+    
+    {watchedValues?.testTypes?.[testTypeIndex]?.selectMakeSpecific && (
+      <button
+        type="button"
+        onClick={() => openColumnPopup(testTypeIndex)}
+        className="px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
+        title="Browse Columns"
+      >
+        <svg
+          className="w-4 h-4"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
+        </svg>
+      </button>
+    )}
+  </div>  
   {errors.testTypes?.[testTypeIndex]?.columnCode?.message && (
     <p className="mt-1 text-sm text-red-600">
       {errors.testTypes[testTypeIndex].columnCode.message}
     </p>
   )}
 </div>
-
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -890,19 +1149,28 @@ const handleColumnSelect = (columnData: { id: string; displayText: string; colum
                     <select
                       {...register(`testTypes.${testTypeIndex}.detectorTypeId`)}
                       onChange={(e) => {
-                        register(`testTypes.${testTypeIndex}.detectorTypeId`).onChange(e);
-                        handleTestTypeChange(testTypeIndex, "detectorTypeId", e.target.value);
+                        register(
+                          `testTypes.${testTypeIndex}.detectorTypeId`
+                        ).onChange(e);
+                        handleTestTypeChange(
+                          testTypeIndex,
+                          "detectorTypeId",
+                          e.target.value
+                        );
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">Select Detector</option>
-                      {detectorTypeOptions.map((option: { value: string; label: string }) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
+                      {detectorTypeOptions.map(
+                        (option: { value: string; label: string }) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        )
+                      )}
                     </select>
-                    {errors.testTypes?.[testTypeIndex]?.detectorTypeId?.message && (
+                    {errors.testTypes?.[testTypeIndex]?.detectorTypeId
+                      ?.message && (
                       <p className="mt-1 text-sm text-red-600">
                         {errors.testTypes[testTypeIndex].detectorTypeId.message}
                       </p>
@@ -914,23 +1182,37 @@ const handleColumnSelect = (columnData: { id: string; displayText: string; colum
                       Pharmacopoeial *
                     </label>
                     <select
-                      {...register(`testTypes.${testTypeIndex}.pharmacopoeialId`)}
+                      {...register(
+                        `testTypes.${testTypeIndex}.pharmacopoeialId`
+                      )}
                       onChange={(e) => {
-                        register(`testTypes.${testTypeIndex}.pharmacopoeialId`).onChange(e);
-                        handleTestTypeChange(testTypeIndex, "pharmacopoeialId", e.target.value);
+                        register(
+                          `testTypes.${testTypeIndex}.pharmacopoeialId`
+                        ).onChange(e);
+                        handleTestTypeChange(
+                          testTypeIndex,
+                          "pharmacopoeialId",
+                          e.target.value
+                        );
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">Select Pharmacopoeial</option>
-                      {pharmacopoeialOptions.map((option: { value: string; label: string }) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
+                      {pharmacopoeialOptions.map(
+                        (option: { value: string; label: string }) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        )
+                      )}
                     </select>
-                    {errors.testTypes?.[testTypeIndex]?.pharmacopoeialId?.message && (
+                    {errors.testTypes?.[testTypeIndex]?.pharmacopoeialId
+                      ?.message && (
                       <p className="mt-1 text-sm text-red-600">
-                        {errors.testTypes[testTypeIndex].pharmacopoeialId.message}
+                        {
+                          errors.testTypes[testTypeIndex].pharmacopoeialId
+                            .message
+                        }
                       </p>
                     )}
                   </div>
@@ -938,10 +1220,14 @@ const handleColumnSelect = (columnData: { id: string; displayText: string; colum
 
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Mobile Phase Codes *
+                    Mobile Phase Codes (6 phases: 4 Mobile Phases + 2 Wash) *
                   </label>
-                  <MobilePhaseCodeFields testTypeIndex={testTypeIndex} control={control} />
-                  {errors.testTypes?.[testTypeIndex]?.mobilePhaseCodes?.message && (
+                  <MobilePhaseCodeFields
+                    testTypeIndex={testTypeIndex}
+                    control={control}
+                  />
+                  {errors.testTypes?.[testTypeIndex]?.mobilePhaseCodes
+                    ?.message && (
                     <p className="mt-1 text-sm text-red-600">
                       {errors.testTypes[testTypeIndex].mobilePhaseCodes.message}
                     </p>
@@ -953,9 +1239,13 @@ const handleColumnSelect = (columnData: { id: string; displayText: string; colum
                     { field: "sampleInjection", label: "Sample Injection" },
                     { field: "standardInjection", label: "Standard Injection" },
                     { field: "blankInjection", label: "Blank Injection" },
-                    { field: "bracketingFrequency", label: "Bracketing Frequency" },
+                    {
+                      field: "bracketingFrequency",
+                      label: "Bracketing Frequency",
+                    },
                     { field: "injectionTime", label: "Injection Time" },
                     { field: "runTime", label: "Run Time" },
+                    { field: "washTime", label: "Wash Time" },
                   ].map(({ field, label }) => (
                     <div key={field}>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -964,26 +1254,59 @@ const handleColumnSelect = (columnData: { id: string; displayText: string; colum
                       <input
                         type="number"
                         step="0.01"
-                        {...register(`testTypes.${testTypeIndex}.${field}` as any, {
-                          valueAsNumber: true,
-                        })}
+                        {...register(
+                          `testTypes.${testTypeIndex}.${field}` as any,
+                          {
+                            valueAsNumber: true,
+                          }
+                        )}
                         onChange={(e) => {
                           const value = parseFloat(e.target.value) || 0;
-                          register(`testTypes.${testTypeIndex}.${field}` as any, {
-                            valueAsNumber: true,
-                          }).onChange({ target: { value } });
+                          register(
+                            `testTypes.${testTypeIndex}.${field}` as any,
+                            {
+                              valueAsNumber: true,
+                            }
+                          ).onChange({ target: { value } });
                           handleTestTypeChange(testTypeIndex, field, value);
                         }}
                         className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
                       />
-                      {errors.testTypes?.[testTypeIndex]?.[field as keyof TestTypeData]?.message && (
+                      {errors.testTypes?.[testTypeIndex]?.[
+                        field as keyof TestTypeData
+                      ]?.message && (
                         <p className="mt-1 text-xs text-red-600">
-                          {errors.testTypes?.[testTypeIndex]?.[field as keyof TestTypeData]?.message}
+                          {
+                            errors.testTypes?.[testTypeIndex]?.[
+                              field as keyof TestTypeData
+                            ]?.message
+                          }
                         </p>
                       )}
                     </div>
                   ))}
                 </div>
+
+                <label key="isLinked" className="flex items-center">
+                  <input
+                    type="checkbox"
+                    {...register(`testTypes.${testTypeIndex}.isLinked`)}
+                    onChange={(e) => {
+                      register(`testTypes.${testTypeIndex}.isLinked`).onChange(
+                        e
+                      );
+                      handleTestTypeChange(
+                        testTypeIndex,
+                        "isLinked",
+                        e.target.checked
+                      );
+                    }}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Link with others?
+                  </span>
+                </label>
 
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   {[
@@ -994,14 +1317,27 @@ const handleColumnSelect = (columnData: { id: string; displayText: string; colum
                     { field: "amv", label: "AMV" },
                     { field: "pv", label: "PV" },
                     { field: "cv", label: "CV" },
+                    { field: "isLinked", label: "Manual Link" }, // Add this line
                   ].map(({ field, label }) => (
                     <label key={field} className="flex items-center">
                       <input
                         type="checkbox"
-                        {...register(`testTypes.${testTypeIndex}.${field as keyof TestTypeData}`)}
+                        {...register(
+                          `testTypes.${testTypeIndex}.${
+                            field as keyof TestTypeData
+                          }`
+                        )}
                         onChange={(e) => {
-                          register(`testTypes.${testTypeIndex}.${field as keyof TestTypeData}`).onChange(e);
-                          handleTestTypeChange(testTypeIndex, field, e.target.checked);
+                          register(
+                            `testTypes.${testTypeIndex}.${
+                              field as keyof TestTypeData
+                            }`
+                          ).onChange(e);
+                          handleTestTypeChange(
+                            testTypeIndex,
+                            field,
+                            e.target.checked
+                          );
                         }}
                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3"
                       />
@@ -1010,40 +1346,152 @@ const handleColumnSelect = (columnData: { id: string; displayText: string; colum
                   ))}
                 </div>
 
-                {(watchedValues?.testTypes?.[testTypeIndex]?.amv ||
-                  watchedValues?.testTypes?.[testTypeIndex]?.pv ||
-                  watchedValues?.testTypes?.[testTypeIndex]?.cv) && (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Number of Injections *
-                    </label>
-                    <input
-                      type="number"
-                      step="1"
-                      {...register(`testTypes.${testTypeIndex}.numberOfInjections`, {
-                        valueAsNumber: true,
-                      })}
-                      onChange={(e) => {
-                        const value = parseInt(e.target.value) || 0;
-                        register(`testTypes.${testTypeIndex}.numberOfInjections`, {
-                          valueAsNumber: true,
-                        }).onChange({ target: { value } });
-                        handleTestTypeChange(testTypeIndex, "numberOfInjections", value);
-                      }}
-                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        errors.testTypes?.[testTypeIndex]?.numberOfInjections
-                          ? "border-red-400"
-                          : "border-gray-300"
-                      }`}
-                      placeholder="Enter number of injections"
-                    />
-                    {errors.testTypes?.[testTypeIndex]?.numberOfInjections?.message && (
-                      <p className="mt-1 text-sm text-red-600">
-                        {errors.testTypes[testTypeIndex].numberOfInjections.message}
-                      </p>
-                    )}
-                  </div>
-                )}
+                {/* Dynamic Number of Injections fields based on checkboxes */}
+                <div className="space-y-3">
+                  {watchedValues?.testTypes?.[testTypeIndex]?.amv && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Number of Injections for AMV *
+                      </label>
+                      <input
+                        type="number"
+                        step="1"
+                        {...register(
+                          `testTypes.${testTypeIndex}.numberOfInjectionsAMV`,
+                          {
+                            valueAsNumber: true,
+                          }
+                        )}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value) || 0;
+                          register(
+                            `testTypes.${testTypeIndex}.numberOfInjectionsAMV`,
+                            {
+                              valueAsNumber: true,
+                            }
+                          ).onChange({ target: { value } });
+                          handleTestTypeChange(
+                            testTypeIndex,
+                            "numberOfInjectionsAMV",
+                            value
+                          );
+                        }}
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          errors.testTypes?.[testTypeIndex]
+                            ?.numberOfInjectionsAMV
+                            ? "border-red-400"
+                            : "border-gray-300"
+                        }`}
+                        placeholder="Enter number of AMV injections"
+                      />
+                      {errors.testTypes?.[testTypeIndex]?.numberOfInjectionsAMV
+                        ?.message && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {
+                            errors.testTypes[testTypeIndex]
+                              .numberOfInjectionsAMV.message
+                          }
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {watchedValues?.testTypes?.[testTypeIndex]?.pv && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Number of Injections for PV *
+                      </label>
+                      <input
+                        type="number"
+                        step="1"
+                        {...register(
+                          `testTypes.${testTypeIndex}.numberOfInjectionsPV`,
+                          {
+                            valueAsNumber: true,
+                          }
+                        )}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value) || 0;
+                          register(
+                            `testTypes.${testTypeIndex}.numberOfInjectionsPV`,
+                            {
+                              valueAsNumber: true,
+                            }
+                          ).onChange({ target: { value } });
+                          handleTestTypeChange(
+                            testTypeIndex,
+                            "numberOfInjectionsPV",
+                            value
+                          );
+                        }}
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          errors.testTypes?.[testTypeIndex]
+                            ?.numberOfInjectionsPV
+                            ? "border-red-400"
+                            : "border-gray-300"
+                        }`}
+                        placeholder="Enter number of PV injections"
+                      />
+                      {errors.testTypes?.[testTypeIndex]?.numberOfInjectionsPV
+                        ?.message && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {
+                            errors.testTypes[testTypeIndex].numberOfInjectionsPV
+                              .message
+                          }
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {watchedValues?.testTypes?.[testTypeIndex]?.cv && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Number of Injections for CV *
+                      </label>
+                      <input
+                        type="number"
+                        step="1"
+                        {...register(
+                          `testTypes.${testTypeIndex}.numberOfInjectionsCV`,
+                          {
+                            valueAsNumber: true,
+                          }
+                        )}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value) || 0;
+                          register(
+                            `testTypes.${testTypeIndex}.numberOfInjectionsCV`,
+                            {
+                              valueAsNumber: true,
+                            }
+                          ).onChange({ target: { value } });
+                          handleTestTypeChange(
+                            testTypeIndex,
+                            "numberOfInjectionsCV",
+                            value
+                          );
+                        }}
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          errors.testTypes?.[testTypeIndex]
+                            ?.numberOfInjectionsCV
+                            ? "border-red-400"
+                            : "border-gray-300"
+                        }`}
+                        placeholder="Enter number of CV injections"
+                      />
+                      {errors.testTypes?.[testTypeIndex]?.numberOfInjectionsCV
+                        ?.message && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {
+                            errors.testTypes[testTypeIndex].numberOfInjectionsCV
+                              .message
+                          }
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
 
@@ -1052,8 +1500,9 @@ const handleColumnSelect = (columnData: { id: string; displayText: string; colum
               onClick={() =>
                 appendTestType({
                   testTypeId: "",
+                  selectMakeSpecific: false,
                   columnCode: "",
-                  mobilePhaseCodes: ["", "", "", ""],
+                  mobilePhaseCodes: ["", "", "", "", "", ""],
                   detectorTypeId: "",
                   pharmacopoeialId: "",
                   sampleInjection: 0,
@@ -1062,7 +1511,10 @@ const handleColumnSelect = (columnData: { id: string; displayText: string; colum
                   bracketingFrequency: 0,
                   injectionTime: 0,
                   runTime: 0,
-                  numberOfInjections: 0,
+                  washTime: 0,
+                  numberOfInjectionsAMV: 0,
+                  numberOfInjectionsPV: 0,
+                  numberOfInjectionsCV: 0,
                   bulk: false,
                   fp: false,
                   stabilityPartial: false,
@@ -1094,8 +1546,10 @@ const handleColumnSelect = (columnData: { id: string; displayText: string; colum
                       {suggestion.message}
                     </p>
                     <p className="text-xs text-gray-600 mt-1">
-                      Linking will synchronize these {suggestion.allIdenticalTestTypes?.length || 0} test types.
-                      Any future changes to one will automatically update all linked test types.
+                      Linking will synchronize these{" "}
+                      {suggestion.allIdenticalTestTypes?.length || 0} test
+                      types. Any future changes to one will automatically update
+                      all linked test types.
                     </p>
                   </div>
                   <button
@@ -1126,21 +1580,23 @@ const handleColumnSelect = (columnData: { id: string; displayText: string; colum
             </button>
           </div>
         </form>
+
         {showColumnPopup && (
-        <ColumnPopup
-          isOpen={showColumnPopup}
-          onClose={() => {
-            setShowColumnPopup(false);
-            setCurrentColumnTestTypeIndex(null);
-          }}
-          onSelect={handleColumnSelect}
-          selectedColumnCode={
-            currentColumnTestTypeIndex !== null
-              ? watchedValues?.testTypes?.[currentColumnTestTypeIndex]?.columnCode
-              : undefined
-          }
-        />
-      )}
+          <ColumnPopup
+            isOpen={showColumnPopup}
+            onClose={() => {
+              setShowColumnPopup(false);
+              setCurrentColumnTestTypeIndex(null);
+            }}
+            onSelect={handleColumnSelect}
+            selectedColumnCode={
+              currentColumnTestTypeIndex !== null
+                ? watchedValues?.testTypes?.[currentColumnTestTypeIndex]
+                    ?.columnCode
+                : undefined
+            }
+          />
+        )}
       </div>
     </div>
   );
@@ -1164,7 +1620,7 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
     const [products, setProducts] = useState<Product[]>([]);
     const [isLoadingProducts, setIsLoadingProducts] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<string>("");
-    
+
     const [linkingSuggestions, setLinkingSuggestions] = useState<
       LinkingSuggestion[]
     >([]);
@@ -1268,21 +1724,14 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
       testTypeIndex: number,
       matchingTestTypes: Array<{ apiIndex: number; testTypeIndex: number }>
     ) => {
-      // Set isLinked = true for all matched test types across APIs
       const currentApis = getValues().apis;
-
-      // Mark the source test type as linked
       setValue(`apis.${apiIndex}.testTypes.${testTypeIndex}.isLinked`, true);
-
-      // Mark all matching test types as linked
       matchingTestTypes.forEach((match) => {
         setValue(
           `apis.${match.apiIndex}.testTypes.${match.testTypeIndex}.isLinked`,
           true
         );
       });
-
-      // Update the form
       reset({ ...getValues(), apis: currentApis });
     };
 
@@ -1297,6 +1746,7 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
           testTypes: [
             {
               testTypeId: "",
+              selectMakeSpecific: false,
               columnCode: "",
               mobilePhaseCodes: ["", "", "", ""],
               detectorTypeId: "",
@@ -1307,6 +1757,7 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
               bracketingFrequency: 0,
               injectionTime: 0,
               runTime: 0,
+              washTime: 0,
               numberOfInjections: 0,
               bulk: false,
               fp: false,
@@ -1361,8 +1812,6 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
         setSelectedProduct("");
       }
     };
-
-    
 
     const departmentOptions = getDepartmentOptions();
 
@@ -1460,23 +1909,6 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
                     </p>
                   )}
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Wash
-                  </label>
-                  <input
-                    type="number"
-                    {...register("wash", { valueAsNumber: true })}
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 border-gray-300"
-                    placeholder="Enter wash value"
-                  />
-                  {errors.wash?.message && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {errors.wash.message}
-                    </p>
-                  )}
-                </div>
               </div>
 
               <div className="mb-8">
@@ -1545,6 +1977,11 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
                                       CV
                                     </span>
                                   )}
+                                  {testType.selectMakeSpecific && (
+                                    <span className="bg-orange-500 text-white px-1.5 py-0.5 rounded text-xs">
+                                      Specific
+                                    </span>
+                                  )}
                                 </div>
                               </div>
 
@@ -1570,6 +2007,10 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
                                 <div>
                                   <span className="text-gray-500">Run:</span>{" "}
                                   {testType.runTime}min
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">Wash:</span>{" "}
+                                  {testType.washTime}min
                                 </div>
                                 <div>
                                   <span className="text-gray-500">Sample:</span>{" "}
@@ -1760,7 +2201,6 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
             </form>
           </div>
         </div>
-        
 
         {showApiPopup && currentApiData && (
           <ApiPopup

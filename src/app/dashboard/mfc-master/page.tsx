@@ -1640,6 +1640,10 @@ const MFCMasterPage: React.FC = () => {
                                         {testType.runTime}
                                       </td>
 
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                        {testType.washTime}
+                                      </td>
+
                                       <td className="px-2 py-2 border border-gray-300 text-xs">
                                         {getTestTypeFlags(testType)}
                                       </td>

@@ -12,7 +12,7 @@ import { z } from 'zod';
 // Validation schema for TestType
 const testTypeSchema = z.object({
   testTypeId: z.string().min(1, { message: 'Test type ID is required' }),
-  selectMakeSpecific: z.boolean().default(false), // Added selectMakeSpecific
+  selectMakeSpecific: z.boolean().default(false),
   columnCode: z.string().min(1, { message: 'Column code is required' }),
   mobilePhaseCodes: z
     .array(z.string())
@@ -30,7 +30,13 @@ const testTypeSchema = z.object({
   runTime: z.number().min(0).default(0),
   washTime: z.number().min(0).default(0),
   testApplicability: z.boolean().default(false),
+
+  // ✅ Updated injections
   numberOfInjections: z.number().min(0).default(0).optional(),
+  numberOfInjectionsAMV: z.number().min(0).default(0).optional(),
+  numberOfInjectionsPV: z.number().min(0).default(0).optional(),
+  numberOfInjectionsCV: z.number().min(0).default(0).optional(),
+
   bulk: z.boolean().default(false),
   fp: z.boolean().default(false),
   stabilityPartial: z.boolean().default(false),

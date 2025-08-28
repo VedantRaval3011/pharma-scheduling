@@ -26,7 +26,13 @@ const testTypeSchema = z.object({
   runTime: z.number().min(0).default(0),
   washTime: z.number().min(0).default(0),
   testApplicability: z.boolean().default(false),
+
+  // ✅ Updated injections
   numberOfInjections: z.number().min(0).default(0).optional(),
+  numberOfInjectionsAMV: z.number().min(0).default(0).optional(),
+  numberOfInjectionsPV: z.number().min(0).default(0).optional(),
+  numberOfInjectionsCV: z.number().min(0).default(0).optional(),
+
   bulk: z.boolean().default(false),
   fp: z.boolean().default(false),
   stabilityPartial: z.boolean().default(false),

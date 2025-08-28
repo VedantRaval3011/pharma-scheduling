@@ -15,7 +15,10 @@ export interface ITestType {
   runTime: number;
   washTime: number;
   testApplicability: boolean;
-  numberOfInjections?: number;
+  numberOfInjections?: number;       // ✅ General number of injections
+  numberOfInjectionsAMV?: number;    // ✅ Specific for AMV
+  numberOfInjectionsPV?: number;     // ✅ Specific for PV
+  numberOfInjectionsCV?: number;     // ✅ Specific for CV
   bulk: boolean;
   fp: boolean;
   stabilityPartial: boolean;
@@ -64,7 +67,10 @@ const TestTypeSchema = new Schema<ITestType>({
   runTime: { type: Number, default: 0 },
   washTime: { type: Number, default: 0 },   // ✅ Already added after runTime
   testApplicability: { type: Boolean, default: false },
-  numberOfInjections: { type: Number, default: 0 },
+  numberOfInjections: { type: Number, default: 0 },       // ✅ General
+  numberOfInjectionsAMV: { type: Number, default: 0 },    // ✅ For AMV
+  numberOfInjectionsPV: { type: Number, default: 0 },     // ✅ For PV
+  numberOfInjectionsCV: { type: Number, default: 0 },     // ✅ For CV
   bulk: { type: Boolean, default: false },
   fp: { type: Boolean, default: false },
   stabilityPartial: { type: Boolean, default: false },
