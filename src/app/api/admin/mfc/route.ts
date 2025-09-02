@@ -1,21 +1,72 @@
+//api/admin/mfc
 import { NextRequest, NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/db';
 import MFCMaster from '@/models/MFCMaster';
 import Product from '@/models/product/product';
 import { createMFCAuditLog } from '@/lib/auditUtils';
 import { z } from 'zod';
+import { IMFCMaster } from "@/models/MFCMaster";
+import { FilterQuery } from 'mongoose';
+
+async function syncMFCProductRelationship(
+  mfcId: string,
+  newProductIds: string[],
+  oldProductIds: string[] = [],
+  companyId: string,
+  locationId: string
+) {
+  try {
+    // Remove MFC from products that are no longer associated
+    const productsToRemove = oldProductIds.filter(id => !newProductIds.includes(id));
+    if (productsToRemove.length > 0) {
+      await Product.updateMany(
+        {
+          _id: { $in: productsToRemove },
+          companyId,
+          locationId
+        },
+        {
+          $pull: { mfcs: mfcId }
+        }
+      );
+    }
+
+    // Add MFC to new products
+    const productsToAdd = newProductIds.filter(id => !oldProductIds.includes(id));
+    if (productsToAdd.length > 0) {
+      await Product.updateMany(
+        {
+          _id: { $in: productsToAdd },
+          companyId,
+          locationId
+        },
+        {
+          $addToSet: { mfcs: mfcId }
+        }
+      );
+    }
+  } catch (error) {
+    console.error('Error syncing MFC-Product relationship:', error);
+    throw error;
+  }
+}
+
 
 // Validation schema for TestType
 const testTypeSchema = z.object({
   testTypeId: z.string().min(1, { message: 'Test type ID is required' }),
-  selectMakeSpecific: z.boolean().default(false), // Added selectMakeSpecific
+  selectMakeSpecific: z.boolean().default(false),
   columnCode: z.string().min(1, { message: 'Column code is required' }),
   mobilePhaseCodes: z
     .array(z.string())
-    .transform(codes => codes.filter(code => code.trim() !== ''))
-    .refine(codes => codes.length >= 1, {
-      message: 'At least one mobile phase code is required',
-    }),
+    .length(6, { message: 'Must have exactly 6 mobile phase slots' }) // Ensure exactly 6 elements
+    .refine(
+      (codes) => {
+        // At least MP01 (index 0) must be filled
+        return codes[0] && codes[0].trim() !== "";
+      },
+      { message: 'MP01 (first mobile phase) is required' }
+    ),
   detectorTypeId: z.string().min(1, { message: 'Detector type ID is required' }),
   pharmacopoeialId: z.string().min(1, { message: 'Pharmacopoeial ID is required' }),
   sampleInjection: z.number().min(0).default(0),
@@ -42,7 +93,6 @@ const testTypeSchema = z.object({
   cv: z.boolean().default(false),
   isLinked: z.boolean().default(false),
 });
-
 // Validation schema for API
 const apiSchema = z.object({
   apiName: z.string().min(1, { message: 'API name is required' }),
@@ -61,8 +111,8 @@ const mfcSchema = z.object({
   companyId: z.string().uuid({ message: 'Valid company ID is required' }),
   locationId: z.string().uuid({ message: 'Valid location ID is required' }),
   productIds: z
-    .array(z.string().min(1, { message: 'Product ID cannot be empty' }))
-    .min(1, { message: 'At least one product ID is required' })
+    .array(z.string().min(0, { message: 'Product ID can be empty' }))
+    .min(0, { message: 'Product IDs are optional' })
     .optional(),
   generics: z.array(genericSchema).min(1, { message: 'At least one generic is required' }),
   departmentId: z.string().min(1, { message: 'Department ID is required' }),
@@ -107,24 +157,40 @@ async function validateProductIds(
 }
 
 // Helper function to build search query with productIds
-function buildSearchQuery(companyId: string, locationId: string, search: string) {
-  const query: any = { companyId, locationId };
+export async function buildSearchQuery(
+  companyId: string,
+  locationId: string,
+  search?: string,
+  productId?: string
+): Promise<FilterQuery<IMFCMaster>> {
+  const query: FilterQuery<IMFCMaster> = {
+    companyId,
+    locationId,
+  };
 
-  if (search) {
+  // Optional product filter
+  if (productId) {
+    query.productIds = { $in: [productId] };
+  }
+
+  // Optional text search
+  if (search && search.trim() !== "") {
+    const regex = new RegExp(search, "i"); // case-insensitive
+
     query.$or = [
-      { mfcNumber: { $regex: search, $options: 'i' } },
-      { 'generics.genericName': { $regex: search, $options: 'i' } },
-      { 'generics.apis.apiName': { $regex: search, $options: 'i' } },
-      { 'generics.apis.testTypes.columnCode': { $regex: search, $options: 'i' } },
-      { 'generics.apis.testTypes.selectMakeSpecific': { $eq: search.toLowerCase() === 'true' } }, // Added selectMakeSpecific search
-      { 'generics.apis.testTypes.washTime': { $regex: search, $options: 'i' } },
-      { wash: { $regex: search, $options: 'i' } },
-      { productIds: { $in: [search] } },
+      { mfcNumber: regex },
+      { "generics.genericName": regex },
+      { "generics.apis.apiName": regex },
+      { "generics.apis.testTypes.columnCode": regex },
+      { "generics.apis.testTypes.detectorTypeId": regex },
+      { "generics.apis.testTypes.pharmacopoeialId": regex },
     ];
   }
 
   return query;
 }
+
+
 
 // GET - Retrieve all MFC records for company and location
 export async function GET(request: NextRequest) {
@@ -147,7 +213,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    let query = buildSearchQuery(companyId, locationId, search);
+    // Make buildSearchQuery async
+    let query = await buildSearchQuery(companyId, locationId, search);
 
     if (productId) {
       query.productIds = { $in: [productId] };
@@ -193,7 +260,8 @@ export async function GET(request: NextRequest) {
     const statistics = {
       totalRecords: total,
       recordsWithProducts: await MFCMaster.countDocuments({
-        ...query,
+        companyId,
+        locationId,
         productIds: { $exists: true, $not: { $size: 0 } },
       }),
     };
@@ -218,6 +286,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
+
 // POST - Create new MFC record with audit logging
 export async function POST(request: NextRequest) {
   try {
@@ -226,6 +295,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = mfcSchema.parse(body);
 
+    // Only validate product IDs if they are provided
     if (validatedData.productIds && validatedData.productIds.length > 0) {
       const productValidation = await validateProductIds(
         validatedData.productIds,
@@ -260,12 +330,25 @@ export async function POST(request: NextRequest) {
 
     const mfcData = { 
       ...validatedData,
+      // Ensure productIds is always an array (empty if not provided)
+      productIds: validatedData.productIds || [],
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
     const newMFC = new MFCMaster(mfcData);
     const savedMFC = await newMFC.save();
+
+    // Only sync with Product Master if products are provided
+    if (validatedData.productIds && validatedData.productIds.length > 0) {
+      await syncMFCProductRelationship(
+        savedMFC._id.toString(),
+        validatedData.productIds,
+        [],
+        validatedData.companyId,
+        validatedData.locationId
+      );
+    }
 
     await createMFCAuditLog({
       mfcId: savedMFC._id.toString(),
@@ -279,10 +362,14 @@ export async function POST(request: NextRequest) {
       userAgent: request.headers.get('user-agent') || 'unknown',
     });
 
+    const successMessage = validatedData.productIds?.length 
+      ? `MFC record created successfully and synced with ${validatedData.productIds.length} Product record(s)`
+      : 'MFC record created successfully without product associations';
+
     return NextResponse.json(
       {
         success: true,
-        message: 'MFC record created successfully',
+        message: successMessage,
         data: savedMFC,
       },
       { status: 201 }
@@ -311,6 +398,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
+
 // PUT - Update MFC record with audit logging
 export async function PUT(request: NextRequest) {
   try {
@@ -320,6 +408,7 @@ export async function PUT(request: NextRequest) {
     const validatedData = updateMfcSchema.parse(body);
     const { id, ...updateData } = validatedData;
 
+    // Only validate product IDs if they are provided
     if (updateData.productIds && updateData.productIds.length > 0) {
       const productValidation = await validateProductIds(
         updateData.productIds,
@@ -385,6 +474,18 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Sync with Product Master - handle empty arrays
+    const oldProductIds = oldMFC.productIds?.map((id: any) => id.toString()) || [];
+    const newProductIds = updateData.productIds || oldMFC.productIds?.map((id: any) => id.toString()) || [];
+
+    await syncMFCProductRelationship(
+      id,
+      newProductIds,
+      oldProductIds,
+      updatedMFC.companyId,
+      updatedMFC.locationId
+    );
+
     await createMFCAuditLog({
       mfcId: updatedMFC._id.toString(),
       mfcNumber: updatedMFC.mfcNumber,
@@ -398,9 +499,13 @@ export async function PUT(request: NextRequest) {
       userAgent: request.headers.get('user-agent') || 'unknown',
     });
 
+    const successMessage = newProductIds.length 
+      ? `MFC record updated successfully and synced with ${newProductIds.length} Product record(s)`
+      : 'MFC record updated successfully without product associations';
+
     return NextResponse.json({
       success: true,
-      message: 'MFC record updated successfully',
+      message: successMessage,
       data: updatedMFC,
     });
   } catch (error: any) {

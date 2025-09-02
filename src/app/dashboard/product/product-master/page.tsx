@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import WindowsToolbar from "@/components/layout/ToolBox";
+import MFCSelector from "@/components/mfc/MFCSelector";
 
 interface Product {
   _id: string;
@@ -30,8 +31,17 @@ interface ProductMake {
 
 interface Mfc {
   _id: string;
-  mfcNumber: string; // Assuming MFC has mfcNumber
-  // Add other fields if needed
+  mfcNumber: string;
+}
+
+// Separate form interface with single MFC
+interface ProductForm {
+  productName: string;
+  productCode: string;
+  genericName: string;
+  makeId: string;
+  marketedBy: string;
+  mfc: string | null;
 }
 
 function ProductMaster() {
@@ -42,13 +52,13 @@ function ProductMaster() {
   const [mfcs, setMfcs] = useState<Mfc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ProductForm>({
     productName: "",
     productCode: "",
     genericName: "",
     makeId: "",
     marketedBy: "",
-    mfcs: [] as string[],
+    mfc: null,
   });
   const [isFormEnabled, setIsFormEnabled] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -67,6 +77,11 @@ function ProductMaster() {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [locationId, setLocationId] = useState<string | null>(null);
+
+  // Message system states
+  const [successMessage, setSuccessMessage] = useState<string>("");
+  const [infoMessage, setInfoMessage] = useState<string>("");
+  const [showNotification, setShowNotification] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -88,6 +103,48 @@ function ProductMaster() {
     }
   }, [status, router]);
 
+  // Listen for MFC updates from storage events
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'mfc-product-sync') {
+        const syncData = JSON.parse(e.newValue || '{}');
+        
+        if (syncData.action === 'mfc-updated') {
+          setInfoMessage(`MFC "${syncData.mfcNumber}" has been updated. Your product records may have been affected.`);
+          setShowNotification(true);
+          
+          // Refresh MFCs and products to get latest data
+          if (companyId && locationId) {
+            fetchMfcs();
+            fetchProducts();
+          }
+          
+          // Auto-hide notification after 5 seconds
+          setTimeout(() => {
+            setShowNotification(false);
+            setInfoMessage("");
+          }, 5000);
+        }
+      }
+    };
+
+    const handleWindowFocus = () => {
+      // Refresh data when window gets focus (user switches back to this tab)
+      if (companyId && locationId) {
+        fetchMfcs();
+        fetchProducts();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('focus', handleWindowFocus);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [companyId, locationId]);
+
   const fetchProductMakes = async () => {
     if (!companyId || !locationId) return;
     try {
@@ -104,37 +161,39 @@ function ProductMaster() {
   };
 
   const fetchMfcs = async () => {
-  if (!companyId || !locationId) {
-    setError("Company ID or Location ID not found");
-    return;
-  }
-  try {
-    const response = await fetch(`/api/admin/mfc?companyId=${companyId}&locationId=${locationId}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
+    if (!companyId || !locationId) {
+      setError("Company ID or Location ID not found");
+      return;
     }
-    
-    const data = await response.json();
-    
-    // Fix: Check for data.data instead of data.success
-    if (data.data) {
-      setMfcs(data.data || []);
-      console.log("MFCs fetched successfully:", data.data); // Debug
-    } else {
-      throw new Error("No MFC data found in response");
+    try {
+      const response = await fetch(
+        `/api/admin/mfc?companyId=${companyId}&locationId=${locationId}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.data) {
+        setMfcs(data.data || []);
+        console.log("MFCs fetched successfully:", data.data);
+      } else {
+        throw new Error("No MFC data found in response");
+      }
+    } catch (err: any) {
+      console.error("Error fetching MFCs:", err.message || err);
+      setError(`Failed to fetch MFCs: ${err.message || "Unknown error"}`);
     }
-  } catch (err: any) {
-    console.error("Error fetching MFCs:", err.message || err);
-    setError(`Failed to fetch MFCs: ${err.message || "Unknown error"}`);
-  }
-};
+  };
 
   const fetchProducts = async () => {
     if (!companyId || !locationId) {
@@ -293,13 +352,20 @@ function ProductMaster() {
   );
 
   const handleAddNew = () => {
-  setIsFormEnabled(true);
-  setIsEditMode(false);
-  setFormData({ productName: "", productCode: "", genericName: "", makeId: "", marketedBy: "", mfcs: [] });
-  setSelectedProduct(null);
-  setCurrentProductIndex(-1);
-  setTimeout(() => inputRef.current?.focus(), 100);
-};
+    setIsFormEnabled(true);
+    setIsEditMode(false);
+    setFormData({
+      productName: "",
+      productCode: "",
+      genericName: "",
+      makeId: "",
+      marketedBy: "",
+      mfc: null,
+    });
+    setSelectedProduct(null);
+    setCurrentProductIndex(-1);
+    setTimeout(() => inputRef.current?.focus(), 100);
+  };
 
   const handleSave = async () => {
     if (
@@ -327,7 +393,7 @@ function ProductMaster() {
         genericName: formData.genericName,
         makeId: formData.makeId,
         marketedBy: formData.marketedBy,
-        mfcs: formData.mfcs,
+        mfcs: formData.mfc ? [formData.mfc] : [], // Convert single MFC to array
         companyId,
         locationId,
       };
@@ -341,6 +407,16 @@ function ProductMaster() {
 
       const data = await response.json();
       if (data.success) {
+        // Add success message
+        setSuccessMessage(isEditMode ? "Product updated successfully!" : "Product created successfully!");
+        setShowNotification(true);
+        
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+          setShowNotification(false);
+          setSuccessMessage("");
+        }, 3000);
+
         await logAuditAction(
           isEditMode && selectedProduct ? "UPDATE" : "CREATE",
           {
@@ -349,7 +425,7 @@ function ProductMaster() {
             genericName: formData.genericName,
             makeId: formData.makeId,
             marketedBy: formData.marketedBy,
-            mfcs: formData.mfcs,
+            mfcs: formData.mfc ? [formData.mfc] : [], // Convert for audit log
             companyId,
             locationId,
           },
@@ -373,7 +449,7 @@ function ProductMaster() {
           genericName: "",
           makeId: "",
           marketedBy: "",
-          mfcs: [],
+          mfc: null,
         });
         setIsFormEnabled(false);
         setIsEditMode(false);
@@ -395,7 +471,7 @@ function ProductMaster() {
       genericName: "",
       makeId: "",
       marketedBy: "",
-      mfcs: [],
+      mfc: null,
     });
     setIsFormEnabled(false);
     setIsEditMode(false);
@@ -420,7 +496,7 @@ function ProductMaster() {
         genericName: product.genericName || "",
         makeId: product.makeId,
         marketedBy: product.marketedBy || "",
-        mfcs: product.mfcs || [],
+        mfc: product.mfcs?.[0] || null, // Take first MFC or null
       });
     }
   };
@@ -437,7 +513,7 @@ function ProductMaster() {
         genericName: product.genericName || "",
         makeId: product.makeId,
         marketedBy: product.marketedBy || "",
-        mfcs: product.mfcs || [],
+        mfc: product.mfcs?.[0] || null, // Take first MFC or null
       });
     } else if (currentProductIndex === -1 && products.length > 0) {
       setCurrentProductIndex(0);
@@ -449,7 +525,7 @@ function ProductMaster() {
         genericName: product.genericName || "",
         makeId: product.makeId,
         marketedBy: product.marketedBy || "",
-        mfcs: product.mfcs || [],
+        mfc: product.mfcs?.[0] || null, // Take first MFC or null
       });
     }
   };
@@ -462,20 +538,20 @@ function ProductMaster() {
   };
 
   const handleEdit = () => {
-  if (selectedProduct) {
-    setIsFormEnabled(true);
-    setIsEditMode(true);
-    setFormData({
-      productName: selectedProduct.productName,
-      productCode: selectedProduct.productCode,
-      genericName: selectedProduct.genericName || "",
-      makeId: selectedProduct.makeId,
-      marketedBy: selectedProduct.marketedBy || "",
-      mfcs: selectedProduct.mfcs || [],
-    });
-    setTimeout(() => inputRef.current?.focus(), 100);
-  }
-};
+    if (selectedProduct) {
+      setIsFormEnabled(true);
+      setIsEditMode(true);
+      setFormData({
+        productName: selectedProduct.productName,
+        productCode: selectedProduct.productCode,
+        genericName: selectedProduct.genericName || "",
+        makeId: selectedProduct.makeId,
+        marketedBy: selectedProduct.marketedBy || "",
+        mfc: selectedProduct.mfcs?.[0] || null, // Take first MFC or null
+      });
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  };
 
   const handleDelete = async () => {
     if (!selectedProduct) return;
@@ -499,6 +575,16 @@ function ProductMaster() {
 
       const data = await response.json();
       if (data.success) {
+        // Add success message for deletion
+        setSuccessMessage("Product deleted successfully!");
+        setShowNotification(true);
+        
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+          setShowNotification(false);
+          setSuccessMessage("");
+        }, 3000);
+
         await logAuditAction("DELETE", {
           productName: selectedProduct.productName,
           productCode: selectedProduct.productCode,
@@ -517,7 +603,7 @@ function ProductMaster() {
           genericName: "",
           makeId: "",
           marketedBy: "",
-          mfcs: [],
+          mfc: null,
         });
         setSelectedProduct(null);
         setCurrentProductIndex(-1);
@@ -615,7 +701,7 @@ function ProductMaster() {
             genericName: product.genericName || "",
             makeId: product.makeId,
             marketedBy: product.marketedBy || "",
-            mfcs: product.mfcs || [],
+            mfc: product.mfcs?.[0] || null, // Take first MFC or null
           });
           setSelectedProduct(product);
           setCurrentProductIndex(
@@ -664,7 +750,7 @@ function ProductMaster() {
             genericName: product.genericName || "",
             makeId: product.makeId,
             marketedBy: product.marketedBy || "",
-            mfcs: product.mfcs || [],
+            mfc: product.mfcs?.[0] || null, // Take first MFC or null
           });
           setSelectedProduct(product);
           setCurrentProductIndex(
@@ -747,6 +833,53 @@ function ProductMaster() {
               {error}
             </div>
           )}
+
+          {/* Notification Messages */}
+          {showNotification && (successMessage || infoMessage) && (
+            <div
+              className={`fixed top-4 right-4 z-50 px-6 py-4 rounded-lg shadow-lg border transition-all duration-300 ${
+                successMessage 
+                  ? "bg-[#e6ffe6] border-[#00cc00] text-[#008800]" 
+                  : "bg-[#e6f3ff] border-[#0066cc] text-[#004499]"
+              }`}
+              style={{
+                borderStyle: "solid",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              }}
+            >
+              <div className="flex items-center">
+                <div className="flex-shrink-0 mr-3">
+                  {successMessage ? (
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-sm">
+                    {successMessage || infoMessage}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowNotification(false);
+                    setSuccessMessage("");
+                    setInfoMessage("");
+                  }}
+                  className="flex-shrink-0 ml-4 text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
+
           <div
             className="bg-white rounded-lg shadow-md p-6 mb-6"
             style={{
@@ -821,7 +954,7 @@ function ProductMaster() {
                               genericName: product.genericName || "",
                               makeId: product.makeId,
                               marketedBy: product.marketedBy || "",
-                              mfcs: product.mfcs || [],
+                              mfc: product.mfcs?.[0] || null, // Take first MFC or null
                             });
                             setSelectedProduct(product);
                             setCurrentProductIndex(
@@ -947,39 +1080,27 @@ function ProductMaster() {
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Select MFC
-                </label>
-                <select
-                  multiple
-                  value={formData.mfcs}
-                  disabled={!isFormEnabled}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      mfcs: Array.from(
-                        e.target.selectedOptions,
-                        (option) => option.value
-                      ),
-                    })
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Select MFC
+                  </label>
+                  {formData.mfc && (
+                    <span className="text-xs text-green-600 flex items-center">
+                      <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      MFC Linked
+                    </span>
+                  )}
+                </div>
+                <MFCSelector
+                  selectedMFC={formData.mfc}
+                  onChange={(selectedMFC) =>
+                    setFormData({ ...formData, mfc: selectedMFC })
                   }
-                  className={`w-full px-3 py-2 border border-[#a6c8ff] rounded focus:ring-2 focus:ring-[#66a3ff] focus:outline-none ${
-                    isFormEnabled ? "bg-white" : "bg-[#f0f0f0]"
-                  }`}
-                  style={{
-                    borderStyle: "inset",
-                    boxShadow: isFormEnabled
-                      ? "inset 1px 1px 2px rgba(0,0,0,0.1)"
-                      : "none",
-                  }}
-                >
-                  {mfcs.map((mfc) => (
-                    <option key={mfc._id} value={mfc._id}>
-                      {mfc.mfcNumber}{" "}
-                      {/* Should display e.g., "MFC/H/DBF121.01" */}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Select MFC record..."
+                  disabled={!isFormEnabled}
+                />
               </div>
             </div>
 
@@ -1079,7 +1200,7 @@ function ProductMaster() {
                               genericName: product.genericName || "",
                               makeId: product.makeId,
                               marketedBy: product.marketedBy || "",
-                              mfcs: product.mfcs || [],
+                              mfc: product.mfcs?.[0] || null, // Take first MFC or null
                             });
                           }
                         }}
@@ -1186,7 +1307,7 @@ function ProductMaster() {
                         genericName: product.genericName || "",
                         makeId: product.makeId,
                         marketedBy: product.marketedBy || "",
-                        mfcs: product.mfcs || [],
+                        mfc: product.mfcs?.[0] || null, // Take first MFC or null
                       });
                       setSelectedProduct(product);
                       setCurrentProductIndex(
@@ -1599,6 +1720,7 @@ function ProductMaster() {
                   </li>
                   <li>• Use arrow keys in search modal for quick navigation</li>
                   <li>• All actions are logged in audit trail</li>
+                  <li>• MFC records sync automatically when updated</li>
                   <li>• Contact support at support@company.com for issues</li>
                 </ul>
               </div>

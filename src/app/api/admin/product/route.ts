@@ -9,6 +9,50 @@ import {
   broadcastMasterDataUpdate,
   broadcastMasterDataDelete 
 } from "@/lib/sse";
+import MFCMaster from '@/models/MFCMaster';
+
+async function syncProductMFCRelationship(
+  productId: string,
+  newMfcIds: string[],
+  oldMfcIds: string[] = [],
+  companyId: string,
+  locationId: string
+) {
+  try {
+    // Remove product from MFCs that are no longer associated
+    const mfcsToRemove = oldMfcIds.filter(id => !newMfcIds.includes(id));
+    if (mfcsToRemove.length > 0) {
+      await MFCMaster.updateMany(
+        {
+          _id: { $in: mfcsToRemove },
+          companyId,
+          locationId
+        },
+        {
+          $pull: { productIds: productId }
+        }
+      );
+    }
+
+    // Add product to new MFCs
+    const mfcsToAdd = newMfcIds.filter(id => !oldMfcIds.includes(id));
+    if (mfcsToAdd.length > 0) {
+      await MFCMaster.updateMany(
+        {
+          _id: { $in: mfcsToAdd },
+          companyId,
+          locationId
+        },
+        {
+          $addToSet: { productIds: productId }
+        }
+      );
+    }
+  } catch (error) {
+    console.error('Error syncing product-MFC relationship:', error);
+    throw error;
+  }
+}
 
 // Helper function to validate Product data
 function validateProductData(data: any) {
@@ -107,6 +151,17 @@ export async function POST(request: NextRequest) {
     
     const savedProduct = await newProduct.save();
 
+    // Sync with MFC Master
+    if (mfcs && mfcs.length > 0) {
+      await syncProductMFCRelationship(
+        savedProduct._id.toString(),
+        mfcs,
+        [],
+        companyId,
+        locationId
+      );
+    }
+
     // Broadcast the create event to SSE clients
     broadcastMasterDataCreate(
       "products",
@@ -118,7 +173,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: savedProduct,
-      message: "Product created successfully",
+      message: "Product created successfully and synced with MFC records",
     });
   } catch (error: any) {
     console.error("Create product error:", error);
@@ -129,46 +184,8 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
 
-    const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get("companyId");
-    const locationId = searchParams.get("locationId");
-
-    if (!companyId || !locationId) {
-      return NextResponse.json(
-        { success: false, error: "Company ID and Location ID are required" },
-        { status: 400 }
-      );
-    }
-
-    await connectDB();
-
-    const products = await Product.find({ companyId, locationId })
-      .sort({ productName: 1 })
-      .lean();
-
-    return NextResponse.json({
-      success: true,
-      data: products,
-    });
-  } catch (error: any) {
-    console.error("Fetch products error:", error);
-    return NextResponse.json(
-      { success: false, error: error.message || "Internal server error" },
-      { status: 500 }
-    );
-  }
-}
-
+// Updated PUT function
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -271,6 +288,18 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Sync with MFC Master - compare old and new MFC associations
+    const oldMfcIds = existingProduct.mfcs || [];
+    const newMfcIds = mfcs || [];
+    
+    await syncProductMFCRelationship(
+      id,
+      newMfcIds,
+      oldMfcIds,
+      companyId,
+      locationId
+    );
+
     // Broadcast the update event to SSE clients
     broadcastMasterDataUpdate(
       "products",
@@ -282,7 +311,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: updatedProduct,
-      message: "Product updated successfully",
+      message: "Product updated successfully and synced with MFC records",
     });
   } catch (error: any) {
     console.error("Update product error:", error);
@@ -293,6 +322,7 @@ export async function PUT(request: NextRequest) {
   }
 }
 
+// Updated DELETE function
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -315,13 +345,27 @@ export async function DELETE(request: NextRequest) {
 
     await connectDB();
 
-    // Get the product before deleting for broadcasting
+    // Get the product before deleting for broadcasting and cleanup
     const productToDelete = await Product.findById(id);
 
     if (!productToDelete) {
       return NextResponse.json(
         { success: false, error: "Product not found" },
         { status: 404 }
+      );
+    }
+
+    // Remove product from associated MFCs
+    if (productToDelete.mfcs && productToDelete.mfcs.length > 0) {
+      await MFCMaster.updateMany(
+        {
+          _id: { $in: productToDelete.mfcs },
+          companyId: productToDelete.companyId,
+          locationId: productToDelete.locationId
+        },
+        {
+          $pull: { productIds: id }
+        }
       );
     }
 
@@ -345,7 +389,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Product deleted successfully",
+      message: "Product deleted successfully and removed from MFC records",
       data: deletedProduct,
     });
   } catch (error: any) {
@@ -356,3 +400,44 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const companyId = searchParams.get("companyId");
+    const locationId = searchParams.get("locationId");
+
+    if (!companyId || !locationId) {
+      return NextResponse.json(
+        { success: false, error: "Company ID and Location ID are required" },
+        { status: 400 }
+      );
+    }
+
+    await connectDB();
+
+    const products = await Product.find({ companyId, locationId })
+      .sort({ productName: 1 })
+      .lean();
+
+    return NextResponse.json({
+      success: true,
+      data: products,
+    });
+  } catch (error: any) {
+    console.error("Fetch products error:", error);
+    return NextResponse.json(
+      { success: false, error: error.message || "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+

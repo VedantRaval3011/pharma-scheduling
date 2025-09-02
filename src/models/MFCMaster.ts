@@ -2,9 +2,9 @@ import mongoose, { Schema, Document, Types } from 'mongoose';
 
 export interface ITestType {
   testTypeId: string;
-  selectMakeSpecific: boolean;   // ✅ Added before columnCode
+  selectMakeSpecific: boolean;
   columnCode: string;
-  mobilePhaseCodes: string[];
+  mobilePhaseCodes: string[];  // Array of exactly 6 strings (can be empty)
   detectorTypeId: string;
   pharmacopoeialId: string;
   sampleInjection: number;
@@ -15,10 +15,10 @@ export interface ITestType {
   runTime: number;
   washTime: number;
   testApplicability: boolean;
-  numberOfInjections?: number;       // ✅ General number of injections
-  numberOfInjectionsAMV?: number;    // ✅ Specific for AMV
-  numberOfInjectionsPV?: number;     // ✅ Specific for PV
-  numberOfInjectionsCV?: number;     // ✅ Specific for CV
+  numberOfInjections?: number;
+  numberOfInjectionsAMV?: number;
+  numberOfInjectionsPV?: number;
+  numberOfInjectionsCV?: number;
   bulk: boolean;
   fp: boolean;
   stabilityPartial: boolean;
@@ -54,9 +54,22 @@ export interface IMFCMaster extends Document {
 
 const TestTypeSchema = new Schema<ITestType>({
   testTypeId: { type: String, required: true },
-  selectMakeSpecific: { type: Boolean, default: false },  // ✅ Added before columnCode
+  selectMakeSpecific: { type: Boolean, default: false },
   columnCode: { type: String, required: true },
-  mobilePhaseCodes: [{ type: String, required: true }],
+  // FIXED: Allow empty strings in the array, validate length and first element at application level
+ mobilePhaseCodes: {
+  type: [String],
+  default: ["", "", "", "", "", ""],
+  validate: {
+    validator: function (arr: string[]): boolean {
+      if (arr.length !== 6) return false;
+      return !!arr[0] && arr[0].trim() !== "";
+    },
+    message:
+      "Mobile phase codes must have exactly 6 elements with MP01 (first element) required",
+  },
+},
+
   detectorTypeId: { type: String, required: true },
   pharmacopoeialId: { type: String, required: true },
   sampleInjection: { type: Number, default: 0 },
@@ -65,12 +78,12 @@ const TestTypeSchema = new Schema<ITestType>({
   bracketingFrequency: { type: Number, default: 0 },
   injectionTime: { type: Number, default: 0 },
   runTime: { type: Number, default: 0 },
-  washTime: { type: Number, default: 0 },   // ✅ Already added after runTime
+  washTime: { type: Number, default: 0 },
   testApplicability: { type: Boolean, default: false },
-  numberOfInjections: { type: Number, default: 0 },       // ✅ General
-  numberOfInjectionsAMV: { type: Number, default: 0 },    // ✅ For AMV
-  numberOfInjectionsPV: { type: Number, default: 0 },     // ✅ For PV
-  numberOfInjectionsCV: { type: Number, default: 0 },     // ✅ For CV
+  numberOfInjections: { type: Number, default: 0 },
+  numberOfInjectionsAMV: { type: Number, default: 0 },
+  numberOfInjectionsPV: { type: Number, default: 0 },
+  numberOfInjectionsCV: { type: Number, default: 0 },
   bulk: { type: Boolean, default: false },
   fp: { type: Boolean, default: false },
   stabilityPartial: { type: Boolean, default: false },

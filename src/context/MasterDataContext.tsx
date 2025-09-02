@@ -75,7 +75,6 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
     try {
       const companyId = localStorage.getItem("companyId");
       const locationId = localStorage.getItem("locationId");
-      console.log('Storage IDs:', { companyId, locationId }); // Debug log
       return { companyId, locationId };
     } catch (error) {
       console.error('Error accessing localStorage:', error);
@@ -91,7 +90,6 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
       const cachedData = localStorage.getItem(STORAGE_KEYS.MASTER_DATA);
       const lastUpdated = localStorage.getItem(STORAGE_KEYS.LAST_UPDATED);
       
-      console.log('Loading from cache:', { cachedData: !!cachedData, lastUpdated }); // Debug log
       
       if (!cachedData || !lastUpdated) return false;
       
@@ -134,7 +132,6 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
         columns: data.columns || [],
       };
       
-      console.log('Saving to cache:', dataToCache); // Debug log
       localStorage.setItem(STORAGE_KEYS.MASTER_DATA, JSON.stringify(dataToCache));
       localStorage.setItem(STORAGE_KEYS.LAST_UPDATED, Date.now().toString());
     } catch (error) {
@@ -145,7 +142,6 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
   // Fetch master data from bulk API
   const fetchMasterData = async (): Promise<void> => {
     try {
-      console.log('Starting to fetch master data...'); // Debug log
       setState(prev => ({ ...prev, isLoading: true, error: null }));
 
       const { companyId, locationId } = getStorageIds();
@@ -163,10 +159,8 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
 
       const params = new URLSearchParams({ companyId, locationId });
       const url = `/api/master-data/bulk?${params}`;
-      console.log('Fetching from URL:', url); // Debug log
       
       const response = await fetch(url);
-      console.log('Response status:', response.status); // Debug log
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -175,7 +169,6 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
       }
 
       const apiResponse = await response.json();
-      console.log('API Response:', apiResponse); // Debug log
       
       // ✅ FIXED: Correct data access pattern
       const responseData = apiResponse.data || apiResponse;
@@ -192,7 +185,6 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
         lastUpdated: new Date().toISOString(),
       };
 
-      console.log('New state:', newState); // Debug log
       setState(prev => ({ ...prev, ...newState }));
       saveToCache(newState);
       
@@ -213,7 +205,6 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
       value: item._id,
       label: item.api || item.name || 'Unknown API'
     }));
-    console.log('API Options:', options); // Debug log
     return options;
   };
 
@@ -222,7 +213,6 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
       value: item._id,
       label: item.department || item.name || 'Unknown Department'
     }));
-    console.log('Department Options:', options); // Debug log
     return options;
   };
 
@@ -231,7 +221,6 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
       value: item._id,
       label: item.testType || item.name || 'Unknown Test Type'
     }));
-    console.log('Test Type Options:', options); // Debug log
     return options;
   };
 
@@ -240,7 +229,6 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
       value: item._id,
       label: item.detectorType || item.name || 'Unknown Detector Type'
     }));
-    console.log('Detector Type Options:', options); // Debug log
     return options;
   };
 
@@ -249,7 +237,6 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
       value: item._id,
       label: item.pharmacopeial || item.name || 'Unknown Pharmacopoeial'
     }));
-    console.log('Pharmacopoeial Options:', options); // Debug log
     return options;
   };
 
@@ -258,14 +245,12 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
       value: item._id,
       label: item.columnCode || item.name || 'Unknown Column'
     }));
-    console.log('Column Options:', options); // Debug log
     return options;
   };
 
   // Initialize data loading
   useEffect(() => {
     const initializeData = async () => {
-      console.log('Initializing master data...'); // Debug log
       
       // Only proceed if we're on the client side
       if (typeof window === "undefined") return;
@@ -277,11 +262,9 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
       const cacheLoaded = loadFromCache();
       
       if (!cacheLoaded) {
-        console.log('No cache found, fetching from API...'); // Debug log
         // No cache, fetch from API
         await fetchMasterData();
       } else {
-        console.log('Cache loaded, refreshing in background...'); // Debug log
         // Cache loaded, fetch in background to refresh
         setTimeout(() => {
           fetchMasterData();

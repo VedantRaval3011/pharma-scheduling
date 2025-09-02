@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 interface IColumnDescription {
+  descriptionId: mongoose.Types.ObjectId; // ✅ Unique per description
   prefixId?: mongoose.Types.ObjectId;
   carbonType: string;
   linkedCarbonType: string;
@@ -26,6 +27,7 @@ interface IColumn extends Document {
 }
 
 const ColumnDescriptionSchema = new Schema({
+  descriptionId: { type: mongoose.Schema.Types.ObjectId, required: true }, // ✅ new field
   prefixId: { type: mongoose.Schema.Types.ObjectId, ref: 'PrefixSuffix', required: false },
   carbonType: { type: String, required: true, trim: true },
   linkedCarbonType: { type: String, required: false, default: '', trim: true },
@@ -41,14 +43,13 @@ const ColumnDescriptionSchema = new Schema({
   usePrefixForNewCode: { type: Boolean, default: false },
   useSuffixForNewCode: { type: Boolean, default: false },
   isObsolete: { type: Boolean, default: false },
-}, { _id: false });
+}, { _id: false }); // still no auto _id, we manage descriptionId ourselves
 
 const ColumnSchema = new Schema({
   columnCode: {
     type: String,
     required: true,
     trim: true,
-    // REMOVED: unique: true - this was causing the issue
   },
   descriptions: {
     type: [ColumnDescriptionSchema],
@@ -68,53 +69,47 @@ const ColumnSchema = new Schema({
   toObject: { virtuals: true }
 });
 
-// Create a NON-UNIQUE compound index for better query performance
-// This allows multiple documents with the same columnCode + companyId + locationId combination
+// Index
 ColumnSchema.index({ columnCode: 1, companyId: 1, locationId: 1 }, { unique: false });
 
-// You might want to add a unique index on a different combination if needed
-// For example, if each description should have a unique columnId within a column:
-// ColumnSchema.index({ columnCode: 1, companyId: 1, locationId: 1, 'descriptions.columnId': 1 }, { unique: true });
-
+// Pre-save hook
 ColumnSchema.pre('save', function (next) {
   if (this.columnCode) {
     this.columnCode = this.columnCode.trim();
   }
 
   if (!this.descriptions || this.descriptions.length === 0) {
-    next(new Error('At least one description is required'));
-    return;
+    return next(new Error('At least one description is required'));
   }
 
   for (let i = 0; i < this.descriptions.length; i++) {
     const desc = this.descriptions[i];
+
+    // ✅ Assign unique descriptionId if missing
+    if (!desc.descriptionId) {
+      desc.descriptionId = new mongoose.Types.ObjectId();
+    }
+
     if (!desc.carbonType || desc.carbonType.trim() === '') {
-      next(new Error(`Carbon Type is required for description ${i + 1}`));
-      return;
+      return next(new Error(`Carbon Type is required for description ${i + 1}`));
     }
     if (!desc.makeId) {
-      next(new Error(`Make is required for description ${i + 1}`));
-      return;
+      return next(new Error(`Make is required for description ${i + 1}`));
     }
     if (!desc.columnId || desc.columnId.trim() === '') {
-      next(new Error(`Column ID is required for description ${i + 1}`));
-      return;
+      return next(new Error(`Column ID is required for description ${i + 1}`));
     }
     if (!desc.installationDate) {
-      next(new Error(`Installation Date is required for description ${i + 1}`));
-      return;
+      return next(new Error(`Installation Date is required for description ${i + 1}`));
     }
     if (isNaN(desc.innerDiameter) || desc.innerDiameter < 0) {
-      next(new Error(`Invalid inner diameter for description ${i + 1}`));
-      return;
+      return next(new Error(`Invalid inner diameter for description ${i + 1}`));
     }
     if (isNaN(desc.length) || desc.length < 0) {
-      next(new Error(`Invalid length for description ${i + 1}`));
-      return;
+      return next(new Error(`Invalid length for description ${i + 1}`));
     }
     if (isNaN(desc.particleSize) || desc.particleSize < 0) {
-      next(new Error(`Invalid particle size for description ${i + 1}`));
-      return;
+      return next(new Error(`Invalid particle size for description ${i + 1}`));
     }
   }
 

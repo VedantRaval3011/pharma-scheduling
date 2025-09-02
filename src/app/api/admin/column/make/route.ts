@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import Make from '@/models/make';
+import { PrefixSuffix } from '@/models/PrefixSuffix';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import Pusher from 'pusher';

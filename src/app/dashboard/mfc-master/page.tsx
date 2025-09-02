@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, JSX } from "react";
+import React, { useState, useEffect, JSX, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import WindowsToolbar from "@/components/layout/ToolBox";
@@ -115,6 +115,12 @@ const MFCMasterPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [apis, setApis] = useState<MasterItem[]>([]);
+  const [columnDisplayTexts, setColumnDisplayTexts] = useState<{
+    [key: string]: string;
+  }>({});
+  const [fetchingColumnTexts, setFetchingColumnTexts] = useState<Set<string>>(
+    new Set()
+  );
 
   // Get company and location IDs from localStorage
   const getStorageIds = () => {
@@ -124,6 +130,143 @@ const MFCMasterPage: React.FC = () => {
     const locationId = localStorage.getItem("locationId");
     return { companyId, locationId };
   };
+
+  const fetchColumnDisplayText = async (columnId: string): Promise<string> => {
+    console.log("🔍 fetchColumnDisplayText called with columnId:", columnId);
+
+    try {
+      const locationId = getStorageIds().locationId;
+      const companyId = getStorageIds().companyId;
+
+      console.log("🔍 Storage IDs:", { locationId, companyId });
+
+      if (!locationId || !companyId) {
+        console.error("❌ Missing locationId or companyId");
+        return columnId;
+      }
+
+      const url = `/api/admin/column/desc?descriptionId=${columnId}&locationId=${locationId}&companyId=${companyId}`;
+      console.log("🔍 Fetching URL:", url);
+
+      const response = await fetch(url);
+      console.log("🔍 Response status:", response.status);
+
+      if (!response.ok) {
+        console.error(
+          "❌ API response not ok:",
+          response.status,
+          response.statusText
+        );
+        return columnId;
+      }
+
+      const data = await response.json();
+      console.log("🔍 Response data:", data);
+
+      if (data.success && data.data) {
+        const {
+          prefixId,
+          carbonType,
+          innerDiameter,
+          length,
+          particleSize,
+          suffixId,
+          makeId,
+        } = data.data;
+
+        console.log("🔍 Extracted data:", {
+          prefixId: prefixId?.name,
+          carbonType,
+          innerDiameter,
+          length,
+          particleSize,
+          suffixId: suffixId?.name,
+          makeId: makeId?.make,
+        });
+
+        // Build display text in the format: ${prefix} ${carbonType} ${innerDiameter} x ${length} ${particleSize}µm ${suffix}-{desc.make}
+        const prefix = prefixId?.name || "";
+        const suffix = suffixId?.name || "";
+        const make = makeId?.make || "";
+
+        let displayText = "";
+
+        // Add prefix if exists
+        if (prefix) {
+          displayText += `${prefix} `;
+        }
+
+        // Add carbon type, dimensions, and particle size
+        displayText += `${carbonType} ${innerDiameter} x ${length} ${particleSize}µm`;
+
+        // Add suffix if exists
+        if (suffix) {
+          displayText += ` ${suffix}`;
+        }
+
+        // Add make
+        if (make) {
+          displayText += `-${make}`;
+        }
+
+        const finalDisplayText = displayText.trim();
+        console.log("✅ Final display text:", finalDisplayText);
+        return finalDisplayText;
+      } else {
+        console.error("❌ API response not successful or no data:", data);
+      }
+    } catch (error) {
+      console.error("❌ Error fetching column details:", error);
+    }
+
+    console.log("⚠️ Fallback to columnId:", columnId);
+    return columnId; // Fallback to columnId
+  };
+
+  const getColumnDisplayText = useMemo(() => {
+    return (columnId: string) => {
+      if (!columnId) return "";
+
+      // First, try to find the column in the lookup data
+      const columnMatch = columns.find(
+        (item) => item.value === columnId || item._id === columnId
+      );
+
+      // If we have a simple column code (like CL01, CL02), use it directly
+      if (columnMatch && columnMatch.columnCode) {
+        return columnMatch.columnCode;
+      }
+
+      // If we already have fetched the make-specific display text, return it
+      if (columnDisplayTexts[columnId]) {
+        return columnDisplayTexts[columnId];
+      }
+
+      // If we're currently fetching this column, return a temporary display
+      if (fetchingColumnTexts.has(columnId)) {
+        return columnMatch?.label || "Loading...";
+      }
+
+      // If no simple column code exists, this might be a make-specific column
+      // Start fetching make-specific details
+      setFetchingColumnTexts((prev) => new Set(prev).add(columnId));
+
+      fetchColumnDisplayText(columnId).then((displayText) => {
+        setColumnDisplayTexts((prev) => ({
+          ...prev,
+          [columnId]: displayText,
+        }));
+        setFetchingColumnTexts((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(columnId);
+          return newSet;
+        });
+      });
+
+      // While fetching, return the best fallback available
+      return columnMatch?.label || columnId;
+    };
+  }, [columnDisplayTexts, fetchingColumnTexts, columns]);
 
   // Normalize API response to {value, label} format
   const normalizeToMasterFormat = (data: any[]): MasterItem[] => {
@@ -268,7 +411,6 @@ const MFCMasterPage: React.FC = () => {
           const apiData = await apiRes.json();
           console.log("=== API DATA FETCHED ===");
           console.log("API response:", apiData);
-
           setApis(normalizeToMasterFormat(apiData.data || []));
         } else {
           console.error("Failed to fetch API data:", apiRes.status);
@@ -301,6 +443,7 @@ const MFCMasterPage: React.FC = () => {
       console.log("APIs lookup data:", apis.slice(0, 3));
     }
   }, [mfcRecords, apis]);
+  
   const renderCreateData = (audit: AuditRecord) => (
     <div className="bg-green-50 p-3">
       <h5 className="font-medium text-green-800 mb-2">Created Record:</h5>
@@ -541,12 +684,17 @@ const MFCMasterPage: React.FC = () => {
         locationId,
         page: page.toString(),
         limit: "10",
-        search: search.trim(),
         populate: "true", // Request populated data
       });
 
+      // Only add search parameter if search term is provided
+      if (search.trim()) {
+        params.append("search", search.trim());
+      }
+
       console.log("=== FETCHING MFC RECORDS ===");
       console.log("Request URL:", `/api/admin/mfc?${params}`);
+      console.log("Search term:", search);
 
       const response = await fetch(`/api/admin/mfc?${params}`);
       const data = await response.json();
@@ -906,6 +1054,7 @@ const MFCMasterPage: React.FC = () => {
     }
   };
 
+  // Fixed search handler - opens modal
   const handleSearch = () => {
     setShowSearchModal(true);
   };
@@ -929,15 +1078,17 @@ const MFCMasterPage: React.FC = () => {
     setShowHelpModal(true);
   };
 
-  // Handle search
+  // Fixed search submit handler - works in modal
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("🔍 Search submitted with term:", searchTerm);
     fetchMFCRecords(1, searchTerm);
     setShowSearchModal(false);
   };
 
-  // Handle clear search
+  // Fixed clear search handler
   const handleClearSearch = () => {
+    console.log("🔍 Clearing search");
     setSearchTerm("");
     fetchMFCRecords(1, "");
     setShowSearchModal(false);
@@ -950,7 +1101,6 @@ const MFCMasterPage: React.FC = () => {
     }
   };
 
-  // Format audit change display
   // Format audit change display - improved version
   const formatChangeValue = (value: any, fieldName?: string) => {
     if (value === null || value === undefined) return "N/A";
@@ -1247,51 +1397,24 @@ const MFCMasterPage: React.FC = () => {
               </div>
             )}
 
-            <div className="px-6 py-4 border-b border-gray-300 bg-gray-50">
-              <form onSubmit={handleSearchSubmit} className="flex gap-4">
-                <div className="flex-1">
-                  <input
-                    type="text"
-                    placeholder="Search by MFC Number, Generic Name, API Name, Column Code, or Product Code..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    disabled={isLoading}
-                    className="w-full px-3 py-2 border border-gray-400 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:bg-gray-100"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="bg-gray-600 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded border border-gray-500"
-                >
-                  Search
-                </button>
-                <button
-                  type="button"
-                  onClick={handleClearSearch}
-                  disabled={isLoading}
-                  className="bg-gray-400 hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded border border-gray-400"
-                >
-                  Clear
-                </button>
-              </form>
-
-              {!isLoading && !errorMessage && (
-                <div className="mt-3 text-sm text-gray-600">
-                  {searchTerm ? (
-                    <span>
-                      Found {pagination.total} results for "{searchTerm}"
-                    </span>
-                  ) : (
-                    <span>Showing {pagination.total} total records</span>
-                  )}
-                  {lookupLoading && (
-                    <span className="ml-4 text-orange-600">
-                      • Loading lookup data...
-                    </span>
-                  )}
-                </div>
-              )}
+            {/* Removed the top search input section completely */}
+            
+            {/* Status bar showing records count */}
+            <div className="px-6 py-3 border-b border-gray-300 bg-gray-50">
+              <div className="text-sm text-gray-600">
+                {searchTerm ? (
+                  <span>
+                    Found {pagination.total} results for "{searchTerm}"
+                  </span>
+                ) : (
+                  <span>Showing {pagination.total} total records</span>
+                )}
+                {lookupLoading && (
+                  <span className="ml-4 text-orange-600">
+                    • Loading lookup data...
+                  </span>
+                )}
+              </div>
             </div>
 
             {(isLoading || lookupLoading) && (
@@ -1349,7 +1472,7 @@ const MFCMasterPage: React.FC = () => {
                         Column
                       </th>
                       <th
-                        colSpan={4}
+                        colSpan={6}
                         className="px-2 py-2 text-center font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
                       >
                         Mobile Phase
@@ -1400,6 +1523,24 @@ const MFCMasterPage: React.FC = () => {
                         rowSpan={2}
                         className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
                       >
+                        AMV Inj
+                      </th>
+                      <th
+                        rowSpan={2}
+                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                      >
+                        PV Inj
+                      </th>
+                      <th
+                        rowSpan={2}
+                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                      >
+                        CV Inj
+                      </th>
+                      <th
+                        rowSpan={2}
+                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                      >
                         Flags
                       </th>
                     </tr>
@@ -1416,6 +1557,12 @@ const MFCMasterPage: React.FC = () => {
                       <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-gray-50">
                         MP4
                       </th>
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-gray-50">
+                        Wash1
+                      </th>
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-gray-50">
+                        Wash2
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -1426,231 +1573,308 @@ const MFCMasterPage: React.FC = () => {
                         mfcRecords.forEach((record, recordIndex) => {
                           record.generics?.forEach((generic, genericIndex) => {
                             generic.apis?.forEach((api, apiIndex) => {
-                              api.testTypes?.forEach(
-                                (testType, testTypeIndex) => {
-                                  const isFirstRowForRecord =
-                                    genericIndex === 0 &&
-                                    apiIndex === 0 &&
-                                    testTypeIndex === 0;
-                                  const isFirstRowForGeneric =
-                                    apiIndex === 0 && testTypeIndex === 0;
-                                  const isFirstRowForApi = testTypeIndex === 0;
+                              api.testTypes?.forEach((testType, testTypeIndex) => {
+                                const isFirstRowForRecord = genericIndex === 0 && apiIndex === 0 && testTypeIndex === 0;
+                                const isFirstRowForGeneric = apiIndex === 0 && testTypeIndex === 0;
+                                const isFirstRowForApi = testTypeIndex === 0;
 
-                                  const totalTestTypesInRecord =
-                                    record.generics?.reduce(
-                                      (total, g) =>
-                                        total +
-                                        (g.apis?.reduce(
-                                          (apiTotal, a) =>
-                                            apiTotal +
-                                            (a.testTypes?.length || 0),
-                                          0
-                                        ) || 0),
+                                const totalTestTypesInRecord = record.generics?.reduce(
+                                  (total, g) =>
+                                    total +
+                                    (g.apis?.reduce(
+                                      (apiTotal, a) => apiTotal + (a.testTypes?.length || 0),
                                       0
-                                    ) || 1;
-                                  const totalTestTypesInGeneric =
-                                    generic.apis?.reduce(
-                                      (total, a) =>
-                                        total + (a.testTypes?.length || 0),
-                                      0
-                                    ) || 1;
-                                  const testTypesInApi =
-                                    api.testTypes?.length || 1;
+                                    ) || 0),
+                                  0
+                                ) || 1;
 
-                                  const productData =
-                                    getProductCodesForMFC(record);
+                                const totalTestTypesInGeneric = generic.apis?.reduce(
+                                  (total, a) => total + (a.testTypes?.length || 0),
+                                  0
+                                ) || 1;
 
-                                  tableRows.push(
-                                    <tr
-                                      key={`${recordIndex}-${genericIndex}-${apiIndex}-${testTypeIndex}`}
-                                      onClick={() => handleRowSelect(record)}
-                                      className={`cursor-pointer transition-colors hover:bg-gray-50 ${
-                                        selectedRecord?._id === record._id
-                                          ? "bg-blue-100"
-                                          : ""
-                                      }`}
-                                    >
-                                      {isFirstRowForRecord && (
-                                        <td
-                                          rowSpan={totalTestTypesInRecord}
-                                          className="px-2 py-2 border border-gray-300 font-mono text-xs font-medium bg-blue-50"
-                                        >
+                                const testTypesInApi = api.testTypes?.length || 1;
+                                const productData = getProductCodesForMFC(record);
+
+                                tableRows.push(
+                                  <tr
+                                    key={`${recordIndex}-${genericIndex}-${apiIndex}-${testTypeIndex}`}
+                                    onClick={() => handleRowSelect(record)}
+                                    className={`cursor-pointer transition-colors hover:bg-gray-50 ${
+                                      selectedRecord?._id === record._id
+                                        ? "bg-blue-100"
+                                        : ""
+                                    }`}
+                                  >
+                                    {/* MFC Number - spans all rows for this record */}
+                                    {isFirstRowForRecord && (
+                                      <td
+                                        rowSpan={totalTestTypesInRecord}
+                                        className="px-2 py-2 border border-gray-300 font-mono text-xs font-medium bg-blue-50"
+                                      >
+                                        <div className="text-center">
                                           {record.mfcNumber}
-                                        </td>
-                                      )}
-                                      {isFirstRowForRecord && (
-                                        <td
-                                          rowSpan={totalTestTypesInRecord}
-                                          className="px-2 py-2 border border-gray-300 text-xs bg-purple-50"
-                                          title={getProductCodeTooltip(
-                                            productData
-                                          )}
-                                        >
-                                          <div className="max-w-32">
-                                            {formatProductCodes(productData)}
-                                          </div>
-                                        </td>
-                                      )}
-
-                                      {isFirstRowForGeneric && (
-                                        <td
-                                          rowSpan={totalTestTypesInGeneric}
-                                          className="px-2 py-2 border border-gray-300 text-xs bg-green-50"
-                                        >
-                                          {generic.genericName}
-                                        </td>
-                                      )}
-
-                                      {isFirstRowForApi && (
-                                        <td
-                                          rowSpan={testTypesInApi}
-                                          className="px-2 py-2 border border-gray-300 ftext-xs bg-yellow-50"
-                                        >
-                                          {/* Use getApiName function with the apiName ID to lookup the actual name */}
-                                          {getApiName(api.apiName)}
-                                        </td>
-                                      )}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs">
-                                        <div className="font-medium text-gray-900">
-                                          {getTestTypeName(testType.testTypeId)}
                                         </div>
                                       </td>
+                                    )}
 
-                                      <td className="px-2 py-2 border border-gray-300 text-xs">
-                                        <div className="font-medium text-gray-900">
-                                          {getColumnName(testType.columnCode) ||
-                                            testType.columnCode}
+                                    {/* Product Codes - show all products in one cell, spans all rows for this record */}
+                                    {isFirstRowForRecord && (
+                                      <td
+                                        rowSpan={totalTestTypesInRecord}
+                                        className="px-2 py-2 border border-gray-300 text-xs bg-purple-50"
+                                        title={getProductCodeTooltip(
+                                          productData
+                                        )}
+                                      >
+                                        <div className="max-w-32">
+                                          {formatProductCodes(productData)}
                                         </div>
                                       </td>
+                                    )}
 
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                        {testType.mobilePhaseCodes?.[0] ? (
-                                          <div>
-                                            <div className="font-medium text-gray-900">
-                                              {getMobilePhaseName(
-                                                testType.mobilePhaseCodes[0]
-                                              )}
-                                            </div>
+                                    {/* Generic Name - spans all rows for this generic */}
+                                    {isFirstRowForGeneric && (
+                                      <td
+                                        rowSpan={totalTestTypesInGeneric}
+                                        className="px-2 py-2 border border-gray-300 text-xs font-medium bg-green-50"
+                                      >
+                                        {generic.genericName}
+                                      </td>
+                                    )}
+
+                                    {/* API Name - spans all rows for this api */}
+                                    {isFirstRowForApi && (
+                                      <td
+                                        rowSpan={testTypesInApi}
+                                        className="px-2 py-2 border border-gray-300 text-xs font-medium bg-yellow-50"
+                                      >
+                                        {getApiName(api.apiName)}
+                                      </td>
+                                    )}
+
+                                    {/* Test Type - one row per test type */}
+                                    <td className="px-2 py-2 border border-gray-300 text-xs">
+                                      <div className="font-medium text-gray-900">
+                                        {getTestTypeName(testType.testTypeId)}
+                                      </div>
+                                    </td>
+
+                                    {/* Column - one row per test type */}
+                                    <td className="px-2 py-2 border border-gray-300 text-xs">
+                                      <div className="font-medium text-gray-900">
+                                        {getColumnDisplayText(
+                                          testType.columnCode
+                                        ) || testType.columnCode}
+                                      </div>
+                                    </td>
+
+                                    {/* Mobile Phase columns - one row per test type */}
+                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                      {testType.mobilePhaseCodes?.[0] ? (
+                                        <div>
+                                          <div className="font-medium text-gray-900">
                                             {getMobilePhaseName(
                                               testType.mobilePhaseCodes[0]
-                                            ) !==
-                                              testType.mobilePhaseCodes[0] && (
-                                              <div className="text-gray-400 text-xs font-mono">
-                                                {testType.mobilePhaseCodes[0]}
-                                              </div>
                                             )}
                                           </div>
-                                        ) : (
-                                          "-"
-                                        )}
-                                      </td>
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                        {testType.mobilePhaseCodes?.[1] ? (
-                                          <div>
-                                            <div className="font-medium text-gray-900">
-                                              {getMobilePhaseName(
-                                                testType.mobilePhaseCodes[1]
-                                              )}
+                                          {getMobilePhaseName(
+                                            testType.mobilePhaseCodes[0]
+                                          ) !==
+                                            testType.mobilePhaseCodes[0] && (
+                                            <div className="text-gray-400 text-xs font-mono">
+                                              {testType.mobilePhaseCodes[0]}
                                             </div>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        "-"
+                                      )}
+                                    </td>
+
+                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                      {testType.mobilePhaseCodes?.[1] ? (
+                                        <div>
+                                          <div className="font-medium text-gray-900">
                                             {getMobilePhaseName(
                                               testType.mobilePhaseCodes[1]
-                                            ) !==
-                                              testType.mobilePhaseCodes[1] && (
-                                              <div className="text-gray-400 text-xs font-mono">
-                                                {testType.mobilePhaseCodes[1]}
-                                              </div>
                                             )}
                                           </div>
-                                        ) : (
-                                          "-"
-                                        )}
-                                      </td>
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                        {testType.mobilePhaseCodes?.[2] ? (
-                                          <div>
-                                            <div className="font-medium text-gray-900">
-                                              {getMobilePhaseName(
-                                                testType.mobilePhaseCodes[2]
-                                              )}
+                                          {getMobilePhaseName(
+                                            testType.mobilePhaseCodes[1]
+                                          ) !==
+                                            testType.mobilePhaseCodes[1] && (
+                                            <div className="text-gray-400 text-xs font-mono">
+                                              {testType.mobilePhaseCodes[1]}
                                             </div>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        "-"
+                                      )}
+                                    </td>
+
+                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                      {testType.mobilePhaseCodes?.[2] ? (
+                                        <div>
+                                          <div className="font-medium text-gray-900">
                                             {getMobilePhaseName(
                                               testType.mobilePhaseCodes[2]
-                                            ) !==
-                                              testType.mobilePhaseCodes[2] && (
-                                              <div className="text-gray-400 text-xs font-mono">
-                                                {testType.mobilePhaseCodes[2]}
-                                              </div>
                                             )}
                                           </div>
-                                        ) : (
-                                          "-"
-                                        )}
-                                      </td>
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                        {testType.mobilePhaseCodes?.[3] ? (
-                                          <div>
-                                            <div className="font-medium text-gray-900">
-                                              {getMobilePhaseName(
-                                                testType.mobilePhaseCodes[3]
-                                              )}
+                                          {getMobilePhaseName(
+                                            testType.mobilePhaseCodes[2]
+                                          ) !==
+                                            testType.mobilePhaseCodes[2] && (
+                                            <div className="text-gray-400 text-xs font-mono">
+                                              {testType.mobilePhaseCodes[2]}
                                             </div>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        "-"
+                                      )}
+                                    </td>
+
+                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                      {testType.mobilePhaseCodes?.[3] ? (
+                                        <div>
+                                          <div className="font-medium text-gray-900">
                                             {getMobilePhaseName(
                                               testType.mobilePhaseCodes[3]
-                                            ) !==
-                                              testType.mobilePhaseCodes[3] && (
-                                              <div className="text-gray-400 text-xs font-mono">
-                                                {testType.mobilePhaseCodes[3]}
-                                              </div>
                                             )}
                                           </div>
-                                        ) : (
-                                          "-"
+                                          {getMobilePhaseName(
+                                            testType.mobilePhaseCodes[3]
+                                          ) !==
+                                            testType.mobilePhaseCodes[3] && (
+                                            <div className="text-gray-400 text-xs font-mono">
+                                              {testType.mobilePhaseCodes[3]}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        "-"
+                                      )}
+                                    </td>
+
+                                    {/* NEW: Wash 1 column */}
+                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                      {testType.mobilePhaseCodes?.[4] ? (
+                                        <div>
+                                          <div className="font-medium text-gray-900">
+                                            {getMobilePhaseName(
+                                              testType.mobilePhaseCodes[4]
+                                            )}
+                                          </div>
+                                          {getMobilePhaseName(
+                                            testType.mobilePhaseCodes[4]
+                                          ) !==
+                                            testType.mobilePhaseCodes[4] && (
+                                            <div className="text-gray-400 text-xs font-mono">
+                                              {testType.mobilePhaseCodes[4]}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        "-"
+                                      )}
+                                    </td>
+
+                                    {/* NEW: Wash 2 column */}
+                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                      {testType.mobilePhaseCodes?.[5] ? (
+                                        <div>
+                                          <div className="font-medium text-gray-900">
+                                            {getMobilePhaseName(
+                                              testType.mobilePhaseCodes[5]
+                                            )}
+                                          </div>
+                                          {getMobilePhaseName(
+                                            testType.mobilePhaseCodes[5]
+                                          ) !==
+                                            testType.mobilePhaseCodes[5] && (
+                                            <div className="text-gray-400 text-xs font-mono">
+                                              {testType.mobilePhaseCodes[5]}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        "-"
+                                      )}
+                                    </td>
+
+                                    {/* Detector - one row per test type */}
+                                    <td className="px-2 py-2 border border-gray-300 text-xs">
+                                      <div className="font-medium text-gray-900">
+                                        {getDetectorTypeName(
+                                          testType.detectorTypeId
                                         )}
-                                      </td>
+                                      </div>
+                                    </td>
 
-                                      <td className="px-2 py-2 border border-gray-300 text-xs">
-                                        <div className="font-medium text-gray-900">
-                                          {getDetectorTypeName(
-                                            testType.detectorTypeId
-                                          )}
-                                        </div>
-                                      </td>
+                                    {/* Pharmacopoeial - one row per test type */}
+                                    <td className="px-2 py-2 border border-gray-300 text-xs">
+                                      <div className="font-medium text-gray-900">
+                                        {getPharmacopoeialsName(
+                                          testType.pharmacopoeialId
+                                        )}
+                                      </div>
+                                    </td>
 
-                                      <td className="px-2 py-2 border border-gray-300 text-xs">
-                                        <div className="font-medium text-gray-900">
-                                          {getPharmacopoeialsName(
-                                            testType.pharmacopoeialId
-                                          )}
-                                        </div>
-                                      </td>
+                                    {/* Sample Injection - one row per test type */}
+                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                      {testType.sampleInjection}
+                                    </td>
 
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                        {testType.sampleInjection}
-                                      </td>
+                                    {/* Standard Injection - one row per test type */}
+                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                      {testType.standardInjection}
+                                    </td>
 
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                        {testType.standardInjection}
-                                      </td>
+                                    {/* Blank Injection - one row per test type */}
+                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                      {testType.blankInjection}
+                                    </td>
 
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                        {testType.blankInjection}
-                                      </td>
+                                    {/* Run Time - one row per test type */}
+                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                      {testType.runTime}
+                                    </td>
 
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                        {testType.runTime}
-                                      </td>
+                                    {/* Wash Time - one row per test type */}
+                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                      {testType.washTime}
+                                    </td>
 
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                        {testType.washTime}
-                                      </td>
+                                    {/* NEW: AMV Injections */}
+                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                      {testType.amv
+                                        ? testType.numberOfInjectionsAMV || 0
+                                        : "-"}
+                                    </td>
 
-                                      <td className="px-2 py-2 border border-gray-300 text-xs">
-                                        {getTestTypeFlags(testType)}
-                                      </td>
-                                    </tr>
-                                  );
-                                }
-                              );
+                                    {/* NEW: PV Injections */}
+                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                      {testType.pv
+                                        ? testType.numberOfInjectionsPV || 0
+                                        : "-"}
+                                    </td>
+
+                                    {/* NEW: CV Injections */}
+                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                      {testType.cv
+                                        ? testType.numberOfInjectionsCV || 0
+                                        : "-"}
+                                    </td>
+
+                                    {/* Flags - one row per test type */}
+                                    <td className="px-2 py-2 border border-gray-300 text-xs">
+                                      {getTestTypeFlags(testType)}
+                                    </td>
+                                  </tr>
+                                );
+                              });
                             });
                           });
                         });
@@ -1660,7 +1884,7 @@ const MFCMasterPage: React.FC = () => {
                     ) : (
                       <tr>
                         <td
-                          colSpan={18}
+                          colSpan={19}
                           className="px-6 py-4 text-center text-gray-500 border border-gray-300"
                         >
                           No MFC records found
@@ -1699,7 +1923,7 @@ const MFCMasterPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Search Modal */}
+      {/* Search Modal - Fixed and working */}
       {showSearchModal && (
         <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] overflow-y-auto">
@@ -1713,21 +1937,24 @@ const MFCMasterPage: React.FC = () => {
                 <div className="flex gap-4">
                   <input
                     type="text"
-                    placeholder="Search by MFC Number, Generic Name, API Name, Column Code, or Product Code..."
+                    placeholder="Search by MFC Number, Generic Name..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    autoFocus
                   />
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                    disabled={isLoading}
+                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
                   >
-                    Search
+                    {isLoading ? "Searching..." : "Search"}
                   </button>
                   <button
                     type="button"
                     onClick={handleClearSearch}
-                    className="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500"
+                    disabled={isLoading}
+                    className="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500 disabled:opacity-50"
                   >
                     Clear
                   </button>
@@ -1740,6 +1967,21 @@ const MFCMasterPage: React.FC = () => {
                   </button>
                 </div>
               </form>
+              
+              {/* Show current search status */}
+              <div className="mb-4 text-sm text-gray-600">
+                {isLoading ? (
+                  "Searching..."
+                ) : (
+                  <>
+                    {searchTerm ? (
+                      `Found ${pagination.total} results for "${searchTerm}"`
+                    ) : (
+                      `Showing ${pagination.total} total records`
+                    )}
+                  </>
+                )}
+              </div>
 
               {isLoading ? (
                 <div className="flex justify-center items-center py-8">
@@ -1778,6 +2020,15 @@ const MFCMasterPage: React.FC = () => {
                       {mfcRecords.length > 0 ? (
                         mfcRecords.map((record, index) => {
                           const productCodes = getProductCodesForMFC(record);
+                          const apiCount = record.generics?.reduce((total, generic) => {
+                            return total + (generic.apis ? generic.apis.length : 0);
+                          }, 0) || 0;
+                          const testTypeCount = record.generics?.reduce((total, generic) => {
+                            return total + (generic.apis?.reduce((apiTotal, api) => {
+                              return apiTotal + (api.testTypes ? api.testTypes.length : 0);
+                            }, 0) || 0);
+                          }, 0) || 0;
+                          
                           return (
                             <tr
                               key={index}
@@ -1808,7 +2059,12 @@ const MFCMasterPage: React.FC = () => {
                               <td className="px-2 py-2 border border-gray-300 text-xs">
                                 {record.generics?.[0]?.genericName || "-"}
                               </td>
-
+                              <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                {apiCount}
+                              </td>
+                              <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                {testTypeCount}
+                              </td>
                               <td className="px-2 py-2 border border-gray-300 text-xs">
                                 {getDepartmentName(record.departmentId)}
                               </td>
@@ -1858,7 +2114,7 @@ const MFCMasterPage: React.FC = () => {
 
       {/* Audit Modal */}
       {showAuditModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[85vh] flex flex-col overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">

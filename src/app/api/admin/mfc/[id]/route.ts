@@ -1,3 +1,4 @@
+//api/admin/mfc/[id]
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import MFCMaster from '@/models/MFCMaster';
@@ -9,6 +10,49 @@ import Product from '@/models/product/product';
 import { createMFCAuditLog } from '@/lib/auditUtils';
 import { z } from 'zod';
 
+async function syncMFCProductRelationship(
+  mfcId: string,
+  newProductIds: string[],
+  oldProductIds: string[] = [],
+  companyId: string,
+  locationId: string
+) {
+  try {
+    // Remove MFC from products that are no longer associated
+    const productsToRemove = oldProductIds.filter(id => !newProductIds.includes(id));
+    if (productsToRemove.length > 0) {
+      await Product.updateMany(
+        {
+          _id: { $in: productsToRemove },
+          companyId,
+          locationId
+        },
+        {
+          $pull: { mfcs: mfcId }
+        }
+      );
+    }
+
+    // Add MFC to new products
+    const productsToAdd = newProductIds.filter(id => !oldProductIds.includes(id));
+    if (productsToAdd.length > 0) {
+      await Product.updateMany(
+        {
+          _id: { $in: productsToAdd },
+          companyId,
+          locationId
+        },
+        {
+          $addToSet: { mfcs: mfcId }
+        }
+      );
+    }
+  } catch (error) {
+    console.error('Error syncing MFC-Product relationship:', error);
+    throw error;
+  }
+}
+
 // Validation schema for TestType
 const testTypeSchema = z.object({
   testTypeId: z.string().min(1, { message: 'Test type ID is required' }),
@@ -16,10 +60,14 @@ const testTypeSchema = z.object({
   columnCode: z.string().min(1, { message: 'Column code is required' }),
   mobilePhaseCodes: z
     .array(z.string())
-    .transform(codes => codes.filter(code => code.trim() !== ''))
-    .refine(codes => codes.length >= 1, {
-      message: 'At least one mobile phase code is required',
-    }),
+    .length(6, { message: 'Must have exactly 6 mobile phase slots' }) // Ensure exactly 6 elements
+    .refine(
+      (codes) => {
+        // At least MP01 (index 0) must be filled
+        return codes[0] && codes[0].trim() !== "";
+      },
+      { message: 'MP01 (first mobile phase) is required' }
+    ),
   detectorTypeId: z.string().min(1, { message: 'Detector type ID is required' }),
   pharmacopoeialId: z.string().min(1, { message: 'Pharmacopoeial ID is required' }),
   sampleInjection: z.number().min(0).default(0),
@@ -47,13 +95,13 @@ const testTypeSchema = z.object({
   isLinked: z.boolean().default(false),
 });
 
-// Validation schema for updating single MFC record with productIds
+// Update the updateSingleMfcSchema
 const updateSingleMfcSchema = z.object({
   mfcNumber: z.string().min(1, { message: 'MFC number is required' }).optional(),
   productIds: z
     .array(z.string().min(1, { message: 'Product ID cannot be empty' }))
-    .min(1, { message: 'At least one product ID is required' })
-    .optional(),
+    .min(0, { message: 'Product IDs are optional' }) // Change from min(1) to min(0)
+    .optional(), // Make the entire field optional
   generics: z
     .array(
       z.object({
@@ -344,7 +392,8 @@ export async function PUT(
     const body = await request.json();
     const validatedData = updateSingleMfcSchema.parse(body);
 
-    if (validatedData.productIds) {
+    // Only validate product IDs if they are provided
+    if (validatedData.productIds && validatedData.productIds.length > 0) {
       validatedData.productIds = validatedData.productIds
         .map((productId: any) => safeProductIdToString(productId))
         .filter((id): id is string => id !== null);
@@ -422,6 +471,18 @@ export async function PUT(
       );
     }
 
+    // Sync with Product Master - handle empty arrays
+    const oldProductIds = oldMFC.productIds?.map((id: any) => safeProductIdToString(id)).filter((id: any): id is string => id !== null) || [];
+    const newProductIds = validatedData.productIds || [];
+    
+    await syncMFCProductRelationship(
+      id,
+      newProductIds,
+      oldProductIds,
+      companyId,
+      locationId
+    );
+
     await createMFCAuditLog({
       mfcId: updatedRecord._id.toString(),
       mfcNumber: updatedRecord.mfcNumber,
@@ -435,9 +496,13 @@ export async function PUT(
       userAgent: request.headers.get('user-agent') || 'unknown',
     });
 
+    const successMessage = newProductIds.length 
+      ? `MFC record updated successfully and synced with ${newProductIds.length} Product record(s)`
+      : 'MFC record updated successfully without product associations';
+
     return NextResponse.json({
       success: true,
-      message: 'MFC record updated successfully',
+      message: successMessage,
       data: updatedRecord,
     });
   } catch (error: any) {
@@ -491,6 +556,26 @@ export async function DELETE(
       );
     }
 
+    // Remove MFC from associated products before deleting
+    if (mfcToDelete.productIds && mfcToDelete.productIds.length > 0) {
+      const productIds = mfcToDelete.productIds
+        .map((id: any) => safeProductIdToString(id))
+        .filter((id: any): id is string => id !== null);
+
+      if (productIds.length > 0) {
+        await Product.updateMany(
+          {
+            _id: { $in: productIds },
+            companyId,
+            locationId
+          },
+          {
+            $pull: { mfcs: id }
+          }
+        );
+      }
+    }
+
     const deletedRecord = await MFCMaster.findOneAndDelete({
       _id: id,
       companyId,
@@ -518,7 +603,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: 'MFC record deleted successfully',
+      message: 'MFC record deleted successfully and removed from Product records',
     });
   } catch (error) {
     console.error('Error deleting MFC record:', error);

@@ -49,29 +49,87 @@ export async function GET(
     await mongoose.connect(process.env.MONGODB_URI!);
     console.log("Database connected successfully");
 
-    // First try to find in the regular Column collection
+    // First try to find in the regular Column collection with population
     let column = await Column.findOne({
       _id: id,
       companyId,
       locationId,
-    });
+    }).populate('descriptions.makeId', 'make description')
+      .populate('descriptions.prefixId', 'name')
+      .populate('descriptions.suffixId', 'name');
 
     let isObsolete = false;
 
     if (column) {
       console.log("Found column in regular table:", column.columnCode, "with", column.descriptions?.length || 0, "descriptions");
+      
+      // Ensure all descriptions have descriptionId
+      let needsUpdate = false;
+      const updatedDescriptions = column.descriptions.map((desc: any) => {
+        if (!desc.descriptionId) {
+          desc.descriptionId = new mongoose.Types.ObjectId();
+          needsUpdate = true;
+          console.log("Generated new descriptionId:", desc.descriptionId);
+        }
+        return desc;
+      });
+      
+      if (needsUpdate) {
+        column.descriptions = updatedDescriptions;
+        column.markModified('descriptions'); // Force Mongoose to recognize the change
+        await column.save();
+        console.log("Updated column with missing descriptionIds");
+        
+        // Refresh the column from database to ensure we have the saved version
+        column = await Column.findOne({
+          _id: id,
+          companyId,
+          locationId,
+        }).populate('descriptions.makeId', 'make description')
+          .populate('descriptions.prefixId', 'name')
+          .populate('descriptions.suffixId', 'name');
+      }
     } else {
-      // Try to find in ObsoleteColumn collection
+      // Try to find in ObsoleteColumn collection with population
       console.log("Column not found in regular table, checking obsolete table...");
       column = await ObsoleteColumn.findOne({
         _id: id,
         companyId,
         locationId,
-      });
+      }).populate('descriptions.makeId', 'make description')
+        .populate('descriptions.prefixId', 'name')
+        .populate('descriptions.suffixId', 'name');
 
       if (column) {
         console.log("Found column in obsolete table:", column.columnCode, "with", column.descriptions?.length || 0, "descriptions");
         isObsolete = true;
+        
+        // Ensure all descriptions have descriptionId for obsolete columns too
+        let needsUpdate = false;
+        const updatedDescriptions = column.descriptions.map((desc: any) => {
+          if (!desc.descriptionId) {
+            desc.descriptionId = new mongoose.Types.ObjectId();
+            needsUpdate = true;
+            console.log("Generated new descriptionId for obsolete:", desc.descriptionId);
+          }
+          return desc;
+        });
+        
+        if (needsUpdate) {
+          column.descriptions = updatedDescriptions;
+          column.markModified('descriptions'); // Force Mongoose to recognize the change
+          await column.save();
+          console.log("Updated obsolete column with missing descriptionIds");
+          
+          // Refresh the column from database to ensure we have the saved version
+          column = await ObsoleteColumn.findOne({
+            _id: id,
+            companyId,
+            locationId,
+          }).populate('descriptions.makeId', 'make description')
+            .populate('descriptions.prefixId', 'name')
+            .populate('descriptions.suffixId', 'name');
+        }
       }
     }
 

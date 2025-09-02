@@ -4,15 +4,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 
 interface ColumnDescription {
-  _id: string;
-  prefixId: string | null;  // Changed from prefix to prefixId
-  suffixId: string | null;  // Changed from suffix to suffixId
+  descriptionId: string; // Add this
+  _id?: string; // Make optional
+  prefixId: string | null;
+  suffixId: string | null;
   carbonType: string;
   linkedCarbonType?: string;
   innerDiameter: number;
   length: number;
   particleSize: number;
-  makeId: string;  // Changed from make to makeId
+  makeId: string;
   columnId: string;
   installationDate: string;
   isObsolete: boolean;
@@ -335,42 +336,45 @@ const ColumnPopup: React.FC<ColumnPopupProps> = ({
     setSelectedDescriptionIndex(descIndex);
   };
 
-  const handleSelectColumn = () => {
+const handleSelectColumn = () => {
   const selectedColumn = columns.find(col => col._id === selectedColumnId);
   const selectedDesc = selectedColumn?.descriptions[selectedDescriptionIndex!];
   
   if (selectedColumn && selectedDesc) {
-    // Build display text in the format: {prefix} {description} {suffix} - {make}
+    // Build display text
     const parts = [];
-    
     const prefixName = getPrefixName(selectedDesc.prefixId);
     const suffixName = getSuffixName(selectedDesc.suffixId);
     const makeName = getMakeName(selectedDesc.makeId);
     
-    // Add prefix if it exists
     if (prefixName !== '-') {
       parts.push(prefixName);
     }
     
-    // Add description (carbon type + dimensions)
     const description = `${selectedDesc.carbonType} ${selectedDesc.innerDiameter}x${selectedDesc.length} ${selectedDesc.particleSize}µm`;
     parts.push(description);
     
-    // Add suffix if it exists
     if (suffixName !== '-') {
       parts.push(suffixName);
     }
     
-    // Join the main parts
     let displayText = parts.join(' ');
-    
-    // Add make with dash separator if it exists
     if (makeName !== '-') {
       displayText += ` - ${makeName}`;
     }
     
+    // Handle the ID with proper type checking
+    const descWithId = selectedDesc as any;
+    const idToUse = descWithId.descriptionId || selectedDesc._id;
+    
+    if (!idToUse) {
+      console.error('No valid ID found for selected description:', selectedDesc);
+      alert('Error: Could not get column description ID');
+      return;
+    }
+    
     onSelect({
-      id: selectedDesc._id,
+      id: idToUse,
       displayText: displayText,
       columnCode: selectedColumn.columnCode
     });

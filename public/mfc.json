@@ -1,0 +1,1655 @@
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "mfc_dat162_01",
+      "mfcNumber": "MFC/U/DAT162.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_dat162"],
+      "generics": [
+        {
+          "genericName": "ATROPINE SULFATE OPHTHALMIC SOLUTION USP 0.01% w/v",
+          "_id": "gen_dat162",
+          "apis": [
+            {
+              "apiName": "ATROPINE SULPHATE",
+              "_id": "api_dat162",
+              "testTypes": [
+                {
+                  "testTypeId": "test_dat162_01",
+                  "testName": "IDENTIFICATION B (PDA)",
+                  "columnCode": "CL10",
+                  "mobilePhaseCodes": ["MP02", "MP29", "", "", "", ""],
+                  "detectorTypeId": "det_pda_dat162_01",
+                  "pharmacopoeialId": "pharm_dat162_01",
+                  "sampleInjection": 1,
+                  "standardInjection": 1,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 15,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dat162_01_id"
+                },
+                {
+                  "testTypeId": "test_dat162_02",
+                  "testName": "ORGANIC IMPURITIES",
+                  "columnCode": "CL10",
+                  "mobilePhaseCodes": ["MP02", "MP29", "", "", "", ""],
+                  "detectorTypeId": "det_uv_dat162_02",
+                  "pharmacopoeialId": "pharm_dat162_02",
+                  "sampleInjection": 2,
+                  "standardInjection": 6,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 15,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dat162_02_id"
+                },
+                {
+                  "testTypeId": "test_dat162_03",
+                  "testName": "ASSAY",
+                  "columnCode": "CL10",
+                  "mobilePhaseCodes": ["MP02", "MP29", "", "", "", ""],
+                  "detectorTypeId": "det_uv_dat162_03",
+                  "pharmacopoeialId": "pharm_dat162_03",
+                  "sampleInjection": 2,
+                  "standardInjection": 6,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 15,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dat162_03_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_dat162",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    },
+    {
+      "_id": "mfc_das147_01",
+      "mfcNumber": "MFC/U/DAS147.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_das147"],
+      "generics": [
+        {
+          "genericName": "ATROPINE SULFATE OPHTHALMIC SOLUTION USP 0.5%",
+          "_id": "gen_das147",
+          "apis": [
+            {
+              "apiName": "ATROPINE SULFATE",
+              "_id": "api_das147",
+              "testTypes": [
+                {
+                  "testTypeId": "test_das147_01",
+                  "testName": "IDENTIFICATION B (PDA)",
+                  "columnCode": "CL10",
+                  "mobilePhaseCodes": ["MP02", "MP29", "", "", "", ""],
+                  "detectorTypeId": "det_pda_das147_01",
+                  "pharmacopoeialId": "pharm_das147_01",
+                  "sampleInjection": 1,
+                  "standardInjection": 1,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 15,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_das147_01_id"
+                },
+                {
+                  "testTypeId": "test_das147_02",
+                  "testName": "ORGANIC IMPURITIES",
+                  "columnCode": "CL10",
+                  "mobilePhaseCodes": ["MP02", "MP29", "", "", "", ""],
+                  "detectorTypeId": "det_uv_das147_02",
+                  "pharmacopoeialId": "pharm_das147_02",
+                  "sampleInjection": 2,
+                  "standardInjection": 6,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 15,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_das147_02_id"
+                },
+                {
+                  "testTypeId": "test_das147_03",
+                  "testName": "ASSAY",
+                  "columnCode": "CL10",
+                  "mobilePhaseCodes": ["MP02", "MP29", "", "", "", ""],
+                  "detectorTypeId": "det_uv_das147_03",
+                  "pharmacopoeialId": "pharm_das147_03",
+                  "sampleInjection": 2,
+                  "standardInjection": 6,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 15,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_das147_03_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_das147",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    },
+    {
+      "_id": "mfc_dbb248_01",
+      "mfcNumber": "MFC/H/DBB248.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_dbb248"],
+      "generics": [
+        {
+          "genericName": "BEPOTASTINE BESILATE OPHTHALMIC SOLUTION 1.5%W/V",
+          "_id": "gen_dbb248",
+          "apis": [
+            {
+              "apiName": "BEPOTASTINE BESILATE",
+              "_id": "api_dbb248",
+              "testTypes": [
+                {
+                  "testTypeId": "test_dbb248_01",
+                  "testName": "RS",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP43", "", "", "", "MP01", "MP02"],
+                  "detectorTypeId": "det_uv_dbb248_01",
+                  "pharmacopoeialId": "pharm_dbb248_01",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 40,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dbb248_01_id"
+                },
+                {
+                  "testTypeId": "test_dbb248_02",
+                  "testName": "ASSAY",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP43", "", "", "", "MP01", "MP02"],
+                  "detectorTypeId": "det_uv_dbb248_02",
+                  "pharmacopoeialId": "pharm_dbb248_02",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 40,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dbb248_02_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_dbb248",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    },
+    {
+      "_id": "mfc_dbf121_01",
+      "mfcNumber": "MFC/H/DBF121.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_dbf121"],
+      "generics": [
+        {
+          "genericName": "BASIFLOXACIN OPHTHALMIC SUSPENSION 0.6%W/V",
+          "_id": "gen_dbf121",
+          "apis": [
+            {
+              "apiName": "BESIFLOXACIN HYDROCHLORIDE",
+              "_id": "api_dbf121_01",
+              "testTypes": [
+                {
+                  "testTypeId": "test_dbf121_01",
+                  "testName": "RS",
+                  "columnCode": "CL02",
+                  "mobilePhaseCodes": ["MP15", "", "", "", "MP03", "MP02"],
+                  "detectorTypeId": "det_uv_dbf121_01",
+                  "pharmacopoeialId": "pharm_dbf121_01",
+                  "sampleInjection": 1,
+                  "standardInjection": 6,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 40,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dbf121_01_id"
+                },
+                {
+                  "testTypeId": "test_dbf121_02",
+                  "testName": "ASSAY",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP16", "", "", "", "", ""],
+                  "detectorTypeId": "det_uv_dbf121_02",
+                  "pharmacopoeialId": "pharm_dbf121_02",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 30,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dbf121_02_id"
+                }
+              ]
+            },
+            {
+              "apiName": "BKC",
+              "_id": "api_dbf121_02",
+              "testTypes": [
+                {
+                  "testTypeId": "test_dbf121_03",
+                  "testName": "ASSAY",
+                  "columnCode": "CL02",
+                  "mobilePhaseCodes": ["MP37", "MP26", "MP03", "MP02", "", ""],
+                  "detectorTypeId": "det_uv_dbf121_03",
+                  "pharmacopoeialId": "pharm_dbf121_03",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 30,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dbf121_03_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_dbf121",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    },
+    {
+      "_id": "mfc_dbn055_01",
+      "mfcNumber": "MFC/H/DBN055.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_dbn055"],
+      "generics": [
+        {
+          "genericName": "BETAMETHASONE & NEOMYCIN EYE/EAR/NASAL DROPS",
+          "_id": "gen_dbn055",
+          "apis": [
+            {
+              "apiName": "BETAMETHASONE SODIUM PHOSPHATE",
+              "_id": "api_dbn055",
+              "testTypes": [
+                {
+                  "testTypeId": "test_dbn055_01",
+                  "testName": "ASSAY",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP02", "", "", "", "", ""],
+                  "detectorTypeId": "det_uv_dbn055_01",
+                  "pharmacopoeialId": "pharm_dbn055_01",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 15,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dbn055_01_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_dbn055",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    },
+    {
+      "_id": "mfc_dbm044_01",
+      "mfcNumber": "MFC/U/DBM044.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_dbm044"],
+      "generics": [
+        {
+          "genericName": "BIMATOPROST OPHTHALMIC SOLUTION 0.03%W/V",
+          "_id": "gen_dbm044",
+          "apis": [
+            {
+              "apiName": "BIMATOPROST",
+              "_id": "api_dbm044",
+              "testTypes": [
+                {
+                  "testTypeId": "test_dbm044_01",
+                  "testName": "ASSAY",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP13", "MP02", "MP03", "", "", ""],
+                  "detectorTypeId": "det_uv_dbm044_01",
+                  "pharmacopoeialId": "pharm_dbm044_01",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 50,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dbm044_01_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_dbm044",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    },
+    {
+      "_id": "mfc_dbm136_01",
+      "mfcNumber": "MFC/U/DBM136.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_dbm136"],
+      "generics": [
+        {
+          "genericName": "BIMATOPROST OPHTHALMIC SOLUTION",
+          "_id": "gen_dbm136",
+          "apis": [
+            {
+              "apiName": "BIMATOPROST",
+              "_id": "api_dbm136",
+              "testTypes": [
+                {
+                  "testTypeId": "test_dbm136_01",
+                  "testName": "ASSAY",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP13", "MP02", "MP03", "", "", ""],
+                  "detectorTypeId": "det_uv_dbm136_01",
+                  "pharmacopoeialId": "pharm_dbm136_01",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 50,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dbm136_01_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_dbm136",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    },
+    {
+      "_id": "mfc_dbt031_01",
+      "mfcNumber": "MFC/H/DBT031.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_dbt031"],
+      "generics": [
+        {
+          "genericName": "BRIMONIDINE TARTRATE & TIMOLOL MALEATE OPHTHALMIC SOLUTION",
+          "_id": "gen_dbt031",
+          "apis": [
+            {
+              "apiName": "BRIMONIDINE TARTRATE",
+              "_id": "api_dbt031",
+              "testTypes": [
+                {
+                  "testTypeId": "test_dbt031_01",
+                  "testName": "ASSAY",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP31", "", "", "", "MP02", "MP03"],
+                  "detectorTypeId": "det_uv_dbt031_01",
+                  "pharmacopoeialId": "pharm_dbt031_01",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 15,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dbt031_01_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_dbt031",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    },
+    {
+      "_id": "mfc_dbt037_01",
+      "mfcNumber": "MFC/IH/DBT037.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_dbt037"],
+      "generics": [
+        {
+          "genericName": "BRIMONIDINE TARTRATE EYE DROPS IP 0.15% / BRIMONIDINE TARTRATE OPHTHALMIC SOLUTION",
+          "_id": "gen_dbt037",
+          "apis": [
+            {
+              "apiName": "BRIMONIDINE TARTRATE",
+              "_id": "api_dbt037",
+              "testTypes": [
+                {
+                  "testTypeId": "test_dbt037_01",
+                  "testName": "RS",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP03", "", "", "", "", ""],
+                  "detectorTypeId": "det_uv_dbt037_01",
+                  "pharmacopoeialId": "pharm_dbt037_01",
+                  "sampleInjection": 1,
+                  "standardInjection": 1,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 20,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dbt037_01_id"
+                },
+                {
+                  "testTypeId": "test_dbt037_02",
+                  "testName": "ASSAY",
+                  "columnCode": "CL02",
+                  "mobilePhaseCodes": ["MP03", "", "", "", "", ""],
+                  "detectorTypeId": "det_uv_dbt037_02",
+                  "pharmacopoeialId": "pharm_dbt037_02",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 15,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dbt037_02_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_dbt037",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    },
+    {
+      "_id": "mfc_dbt260_01",
+      "mfcNumber": "MFC/H/DBT260.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_dbt260"],
+      "generics": [
+        {
+          "genericName": "BRIMONIDINE TARTRATE & TIMOLOL MALEATE OPHTHALMIC SOLUTION(SOC)",
+          "_id": "gen_dbt260",
+          "apis": [
+            {
+              "apiName": "BRIMONIDINE TARTRATE",
+              "_id": "api_dbt260",
+              "testTypes": [
+                {
+                  "testTypeId": "test_dbt260_01",
+                  "testName": "ASSAY",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP31", "", "", "", "MP02", "MP03"],
+                  "detectorTypeId": "det_uv_dbt260_01",
+                  "pharmacopoeialId": "pharm_dbt260_01",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 15,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dbt260_01_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_dbt260",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    },
+    {
+      "_id": "mfc_dbt092_01",
+      "mfcNumber": "MFC/IH/DBT092.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_dbt092"],
+      "generics": [
+        {
+          "genericName": "BRIMONIDINE TARTRATE EYE DROPS IP 2.0%W/V / BRIMONIDINE TARTRATE OPHTHALMIC SOLUTION 2.0%W/V",
+          "_id": "gen_dbt092",
+          "apis": [
+            {
+              "apiName": "BRIMONIDINE TARTRATE",
+              "_id": "api_dbt092",
+              "testTypes": [
+                {
+                  "testTypeId": "test_dbt092_01",
+                  "testName": "RS",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP01", "MP03", "", "", "", ""],
+                  "detectorTypeId": "det_uv_dbt092_01",
+                  "pharmacopoeialId": "pharm_dbt092_01",
+                  "sampleInjection": 1,
+                  "standardInjection": 1,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 30,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dbt092_01_id"
+                },
+                {
+                  "testTypeId": "test_dbt092_02",
+                  "testName": "ASSAY",
+                  "columnCode": "CL02",
+                  "mobilePhaseCodes": ["MP01", "MP03", "", "", "", ""],
+                  "detectorTypeId": "det_uv_dbt092_02",
+                  "pharmacopoeialId": "pharm_dbt092_02",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 15,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dbt092_02_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_dbt092",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    },
+    {
+      "_id": "mfc_dbb275_01",
+      "mfcNumber": "MFC/H/DBB275.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_dbb275"],
+      "generics": [
+        {
+          "genericName": "BRINZOLAMIDE 1.0% W/V AND BRIMONIDINE TARTRATE 0.2%W/V OPHTHALMIC SUSPENSION",
+          "_id": "gen_dbb275",
+          "apis": [
+            {
+              "apiName": "BRINZOLAMIDE",
+              "_id": "api_dbb275_01",
+              "testTypes": [
+                {
+                  "testTypeId": "test_dbb275_01",
+                  "testName": "RS (TEST A)",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP46", "", "", "", "MP02", ""],
+                  "detectorTypeId": "det_uv_dbb275_01",
+                  "pharmacopoeialId": "pharm_dbb275_01",
+                  "sampleInjection": 1,
+                  "standardInjection": 6,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 20,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dbb275_01_id"
+                },
+                {
+                  "testTypeId": "test_dbb275_02",
+                  "testName": "ASSAY",
+                  "columnCode": "CL08",
+                  "mobilePhaseCodes": ["MP26", "MP02", "MP03", "", "", ""],
+                  "detectorTypeId": "det_uv_dbb275_02",
+                  "pharmacopoeialId": "pharm_dbb275_02",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 20,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dbb275_02_id"
+                },
+                {
+                  "testTypeId": "test_dbb275_05",
+                  "testName": "RS (TEST A)",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP46", "", "", "", "MP02", ""],
+                  "detectorTypeId": "det_uv_dbb275_05",
+                  "pharmacopoeialId": "pharm_dbb275_05",
+                  "sampleInjection": 1,
+                  "standardInjection": 6,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 20,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dbb275_05_id"
+                }
+              ]
+            },
+            {
+              "apiName": "BRIMONIDINE TARTRATE",
+              "_id": "api_dbb275_02",
+              "testTypes": [
+                {
+                  "testTypeId": "test_dbb275_03",
+                  "testName": "ASSAY",
+                  "columnCode": "CL08",
+                  "mobilePhaseCodes": ["MP26", "MP02", "MP03", "", "", ""],
+                  "detectorTypeId": "det_uv_dbb275_03",
+                  "pharmacopoeialId": "pharm_dbb275_03",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 20,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dbb275_03_id"
+                }
+              ]
+            },
+            {
+              "apiName": "BKC",
+              "_id": "api_dbb275_03",
+              "testTypes": [
+                {
+                  "testTypeId": "test_dbb275_04",
+                  "testName": "ASSAY",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP30", "MP03", "", "", "", ""],
+                  "detectorTypeId": "det_uv_dbb275_04",
+                  "pharmacopoeialId": "pharm_dbb275_04",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 20,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dbb275_04_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_dbb275",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    },
+    {
+      "_id": "mfc_och016_01",
+      "mfcNumber": "MFC/IU/OCH016.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_och016"],
+      "generics": [
+        {
+          "genericName": "CHLORAMPHENICOL OPHTHALMIC OINTMENT USP 1%/ CHLORAMPHENICOL EYE OINTMENT IP 1%",
+          "_id": "gen_och016",
+          "apis": [
+            {
+              "apiName": "CHLORAMPHENICOL",
+              "_id": "api_och016",
+              "testTypes": [
+                {
+                  "testTypeId": "test_och016_01",
+                  "testName": "ASSAY",
+                  "columnCode": "CL02",
+                  "mobilePhaseCodes": ["MP36", "", "", "", "", ""],
+                  "detectorTypeId": "det_uv_och016_01",
+                  "pharmacopoeialId": "pharm_och016_01",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 15,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_och016_01_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_och016",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    },
+    {
+      "_id": "mfc_dch065_01",
+      "mfcNumber": "MFC/IU/DCH065.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_dch065"],
+      "generics": [
+        {
+          "genericName": "CYCLOPENTOLATE EYE DROPS IP/ CYCLOPENTOLATE HYDROCHLORIDE OPHTHALMIC SOLUTION USP",
+          "_id": "gen_dch065",
+          "apis": [
+            {
+              "apiName": "CYCLOPENTOLATE HYDROCHLORIDE",
+              "_id": "api_dch065",
+              "testTypes": [
+                {
+                  "testTypeId": "test_dch065_01",
+                  "testName": "ASSAY",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP24", "MP02", "", "", "", ""],
+                  "detectorTypeId": "det_uv_dch065_01",
+                  "pharmacopoeialId": "pharm_dch065_01",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 12,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dch065_01_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_dch065",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    },
+    {
+      "_id": "mfc_ocy094_01",
+      "mfcNumber": "MFC/H/OCY094.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_ocy094"],
+      "generics": [
+        {
+          "genericName": "CYCLOSPORINE OPHTHALMIC OINTMENT 2MG/GM",
+          "_id": "gen_ocy094",
+          "apis": [
+            {
+              "apiName": "CYCLOSPORINE",
+              "_id": "api_ocy094",
+              "testTypes": [
+                {
+                  "testTypeId": "test_ocy094_01",
+                  "testName": "ASSAY",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP47", "", "", "", "MP03", ""],
+                  "detectorTypeId": "det_uv_ocy094_01",
+                  "pharmacopoeialId": "pharm_ocy094_01",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 50,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_ocy094_01_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_ocy094",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    },
+    {
+      "_id": "mfc_oaz021_01",
+      "mfcNumber": "MFC/H/OAZ021.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_oaz021"],
+      "generics": [
+        {
+          "genericName": "AZITHROMYCIN OPHTHALMIC OINTMENT 1% W/W",
+          "_id": "gen_oaz021",
+          "apis": [
+            {
+              "apiName": "Azithromycin Dihydrate",
+              "_id": "api_oaz021",
+              "testTypes": [
+                {
+                  "testTypeId": "test_oaz021_01",
+                  "testName": "RS",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP48", "MP03", "", "", "", ""],
+                  "detectorTypeId": "det_uv_oaz021_01",
+                  "pharmacopoeialId": "pharm_oaz021_01",
+                  "sampleInjection": 2,
+                  "standardInjection": 1,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 100,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_oaz021_01_id"
+                },
+                {
+                  "testTypeId": "test_oaz021_02",
+                  "testName": "Assay",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP49", "", "", "", "", ""],
+                  "detectorTypeId": "det_uv_oaz021_02",
+                  "pharmacopoeialId": "pharm_oaz021_02",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 15,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_oaz021_02_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_oaz021",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    },
+    {
+      "_id": "mfc_dfg166_01",
+      "mfcNumber": "MFC/H/DFG166.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_dfg166"],
+      "generics": [
+        {
+          "genericName": "FLURBIPROFEN & GATIFLOXACIN EYE DROPS",
+          "_id": "gen_dfg166",
+          "apis": [
+            {
+              "apiName": "FLURBIPROFEN SODIUM",
+              "_id": "api_dfg166_01",
+              "testTypes": [
+                {
+                  "testTypeId": "test_dfg166_01",
+                  "testName": "ASSAY",
+                  "columnCode": "CL02",
+                  "mobilePhaseCodes": ["MP03", "MP01", "", "", "", ""],
+                  "detectorTypeId": "det_uv_dfg166_01",
+                  "pharmacopoeialId": "pharm_dfg166_01",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 15,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dfg166_01_id"
+                }
+              ]
+            },
+            {
+              "apiName": "GATIFLOXACIN",
+              "_id": "api_dfg166_02",
+              "testTypes": [
+                {
+                  "testTypeId": "test_dfg166_02",
+                  "testName": "ASSAY",
+                  "columnCode": "CL08",
+                  "mobilePhaseCodes": ["MP16", "", "", "", "", ""],
+                  "detectorTypeId": "det_uv_dfg166_02",
+                  "pharmacopoeialId": "pharm_dfg166_02",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 10,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dfg166_02_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_dfg166",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    },
+    {
+      "_id": "mfc_ogn068_01",
+      "mfcNumber": "MFC/H/OGN068.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_ogn068"],
+      "generics": [
+        {
+          "genericName": "GANCICLOVIR OPHTHALMIC GEL 0.15%W/W",
+          "_id": "gen_ogn068",
+          "apis": [
+            {
+              "apiName": "GANCICLOVIR",
+              "_id": "api_ogn068_01",
+              "testTypes": [
+                {
+                  "testTypeId": "test_ogn068_01",
+                  "testName": "ASSAY",
+                  "columnCode": "CL02",
+                  "mobilePhaseCodes": ["MP01", "MP03", "", "", "", ""],
+                  "detectorTypeId": "det_uv_ogn068_01",
+                  "pharmacopoeialId": "pharm_ogn068_01",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 18,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_ogn068_01_id"
+                }
+              ]
+            },
+            {
+              "apiName": "BKC",
+              "_id": "api_ogn068_02",
+              "testTypes": [
+                {
+                  "testTypeId": "test_ogn068_02",
+                  "testName": "ASSAY",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP03", "MP30", "", "", "", ""],
+                  "detectorTypeId": "det_uv_ogn068_02",
+                  "pharmacopoeialId": "pharm_ogn068_02",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 18,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_ogn068_02_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_ogn068",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    },
+    {
+      "_id": "mfc_dgt148_01",
+      "mfcNumber": "MFC/H/DGT148.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_dgt148"],
+      "generics": [
+        {
+          "genericName": "GATIFLOXACIN EYE DROPS 0.5%W/V",
+          "_id": "gen_dgt148",
+          "apis": [
+            {
+              "apiName": "GATIFLOXACIN",
+              "_id": "api_dgt148",
+              "testTypes": [
+                {
+                  "testTypeId": "test_dgt148_01",
+                  "testName": "ASSAY",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP01", "MP03", "", "", "", ""],
+                  "detectorTypeId": "det_uv_dgt148_01",
+                  "pharmacopoeialId": "pharm_dgt148_01",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 10,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dgt148_01_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_dgt148",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    },
+    {
+      "_id": "mfc_dgt087_01",
+      "mfcNumber": "MFC/H/DGT087.01",
+      "companyId": "220E43EA-E525-4DDD-9155-631AAAD6A880",
+      "locationId": "0ae9d80c-add2-423e-9d28-b5b44b097867",
+      "productIds": ["prod_dgt087"],
+      "generics": [
+        {
+          "genericName": "GATIFLOXACIN EYE DROPS 0.3%W/V",
+          "_id": "gen_dgt087",
+          "apis": [
+            {
+              "apiName": "GATIFLOXACIN",
+              "_id": "api_dgt087",
+              "testTypes": [
+                { 
+                  "testTypeId": "test_dgt087_01",
+                  "testName": "ASSAY",
+                  "columnCode": "CL01",
+                  "mobilePhaseCodes": ["MP16", "MP01", "MP03", "", "", ""],
+                  "detectorTypeId": "det_uv_dgt087_01",
+                  "pharmacopoeialId": "pharm_dgt087_01",
+                  "sampleInjection": 2,
+                  "standardInjection": 5,
+                  "blankInjection": 1,
+                  "bracketingFrequency": 0,
+                  "injectionTime": 0,
+                  "runTime": 10,
+                  "washTime": 15,
+                  "testApplicability": false,
+                  "numberOfInjections": 0,
+                  "numberOfInjectionsAMV": 0,
+                  "numberOfInjectionsPV": 0,
+                  "numberOfInjectionsCV": 0,
+                  "bulk": false,
+                  "fp": false,
+                  "stabilityPartial": false,
+                  "stabilityFinal": false,
+                  "amv": false,
+                  "pv": false,
+                  "cv": false,
+                  "isLinked": false,
+                  "selectMakeSpecific": false,
+                  "_id": "test_dgt087_01_id"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "departmentId": "dept_dgt087",
+      "wash": 15,
+      "createdBy": "kaka10",
+      "createdAt": "2025-08-31T10:47:00.000Z",
+      "updatedAt": "2025-08-31T10:47:00.000Z",
+      "__v": 0
+    }
+  ]
+}

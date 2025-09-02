@@ -337,6 +337,7 @@ export default function MasterColumn() {
   }, [
     isFormOpen,
     form.descriptions[0]?.carbonType,
+    form.descriptions[0]?.linkedCarbonType,
     form.descriptions[0]?.innerDiameter,
     form.descriptions[0]?.length,
     form.descriptions[0]?.particleSize,
@@ -344,6 +345,7 @@ export default function MasterColumn() {
     form.descriptions[0]?.suffix,
     form.descriptions[0]?.usePrefixForNewCode,
     form.descriptions[0]?.useSuffixForNewCode,
+    selectedColumnId
   ]);
 
   // Load auth data from localStorage
@@ -404,26 +406,28 @@ export default function MasterColumn() {
   };
 
   const getCoreAttributes = (desc: ColumnDescription): CoreAttributes => {
-    return {
-      carbonType: desc.carbonType,
-      innerDiameter: desc.innerDiameter,
-      length: desc.length,
-      particleSize: desc.particleSize,
-    };
+  return {
+    carbonType: (desc.carbonType || "").toString().trim(),
+    innerDiameter: Number(desc.innerDiameter),
+    length: Number(desc.length),
+    particleSize: Number(desc.particleSize),
   };
+};
 
   // Helper function to compare core attributes
-  const coreAttributesChanged = (
-    current: CoreAttributes,
-    previous: CoreAttributes
-  ): boolean => {
-    return (
-      current.carbonType !== previous.carbonType ||
-      current.innerDiameter !== previous.innerDiameter ||
-      current.length !== previous.length ||
-      current.particleSize !== previous.particleSize
-    );
-  };
+  const coreAttributesChanged = (current: CoreAttributes, previous: CoreAttributes): boolean => {
+  const sameStr = (a: any, b: any) =>
+    String(a ?? "").trim().toLowerCase() === String(b ?? "").trim().toLowerCase();
+  const sameNum = (a: any, b: any) => Number(a) === Number(b);
+
+  return !(
+    sameStr(current.carbonType, previous.carbonType) &&
+    sameNum(current.innerDiameter, previous.innerDiameter) &&
+    sameNum(current.length, previous.length) &&
+    sameNum(current.particleSize, previous.particleSize)
+  );
+};
+
 
   // Helper function to create core specification string
   const createCoreSpec = (desc: ColumnDescription): string => {
@@ -956,68 +960,104 @@ export default function MasterColumn() {
     }
   };
 
-  const generateColumnCode = (
-    desc: ColumnDescription,
-    columns: Column[],
-    obsoleteColumns: Column[],
-    previousCoreAttributes?: CoreAttributes
-  ): string => {
-    const currentCoreAttributes = getCoreAttributes(desc);
-    const coreSpec = createCoreSpec(desc);
-    const fullSpec = createFullSpec(desc, true);
+ const generateColumnCode = (
+  desc: ColumnDescription,
+  columns: Column[],
+  obsoleteColumns: Column[],
+  previousCoreAttributes?: CoreAttributes
+): string => {
+  const currentCoreAttributes = getCoreAttributes(desc);
+  const coreSpec = createCoreSpec(desc);
+  const fullSpec = createFullSpec(desc, true);
 
-    const allOtherColumns = [...columns, ...obsoleteColumns].filter(
-      (col) => col._id !== selectedColumnId
-    );
+  const allOtherColumns = [...columns, ...obsoleteColumns].filter(
+    (col) => col._id !== selectedColumnId
+  );
 
-    // --- PRIORITY 1: Exact FULL spec match ---
-    const exactFullMatch = allOtherColumns.find((col) =>
-      col.descriptions.some((d) => createFullSpec(d, true) === fullSpec)
-    );
-    if (exactFullMatch) return exactFullMatch.columnCode;
+  console.log("=== GENERATE COLUMN CODE DEBUG ===");
+  console.log("Current core attributes:", currentCoreAttributes);
+  console.log("Previous core attributes:", previousCoreAttributes);
+  console.log("Core spec:", coreSpec);
+  console.log("Full spec:", fullSpec);
+  console.log("Is editing:", !!selectedColumnId);
+  console.log("All other columns count:", allOtherColumns.length);
 
-    // --- PRIORITY 2: Match based on prefix/suffix rules ---
-    const matchIgnoringPrefixSuffix = allOtherColumns.find((col) =>
-      col.descriptions.some((d) => {
-        if (desc.usePrefixForNewCode || desc.useSuffixForNewCode) {
-          // Prefix/suffix matter → must match full spec including them
-          return createFullSpec(d, true) === fullSpec;
-        } else {
-          // Prefix/suffix ignored → match on core spec only
-          return createCoreSpec(d) === coreSpec;
-        }
-      })
-    );
-    if (matchIgnoringPrefixSuffix) return matchIgnoringPrefixSuffix.columnCode;
+  // --- PRIORITY 1: Exact FULL spec match ---
+  const exactFullMatch = allOtherColumns.find((col) =>
+    col.descriptions.some((d) => createFullSpec(d, true) === fullSpec)
+  );
+  if (exactFullMatch) {
+    console.log("Found exact full match:", exactFullMatch.columnCode);
+    return exactFullMatch.columnCode;
+  }
 
-    // --- PRIORITY 3: On update, reuse matched core spec from another column ---
-    if (selectedColumnId && previousCoreAttributes) {
-      const coreChanged =
-        currentCoreAttributes.carbonType !==
-          previousCoreAttributes.carbonType ||
-        currentCoreAttributes.innerDiameter !==
-          previousCoreAttributes.innerDiameter ||
-        currentCoreAttributes.length !== previousCoreAttributes.length ||
-        currentCoreAttributes.particleSize !==
-          previousCoreAttributes.particleSize;
-
-      if (coreChanged) {
-        const otherCoreMatch = allOtherColumns.find((col) =>
-          col.descriptions.some((d) => createCoreSpec(d) === coreSpec)
-        );
-        if (otherCoreMatch) return otherCoreMatch.columnCode;
+  // --- PRIORITY 2: Core spec match (ignoring prefix/suffix based on settings) ---
+  const coreSpecMatch = allOtherColumns.find((col) =>
+    col.descriptions.some((d) => {
+      if (desc.usePrefixForNewCode || desc.useSuffixForNewCode) {
+        // Prefix/suffix matter → must match full spec including them
+        return createFullSpec(d, true) === fullSpec;
       } else {
-        // Core same → keep original
-        const currentColumn = [...columns, ...obsoleteColumns].find(
-          (col) => col._id === selectedColumnId
-        );
-        if (currentColumn) return currentColumn.columnCode;
+        // Prefix/suffix ignored → match on core spec only
+        return createCoreSpec(d) === coreSpec;
       }
-    }
+    })
+  );
+  if (coreSpecMatch) {
+    console.log("Found core spec match:", coreSpecMatch.columnCode);
+    return coreSpecMatch.columnCode;
+  }
 
-    // --- PRIORITY 4: Generate new code ---
-    return generateNewColumnCode(columns, obsoleteColumns);
-  };
+  // --- PRIORITY 3: Handle edit mode logic ---
+  if (selectedColumnId && previousCoreAttributes) {
+    const coreChanged = coreAttributesChanged(currentCoreAttributes, previousCoreAttributes);
+    
+    console.log("Core changed:", coreChanged);
+    console.log("Previous core spec:", createCoreSpec({
+      carbonType: previousCoreAttributes.carbonType,
+      innerDiameter: previousCoreAttributes.innerDiameter,
+      length: previousCoreAttributes.length,
+      particleSize: previousCoreAttributes.particleSize,
+      prefix: "", suffix: "", make: "", columnId: "", installationDate: "",
+      usePrefix: false, useSuffix: false, usePrefixForNewCode: false,
+      useSuffixForNewCode: false, isObsolete: false, linkedCarbonType: ""
+    }));
+    
+    if (!coreChanged) {
+      // Core attributes haven't changed → keep original column code
+      const currentColumn = [...columns, ...obsoleteColumns].find(
+        (col) => col._id === selectedColumnId
+      );
+      if (currentColumn) {
+        console.log("Core unchanged, keeping original:", currentColumn.columnCode);
+        return currentColumn.columnCode;
+      }
+    } else {
+      // Core specs changed → check if another column has this new core spec
+      const newCoreMatch = allOtherColumns.find((col) =>
+        col.descriptions.some((d) => {
+          if (desc.usePrefixForNewCode || desc.useSuffixForNewCode) {
+            return createFullSpec(d, true) === fullSpec;
+          } else {
+            return createCoreSpec(d) === coreSpec;
+          }
+        })
+      );
+      if (newCoreMatch) {
+        console.log("Found existing column with new core spec:", newCoreMatch.columnCode);
+        return newCoreMatch.columnCode;
+      }
+      // No existing column found with new core spec, generate new code
+      console.log("Core changed, no existing match found, generating new code");
+      return generateNewColumnCode(columns, obsoleteColumns);
+    }
+  }
+
+  // --- PRIORITY 4: Generate new code for new entries or when no matches found ---
+  console.log("Generating completely new column code");
+  return generateNewColumnCode(columns, obsoleteColumns);
+};
+
 
   // Helper function to generate new column code
   const generateNewColumnCode = (
@@ -1173,47 +1213,78 @@ export default function MasterColumn() {
     return Object.keys(errors).length === 0;
   };
 
-  const updateColumnCode = (
-    index: number,
-    preserveSelection: boolean = false,
-    previousCoreAttributes?: CoreAttributes
-  ) => {
-    const desc = form.descriptions[index];
+ const updateColumnCode = (
+  index: number,
+  preserveSelection: boolean = false,
+  forceUpdate: boolean = false // Add this parameter
+) => {
+  const desc = form.descriptions[index];
 
-    // Always generate column code when all required fields are filled
-    if (
-      desc.carbonType &&
-      desc.innerDiameter &&
-      desc.length &&
-      desc.particleSize
-    ) {
-      try {
-        // For updates, always pass the previous core attributes
-        const newColumnCode = generateColumnCode(
-          desc,
-          columns,
-          obsoleteColumns,
-          previousCoreAttributes ||
-            (selectedColumnId ? getCoreAttributes(desc) : undefined)
+  // Always generate column code when all required fields are filled
+  if (
+    desc.carbonType &&
+    desc.innerDiameter &&
+    desc.length &&
+    desc.particleSize
+  ) {
+    try {
+      // For edit mode, get the ORIGINAL core attributes from database
+      let originalCoreAttributes: CoreAttributes | undefined;
+      
+      if (selectedColumnId && selectedDescriptionIndex >= 0) {
+        const originalColumn = [...columns, ...obsoleteColumns].find(
+          (col) => col._id === selectedColumnId
         );
-
-        if (newColumnCode !== form.columnCode) {
-          console.log(
-            "Column code changing from",
-            form.columnCode,
-            "to",
-            newColumnCode
+        if (originalColumn && originalColumn.descriptions[selectedDescriptionIndex]) {
+          originalCoreAttributes = getCoreAttributes(
+            originalColumn.descriptions[selectedDescriptionIndex]
           );
-          setForm((prev) => ({ ...prev, columnCode: newColumnCode }));
-        } else {
-          console.log("Column code unchanged:", newColumnCode);
+          
+          // If we're editing and not forcing an update, check if we should preserve the existing code
+          if (!forceUpdate) {
+            const currentCoreAttributes = getCoreAttributes(desc);
+            const coreChanged = coreAttributesChanged(currentCoreAttributes, originalCoreAttributes);
+            
+            // If core attributes haven't changed, keep the existing column code
+            if (!coreChanged) {
+              const existingColumnCode = originalColumn.columnCode;
+              if (form.columnCode !== existingColumnCode) {
+                console.log("Preserving existing column code:", existingColumnCode);
+                setForm((prev) => ({ ...prev, columnCode: existingColumnCode }));
+              }
+              return;
+            }
+          }
         }
-      } catch (err: any) {
-        console.error("Error generating column code:", err);
-        setError(err.message);
       }
+
+      // Generate new column code
+      const newColumnCode = generateColumnCode(
+        desc,
+        columns,
+        obsoleteColumns,
+        originalCoreAttributes
+      );
+
+      if (newColumnCode !== form.columnCode) {
+        console.log(
+          "Column code changing from",
+          form.columnCode,
+          "to",
+          newColumnCode
+        );
+        setForm((prev) => ({ ...prev, columnCode: newColumnCode }));
+      } else {
+        console.log("Column code unchanged:", newColumnCode);
+      }
+    } catch (err: any) {
+      console.error("Error generating column code:", err);
+      setError(err.message);
     }
-  };
+  }
+};
+
+
 
   const getMakeName = (makeId: string | undefined) => {
     if (!makeId) return "-";
@@ -1379,90 +1450,98 @@ export default function MasterColumn() {
     }
   };
 
-  const handleCarbonTypeChange = (
-    index: number,
-    field: "carbonType" | "linkedCarbonType",
-    value: string
-  ) => {
-    console.log(`=== ${field.toUpperCase()} CHANGE: ${value} ===`);
+ const handleCarbonTypeChange = (
+  index: number,
+  field: "carbonType" | "linkedCarbonType",
+  value: string
+) => {
+  console.log(`=== ${field.toUpperCase()} CHANGE: ${value} ===`);
 
-    // Allow typing freely without validation during input
-    setForm((prev) => {
-      const newDescriptions = [...prev.descriptions];
-      newDescriptions[index] = {
-        ...newDescriptions[index],
-        [field]: value,
-        // Only auto-sync if the value exists in the mapping
-        [field === "carbonType" ? "linkedCarbonType" : "carbonType"]:
-          carbonTypeMap[value] ||
-          newDescriptions[index][
-            field === "carbonType" ? "linkedCarbonType" : "carbonType"
-          ],
-      };
-      return { ...prev, descriptions: newDescriptions };
-    });
+  // Allow typing freely without validation during input
+  setForm((prev) => {
+    const newDescriptions = [...prev.descriptions];
+    newDescriptions[index] = {
+      ...newDescriptions[index],
+      [field]: value,
+      // Only auto-sync if the value exists in the mapping
+      [field === "carbonType" ? "linkedCarbonType" : "carbonType"]:
+        carbonTypeMap[value] ||
+        newDescriptions[index][
+          field === "carbonType" ? "linkedCarbonType" : "carbonType"
+        ],
+    };
+    return { ...prev, descriptions: newDescriptions };
+  });
 
-    // Clear any existing errors
-    setFormErrors((prev) => ({
-      ...prev,
-      [`${field}_${index}`]: "",
-      [`${
-        field === "carbonType" ? "linkedCarbonType" : "carbonType"
-      }_${index}`]: "",
-    }));
+  // Clear any existing errors
+  setFormErrors((prev) => ({
+    ...prev,
+    [`${field}_${index}`]: "",
+    [`${
+      field === "carbonType" ? "linkedCarbonType" : "carbonType"
+    }_${index}`]: "",
+  }));
 
-    // Update the filter for dropdown suggestions
-    if (field === "carbonType") {
-      setCarbonTypeFilters((prev) => ({ ...prev, [index]: value }));
-    } else {
-      setLinkedCarbonTypeFilters((prev) => ({ ...prev, [index]: value }));
+  // Update the filter for dropdown suggestions
+  if (field === "carbonType") {
+    setCarbonTypeFilters((prev) => ({ ...prev, [index]: value }));
+  } else {
+    setLinkedCarbonTypeFilters((prev) => ({ ...prev, [index]: value }));
+  }
+
+  // Force update column code since this is a user-initiated change
+  setTimeout(() => {
+    updateColumnCode(index, false, true); // Force update = true
+  }, 50);
+};
+
+
+
+const handleDescriptionChange = (
+  index: number,
+  field: keyof ColumnDescription,
+  value: string | number | boolean
+) => {
+  console.log(`=== FIELD CHANGE: ${field} = ${value} ===`);
+
+  setForm((prev) => {
+    const newDescriptions = [...prev.descriptions];
+    newDescriptions[index] = { ...newDescriptions[index], [field]: value };
+
+    // Handle prefix/suffix checkbox clearing logic within the setForm callback
+    if (field === "prefix" && !value) {
+      newDescriptions[index].usePrefixForNewCode = false;
     }
-  };
-
-  const handleDescriptionChange = (
-    index: number,
-    field: keyof ColumnDescription,
-    value: string | number | boolean
-  ) => {
-    console.log(`=== FIELD CHANGE: ${field} = ${value} ===`);
-
-    // Capture previous core attributes for column code generation
-    const previousCoreAttributes = getCoreAttributes(form.descriptions[index]);
-
-    setForm((prev) => {
-      const newDescriptions = [...prev.descriptions];
-      newDescriptions[index] = { ...newDescriptions[index], [field]: value };
-
-      // Handle prefix/suffix checkbox clearing logic within the setForm callback
-      if (field === "prefix" && !value) {
-        newDescriptions[index].usePrefixForNewCode = false;
-      }
-      if (field === "suffix" && !value) {
-        newDescriptions[index].useSuffixForNewCode = false;
-      }
-
-      return { ...prev, descriptions: newDescriptions };
-    });
-
-    // Clear any existing error for this field
-    setFormErrors((prev) => ({ ...prev, [`${field}_${index}`]: "" }));
-
-    // Trigger column code update if the changed field affects code generation
-    if (
-      field === "carbonType" ||
-      field === "innerDiameter" ||
-      field === "length" ||
-      field === "particleSize" ||
-      field === "prefix" ||
-      field === "suffix" ||
-      field === "usePrefixForNewCode" ||
-      field === "useSuffixForNewCode"
-    ) {
-      setTimeout(() => {
-        updateColumnCode(index, false, previousCoreAttributes);
-      }, 50);
+    if (field === "suffix" && !value) {
+      newDescriptions[index].useSuffixForNewCode = false;
     }
-  };
+
+    return { ...prev, descriptions: newDescriptions };
+  });
+
+  // Clear any existing error for this field
+  setFormErrors((prev) => ({ ...prev, [`${field}_${index}`]: "" }));
+
+  // Trigger column code update if the changed field affects code generation
+  if (
+    field === "carbonType" ||
+    field === "innerDiameter" ||
+    field === "length" ||
+    field === "particleSize" ||
+    field === "prefix" ||
+    field === "suffix" ||
+    field === "usePrefixForNewCode" ||
+    field === "useSuffixForNewCode"
+  ) {
+    setTimeout(() => {
+      // Force update for core attribute changes
+      const isCoreField = ["carbonType", "innerDiameter", "length", "particleSize"].includes(field);
+      updateColumnCode(index, false, isCoreField);
+    }, 50);
+  }
+};
+
+
 
   const handleSeriesChange = async (index: number, seriesId: string) => {
   console.log("=== SERIES CHANGE START ===");
@@ -2193,19 +2272,6 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
 ) => {
   console.log(`=== ${field.toUpperCase()} CHECKBOX CHANGE: ${checked} ===`);
 
-  // For edit mode, get the ORIGINAL core attributes from the selected column
-  let originalCoreAttributes: CoreAttributes | undefined;
-  if (selectedColumnId && selectedDescriptionIndex >= 0) {
-    const originalColumn = [...columns, ...obsoleteColumns].find(
-      (col) => col._id === selectedColumnId
-    );  
-    if (originalColumn && originalColumn.descriptions[selectedDescriptionIndex]) {
-      originalCoreAttributes = getCoreAttributes(
-        originalColumn.descriptions[selectedDescriptionIndex]
-      );
-    }
-  }
-
   setForm((prev) => {
     const newDescriptions = [...prev.descriptions];
     newDescriptions[index] = { ...newDescriptions[index], [field]: checked };
@@ -2215,11 +2281,12 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
   // Clear any related errors
   setFormErrors((prev) => ({ ...prev, [`${field}_${index}`]: "" }));
 
-  // Trigger column code update with original core attributes for edit mode
+  // FIXED: Let updateColumnCode handle the original core attributes internally
   setTimeout(() => {
-    updateColumnCode(index, false, originalCoreAttributes);
+    updateColumnCode(index, false); // Remove the third parameter
   }, 50);
 };
+
   const handleEdit = () => {
     if (selectedColumnId && selectedDescriptionIndex >= 0) {
       const column = [...columns, ...obsoleteColumns].find(
