@@ -16,18 +16,27 @@ const testTypeSchema = z.object({
   mobilePhaseCodes: z
     .array(z.string())
     .length(6, "Must have exactly 6 mobile phase slots") // Ensure exactly 6 slots
-    .refine(
-      (codes) => {
-        // At least MP01 (index 0) must be filled
-        return codes[0] && codes[0].trim() !== "";
-      },
-      "MP01 (first mobile phase) is required"
-    ),
+    .refine((codes) => {
+      // At least MP01 (index 0) must be filled
+      return codes[0] && codes[0].trim() !== "";
+    }, "MP01 (first mobile phase) is required"),
   detectorTypeId: z.string().min(1, "Detector Type is required"),
   pharmacopoeialId: z.string().min(1, "Pharmacopoeial is required"),
   sampleInjection: z.number().min(0, "Sample Injection must be >= 0"),
   standardInjection: z.number().min(0, "Standard Injection must be >= 0"),
   blankInjection: z.number().min(0, "Blank Injection must be >= 0"),
+  systemSuitability: z.number().min(0, "System Suitability must be >= 0"),
+  sensitivity: z.number().min(0, "Sensitivity must be >= 0"),
+  placebo: z.number().min(0, "Placebo must be >= 0"),
+  reference1: z.number().min(0, "Reference1 must be >= 0"),
+  reference2: z.number().min(0, "Reference2 must be >= 0"),
+  uniqueRuntimes: z.boolean(),
+  blankRunTime: z.number().min(0, "Blank Run Time must be >= 0").optional(),
+  standardRunTime: z
+    .number()
+    .min(0, "Standard Run Time must be >= 0")
+    .optional(),
+  sampleRunTime: z.number().min(0, "Sample Run Time must be >= 0").optional(),
   bracketingFrequency: z.number().min(0, "Bracketing Frequency must be >= 0"),
   injectionTime: z.number().min(0, "Injection Time must be >= 0"),
   runTime: z.number().min(0, "Run Time must be >= 0"),
@@ -185,7 +194,7 @@ const getStorageIds = () => {
 // Helper function to ensure mobile phase codes are always exactly 6 elements
 const normalizeMobilePhaseCodes = (codes: any): string[] => {
   const normalized = ["", "", "", "", "", ""];
-  
+
   if (Array.isArray(codes)) {
     codes.forEach((code, index) => {
       if (index < 6) {
@@ -193,7 +202,7 @@ const normalizeMobilePhaseCodes = (codes: any): string[] => {
       }
     });
   }
-  
+
   return normalized;
 };
 
@@ -214,6 +223,15 @@ const areTestTypesIdentical = (
     "blankInjection",
     "bracketingFrequency",
     "injectionTime",
+    "systemSuitability",
+    "sensitivity",
+    "placebo",
+    "reference1",
+    "reference2",
+    "uniqueRuntimes",
+    "blankRunTime",
+    "standardRunTime",
+    "sampleRunTime",
     "runTime",
     "washTime",
     "numberOfInjections",
@@ -230,7 +248,7 @@ const areTestTypesIdentical = (
     if (field === "mobilePhaseCodes") {
       const codes1 = normalizeMobilePhaseCodes(testType1.mobilePhaseCodes);
       const codes2 = normalizeMobilePhaseCodes(testType2.mobilePhaseCodes);
-      
+
       for (let i = 0; i < 6; i++) {
         if (codes1[i] !== codes2[i]) return false;
       }
@@ -257,35 +275,47 @@ const areTestTypesIdentical = (
 
 const fetchColumnDisplayText = async (columnId: string): Promise<string> => {
   console.log("🔍 fetchColumnDisplayText called with columnId:", columnId);
-  
+
   try {
     const locationId = getStorageIds().locationId;
     const companyId = getStorageIds().companyId;
-    
+
     console.log("🔍 Storage IDs:", { locationId, companyId });
-    
+
     if (!locationId || !companyId) {
       console.error("❌ Missing locationId or companyId");
       return columnId;
     }
-    
+
     const url = `/api/admin/column/desc?descriptionId=${columnId}&locationId=${locationId}&companyId=${companyId}`;
     console.log("🔍 Fetching URL:", url);
-    
+
     const response = await fetch(url);
     console.log("🔍 Response status:", response.status);
-    
+
     if (!response.ok) {
-      console.error("❌ API response not ok:", response.status, response.statusText);
+      console.error(
+        "❌ API response not ok:",
+        response.status,
+        response.statusText
+      );
       return columnId;
     }
-    
+
     const data = await response.json();
     console.log("🔍 Response data:", data);
-    
+
     if (data.success && data.data) {
-      const { prefixId, carbonType, innerDiameter, length, particleSize, suffixId, makeId } = data.data;
-      
+      const {
+        prefixId,
+        carbonType,
+        innerDiameter,
+        length,
+        particleSize,
+        suffixId,
+        makeId,
+      } = data.data;
+
       console.log("🔍 Extracted data:", {
         prefixId: prefixId?.name,
         carbonType,
@@ -293,34 +323,34 @@ const fetchColumnDisplayText = async (columnId: string): Promise<string> => {
         length,
         particleSize,
         suffixId: suffixId?.name,
-        makeId: makeId?.make
+        makeId: makeId?.make,
       });
-      
+
       // Build display text in the format: ${prefix} ${carbonType} ${innerDiameter} x ${length} ${particleSize}µm ${suffix}-{desc.make}
-      const prefix = prefixId?.name || '';
-      const suffix = suffixId?.name || '';
-      const make = makeId?.make || '';
-      
-      let displayText = '';
-      
+      const prefix = prefixId?.name || "";
+      const suffix = suffixId?.name || "";
+      const make = makeId?.make || "";
+
+      let displayText = "";
+
       // Add prefix if exists
       if (prefix) {
         displayText += `${prefix} `;
       }
-      
+
       // Add carbon type, dimensions, and particle size
       displayText += `${carbonType} ${innerDiameter} x ${length} ${particleSize}µm`;
-      
+
       // Add suffix if exists
       if (suffix) {
         displayText += ` ${suffix}`;
       }
-      
+
       // Add make
       if (make) {
         displayText += `-${make}`;
       }
-      
+
       const finalDisplayText = displayText.trim();
       console.log("✅ Final display text:", finalDisplayText);
       return finalDisplayText;
@@ -328,9 +358,9 @@ const fetchColumnDisplayText = async (columnId: string): Promise<string> => {
       console.error("❌ API response not successful or no data:", data);
     }
   } catch (error) {
-    console.error('❌ Error fetching column details:', error);
+    console.error("❌ Error fetching column details:", error);
   }
-  
+
   console.log("⚠️ Fallback to columnId:", columnId);
   return columnId; // Fallback to columnId
 };
@@ -494,6 +524,15 @@ const transformInitialData = (
         sampleInjection: testType.sampleInjection || 0,
         standardInjection: testType.standardInjection || 0,
         blankInjection: testType.blankInjection || 0,
+        systemSuitability: testType.systemSuitability || 0,
+        sensitivity: testType.sensitivity || 0,
+        placebo: testType.placebo || 0,
+        reference1: testType.reference1 || 0,
+        reference2: testType.reference2 || 0,
+        uniqueRuntimes: testType.uniqueRuntimes || false,
+        blankRunTime: testType.blankRunTime || 0,
+        standardRunTime: testType.standardRunTime || 0,
+        sampleRunTime: testType.sampleRunTime || 0,
         bracketingFrequency: testType.bracketingFrequency || 0,
         injectionTime: testType.injectionTime || 0,
         runTime: testType.runTime || 0,
@@ -564,16 +603,25 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                 mobilePhaseCodes: ["", "", "", "", "", ""],
                 detectorTypeId: "",
                 pharmacopoeialId: "",
-                sampleInjection: 0,
-                standardInjection: 0,
                 blankInjection: 0,
+                systemSuitability: 0,
+                sensitivity: 0,
+                placebo: 0,
+                standardInjection: 0,
+                reference1: 0,
+                reference2: 0,
+                sampleInjection: 0,
                 bracketingFrequency: 0,
-                injectionTime: 0,
+                uniqueRuntimes: false,
+                blankRunTime: 0,
+                standardRunTime: 0,
+                sampleRunTime: 0,
                 runTime: 0,
                 washTime: 0,
                 numberOfInjectionsAMV: 0,
                 numberOfInjectionsPV: 0,
                 numberOfInjectionsCV: 0,
+                numberOfInjections: 0,
                 bulk: false,
                 fp: false,
                 stabilityPartial: false,
@@ -702,11 +750,19 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
         "mobilePhaseCodes",
         "detectorTypeId",
         "pharmacopoeialId",
-        "sampleInjection",
-        "standardInjection",
         "blankInjection",
+        "systemSuitability",
+        "sensitivity",
+        "placebo",
+        "standardInjection",
+        "reference1",
+        "reference2",
+        "sampleInjection",
         "bracketingFrequency",
-        "injectionTime",
+        "uniqueRuntimes",
+        "blankRunTime",
+        "standardRunTime",
+        "sampleRunTime",
         "runTime",
         "washTime",
         "numberOfInjectionsAMV",
@@ -748,14 +804,7 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
     testTypeIndex: number;
     control: any;
   }) => {
-    const phaseLabels = [
-      "MP01",
-      "MP02",
-      "MP03",
-      "MP04",
-      "Wash 1",
-      "Wash 2",
-    ];
+    const phaseLabels = ["MP01", "MP02", "MP03", "MP04", "Wash 1", "Wash 2"];
 
     return (
       <div className="grid grid-cols-6 gap-2">
@@ -791,70 +840,31 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
   };
 
   useEffect(() => {
-    console.log("🚀 useEffect triggered for loadColumnDisplayTexts");
-    console.log("🔍 apiData:", apiData);
-
     const loadColumnDisplayTexts = async () => {
-      if (!apiData) {
-        console.log("⚠️ No apiData provided");
-        return;
-      }
-
-      if (!apiData.testTypes) {
-        console.log("⚠️ No testTypes in apiData");
-        return;
-      }
-
-      console.log("🔍 apiData.testTypes:", apiData.testTypes);
+      if (!apiData?.testTypes) return;
 
       const displayTextPromises = apiData.testTypes.map(async (tt, index) => {
-        console.log(`🔍 Processing testType ${index}:`, {
-          selectMakeSpecific: tt.selectMakeSpecific,
-          columnCode: tt.columnCode,
-          hasColumnCode: !!tt.columnCode,
-        });
-
         if (tt.selectMakeSpecific && tt.columnCode) {
-          console.log(
-            `✅ testType ${index} needs display text - calling fetchColumnDisplayText`
-          );
           try {
             const displayText = await fetchColumnDisplayText(tt.columnCode);
-            console.log(
-              `✅ testType ${index} display text fetched:`,
-              displayText
-            );
             return { index, displayText };
           } catch (error) {
-            console.error(
-              `❌ Error loading column display text for testType ${index}:`,
-              error
-            );
+            console.error("Error loading column display text:", error);
             return { index, displayText: tt.columnCode };
           }
-        } else {
-          console.log(`⏭️ testType ${index} does not need display text`);
-          return null;
         }
+        return null;
       });
 
-      console.log("🔍 displayTextPromises count:", displayTextPromises.length);
-
       const results = await Promise.all(displayTextPromises);
-      console.log("All promises resolved, results:", results);
-
       const newDisplayTexts: { [key: number]: string } = {};
+
       results.forEach((result) => {
         if (result) {
-          console.log(
-            `Setting displayText for index ${result.index}:`,
-            result.displayText
-          );
           newDisplayTexts[result.index] = result.displayText;
         }
       });
 
-      console.log("Final newDisplayTexts:", newDisplayTexts);
       setColumnDisplayTexts(newDisplayTexts);
 
       const resetData = {
@@ -868,7 +878,6 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
         })),
       };
 
-      console.log("Resetting form with data:", resetData);
       reset(resetData);
     };
 
@@ -928,16 +937,6 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
   }, []);
 
   const onSubmitForm = (data: ApiData) => {
-    console.log("=== FORM SUBMISSION DEBUG ===");
-    data.testTypes.forEach((tt, index) => {
-      console.log(`Test Type ${index + 1}:`);
-      console.log(`  selectMakeSpecific: ${tt.selectMakeSpecific}`);
-      console.log(`  columnCode: "${tt.columnCode}"`);
-      console.log(`  columnCode type: ${typeof tt.columnCode}`);
-      console.log(`  columnCode length: ${tt.columnCode?.length || 0}`);
-      console.log(`  mobilePhaseCodes:`, tt.mobilePhaseCodes);
-    });
-
     const processedData = {
       ...data,
       testTypes: data.testTypes.map((tt) => ({
@@ -946,81 +945,49 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
       })),
     };
 
-    console.log("Processed data:", processedData);
     onSave(processedData);
   };
 
-  // Enhanced error handler with better user experience
   const onSubmitError = (errors: any) => {
     console.error("Form validation errors:", errors);
-    
-    // Build comprehensive error message
+
     let errorMessages: string[] = [];
-    
-    // API Name error
+
     if (errors.apiName) {
       errorMessages.push(`🔸 API Name: ${errors.apiName.message}`);
     }
 
-    // Test Types errors
     if (errors.testTypes) {
       errors.testTypes.forEach((testTypeError: any, index: number) => {
         if (testTypeError) {
           errorMessages.push(`\n📋 Test Type ${index + 1} Issues:`);
-          
-          if (testTypeError.testTypeId) {
-            errorMessages.push(`   • Test Type: ${testTypeError.testTypeId.message}`);
-          }
-          if (testTypeError.columnCode) {
-            errorMessages.push(`   • Column: ${testTypeError.columnCode.message}`);
-          }
-          if (testTypeError.mobilePhaseCodes) {
-            errorMessages.push(`   • Mobile Phases: ${testTypeError.mobilePhaseCodes.message}`);
-          }
-          if (testTypeError.detectorTypeId) {
-            errorMessages.push(`   • Detector: ${testTypeError.detectorTypeId.message}`);
-          }
-          if (testTypeError.pharmacopoeialId) {
-            errorMessages.push(`   • Pharmacopoeial: ${testTypeError.pharmacopoeialId.message}`);
-          }
-          if (testTypeError.numberOfInjectionsAMV) {
-            errorMessages.push(`   • AMV Injections: ${testTypeError.numberOfInjectionsAMV.message}`);
-          }
-          if (testTypeError.numberOfInjectionsPV) {
-            errorMessages.push(`   • PV Injections: ${testTypeError.numberOfInjectionsPV.message}`);
-          }
-          if (testTypeError.numberOfInjectionsCV) {
-            errorMessages.push(`   • CV Injections: ${testTypeError.numberOfInjectionsCV.message}`);
-          }
-          
-          // Numeric field validations
-          const numericFields = [
-            'sampleInjection', 'standardInjection', 'blankInjection', 
-            'bracketingFrequency', 'injectionTime', 'runTime', 'washTime'
-          ];
-          
-          numericFields.forEach(field => {
-            if (testTypeError[field]) {
-              const fieldName = field.replace(/([A-Z])/g, ' $1').toLowerCase().replace(/^./, str => str.toUpperCase());
-              errorMessages.push(`   • ${fieldName}: ${testTypeError[field].message}`);
+
+          Object.keys(testTypeError).forEach((fieldName) => {
+            const error = testTypeError[fieldName];
+            if (error && error.message) {
+              const friendlyFieldName = fieldName
+                .replace(/([A-Z])/g, " $1")
+                .toLowerCase()
+                .replace(/^./, (str) => str.toUpperCase());
+              errorMessages.push(`   • ${friendlyFieldName}: ${error.message}`);
             }
           });
         }
       });
     }
 
-    // Show user-friendly alert
     if (errorMessages.length > 0) {
-      const alertMessage = `❌ Please fix the following errors:\n\n${errorMessages.join('\n')}`;
+      const alertMessage = `❌ Please fix the following errors:\n\n${errorMessages.join(
+        "\n"
+      )}`;
       alert(alertMessage);
     } else {
       alert("❌ Please check all required fields and try again.");
     }
 
-    // Scroll to first error field
-    const firstErrorField = document.querySelector('.border-red-400');
+    const firstErrorField = document.querySelector(".border-red-400");
     if (firstErrorField) {
-      firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      firstErrorField.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   };
 
@@ -1034,52 +1001,26 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
     displayText?: string;
     columnCode: string;
   }) => {
-    console.log("=== COLUMN SELECTION DEBUG ===");
-    console.log("Received columnData:", columnData);
-    console.log("currentColumnTestTypeIndex:", currentColumnTestTypeIndex);
-
     if (currentColumnTestTypeIndex !== null) {
-      console.log(
-        `Setting columnCode for testType ${currentColumnTestTypeIndex} to:`,
-        columnData.id
-      );
-
       setValue(
         `testTypes.${currentColumnTestTypeIndex}.columnCode`,
         columnData.id
       );
 
-      const currentValue = getValues(
-        `testTypes.${currentColumnTestTypeIndex}.columnCode`
-      );
-      console.log("Value after setting:", currentValue);
-
       let displayText = columnData.displayText;
       if (!displayText) {
-        console.log("No displayText provided, fetching...");
         try {
           displayText = await fetchColumnDisplayText(columnData.id);
-          console.log("Fetched displayText:", displayText);
         } catch (error) {
           console.error("Error fetching display text:", error);
           displayText = columnData.id;
         }
-      } else {
-        console.log("Using provided displayText:", displayText);
       }
 
-      console.log(
-        `Updating columnDisplayTexts for index ${currentColumnTestTypeIndex}:`,
-        displayText
-      );
-      setColumnDisplayTexts((prev) => {
-        const updated = {
-          ...prev,
-          [currentColumnTestTypeIndex]: displayText,
-        };
-        console.log("Updated columnDisplayTexts state:", updated);
-        return updated;
-      });
+      setColumnDisplayTexts((prev) => ({
+        ...prev,
+        [currentColumnTestTypeIndex]: displayText,
+      }));
 
       handleTestTypeChange(
         currentColumnTestTypeIndex,
@@ -1088,8 +1029,6 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
       );
 
       clearErrors(`testTypes.${currentColumnTestTypeIndex}.columnCode`);
-    } else {
-      console.error("currentColumnTestTypeIndex is null");
     }
 
     setShowColumnPopup(false);
@@ -1155,8 +1094,16 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
             </select>
             {errors.apiName?.message && (
               <div className="mt-1 flex items-center text-sm text-red-600">
-                <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                <svg
+                  className="w-4 h-4 mr-1"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                    clipRule="evenodd"
+                  />
                 </svg>
                 {errors.apiName.message}
               </div>
@@ -1210,8 +1157,8 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                         );
                       }}
                       className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        errors.testTypes?.[testTypeIndex]?.testTypeId 
-                          ? "border-red-400 bg-red-50" 
+                        errors.testTypes?.[testTypeIndex]?.testTypeId
+                          ? "border-red-400 bg-red-50"
                           : "border-gray-300"
                       }`}
                     >
@@ -1226,8 +1173,16 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                     </select>
                     {errors.testTypes?.[testTypeIndex]?.testTypeId?.message && (
                       <div className="mt-1 flex items-center text-sm text-red-600">
-                        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        <svg
+                          className="w-4 h-4 mr-1"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                            clipRule="evenodd"
+                          />
                         </svg>
                         {errors.testTypes[testTypeIndex].testTypeId.message}
                       </div>
@@ -1272,20 +1227,12 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                         <>
                           <input
                             type="text"
-                            value={(() => {
-                              const displayText =
-                                columnDisplayTexts[testTypeIndex] || "";
-                              console.log(
-                                `Rendering input for testType ${testTypeIndex}, displayText:`,
-                                displayText
-                              );
-                              return displayText;
-                            })()}
+                            value={columnDisplayTexts[testTypeIndex] || ""}
                             readOnly
                             placeholder="Click Browse to select column"
                             className={`flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 ${
-                              errors.testTypes?.[testTypeIndex]?.columnCode 
-                                ? "border-red-400" 
+                              errors.testTypes?.[testTypeIndex]?.columnCode
+                                ? "border-red-400"
                                 : "border-gray-300"
                             }`}
                           />
@@ -1310,8 +1257,8 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                             );
                           }}
                           className={`flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                            errors.testTypes?.[testTypeIndex]?.columnCode 
-                              ? "border-red-400 bg-red-50" 
+                            errors.testTypes?.[testTypeIndex]?.columnCode
+                              ? "border-red-400 bg-red-50"
                               : "border-gray-300"
                           }`}
                         >
@@ -1352,8 +1299,16 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                     </div>
                     {errors.testTypes?.[testTypeIndex]?.columnCode?.message && (
                       <div className="mt-1 flex items-center text-sm text-red-600">
-                        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        <svg
+                          className="w-4 h-4 mr-1"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                            clipRule="evenodd"
+                          />
                         </svg>
                         {errors.testTypes[testTypeIndex].columnCode.message}
                       </div>
@@ -1377,8 +1332,8 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                         );
                       }}
                       className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        errors.testTypes?.[testTypeIndex]?.detectorTypeId 
-                          ? "border-red-400 bg-red-50" 
+                        errors.testTypes?.[testTypeIndex]?.detectorTypeId
+                          ? "border-red-400 bg-red-50"
                           : "border-gray-300"
                       }`}
                     >
@@ -1394,8 +1349,16 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                     {errors.testTypes?.[testTypeIndex]?.detectorTypeId
                       ?.message && (
                       <div className="mt-1 flex items-center text-sm text-red-600">
-                        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        <svg
+                          className="w-4 h-4 mr-1"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                            clipRule="evenodd"
+                          />
                         </svg>
                         {errors.testTypes[testTypeIndex].detectorTypeId.message}
                       </div>
@@ -1421,8 +1384,8 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                         );
                       }}
                       className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        errors.testTypes?.[testTypeIndex]?.pharmacopoeialId 
-                          ? "border-red-400 bg-red-50" 
+                        errors.testTypes?.[testTypeIndex]?.pharmacopoeialId
+                          ? "border-red-400 bg-red-50"
                           : "border-gray-300"
                       }`}
                     >
@@ -1438,10 +1401,21 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                     {errors.testTypes?.[testTypeIndex]?.pharmacopoeialId
                       ?.message && (
                       <div className="mt-1 flex items-center text-sm text-red-600">
-                        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        <svg
+                          className="w-4 h-4 mr-1"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                            clipRule="evenodd"
+                          />
                         </svg>
-                        {errors.testTypes[testTypeIndex].pharmacopoeialId.message}
+                        {
+                          errors.testTypes[testTypeIndex].pharmacopoeialId
+                            .message
+                        }
                       </div>
                     )}
                   </div>
@@ -1458,25 +1432,37 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                   {errors.testTypes?.[testTypeIndex]?.mobilePhaseCodes
                     ?.message && (
                     <div className="mt-1 flex items-center text-sm text-red-600">
-                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      <svg
+                        className="w-4 h-4 mr-1"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                          clipRule="evenodd"
+                        />
                       </svg>
                       {errors.testTypes[testTypeIndex].mobilePhaseCodes.message}
                     </div>
                   )}
                 </div>
 
+                {/* Fields in the correct sequence: Blank → System Suitability → Sensitivity → Placebo → Standard → Reference1 → Reference2 → Sample */}
                 <div className="grid grid-cols-6 gap-3 mb-4">
                   {[
-                    { field: "sampleInjection", label: "Sample Injection" },
-                    { field: "standardInjection", label: "Standard Injection" },
                     { field: "blankInjection", label: "Blank Injection" },
+                    { field: "systemSuitability", label: "System Suitability" },
+                    { field: "sensitivity", label: "Sensitivity" },
+                    { field: "placebo", label: "Placebo" },
+                    { field: "standardInjection", label: "Standard Injection" },
+                    { field: "reference1", label: "Reference1" },
+                    { field: "reference2", label: "Reference2" },
+                    { field: "sampleInjection", label: "Sample Injection" },
                     {
                       field: "bracketingFrequency",
                       label: "Bracketing Frequency",
                     },
-                    { field: "injectionTime", label: "Injection Time" },
-                    { field: "runTime", label: "Run Time" },
                     { field: "washTime", label: "Wash Time" },
                   ].map(({ field, label }) => (
                     <div key={field}>
@@ -1503,8 +1489,10 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                           handleTestTypeChange(testTypeIndex, field, value);
                         }}
                         className={`w-full px-2 py-1 text-sm border rounded ${
-                          errors.testTypes?.[testTypeIndex]?.[field as keyof TestTypeData] 
-                            ? "border-red-400 bg-red-50" 
+                          errors.testTypes?.[testTypeIndex]?.[
+                            field as keyof TestTypeData
+                          ]
+                            ? "border-red-400 bg-red-50"
                             : "border-gray-300"
                         }`}
                       />
@@ -1521,6 +1509,134 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                       )}
                     </div>
                   ))}
+                </div>
+
+                {/* Unique Runtimes checkbox and conditional runtime fields */}
+                <div className="mb-4">
+                  <label className="flex items-center mb-3">
+                    <input
+                      type="checkbox"
+                      {...register(`testTypes.${testTypeIndex}.uniqueRuntimes`)}
+                      onChange={(e) => {
+                        register(
+                          `testTypes.${testTypeIndex}.uniqueRuntimes`
+                        ).onChange(e);
+                        handleTestTypeChange(
+                          testTypeIndex,
+                          "uniqueRuntimes",
+                          e.target.checked
+                        );
+                      }}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-2"
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      Unique Runtimes
+                    </span>
+                  </label>
+
+                  {watchedValues?.testTypes?.[testTypeIndex]?.uniqueRuntimes ? (
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Blank Run Time
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          {...register(
+                            `testTypes.${testTypeIndex}.blankRunTime`,
+                            { valueAsNumber: true }
+                          )}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value) || 0;
+                            register(
+                              `testTypes.${testTypeIndex}.blankRunTime`,
+                              { valueAsNumber: true }
+                            ).onChange({ target: { value } });
+                            handleTestTypeChange(
+                              testTypeIndex,
+                              "blankRunTime",
+                              value
+                            );
+                          }}
+                          className="w-full px-2 py-1 text-sm border rounded border-gray-300"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Standard Run Time
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          {...register(
+                            `testTypes.${testTypeIndex}.standardRunTime`,
+                            { valueAsNumber: true }
+                          )}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value) || 0;
+                            register(
+                              `testTypes.${testTypeIndex}.standardRunTime`,
+                              { valueAsNumber: true }
+                            ).onChange({ target: { value } });
+                            handleTestTypeChange(
+                              testTypeIndex,
+                              "standardRunTime",
+                              value
+                            );
+                          }}
+                          className="w-full px-2 py-1 text-sm border rounded border-gray-300"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Sample Run Time
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          {...register(
+                            `testTypes.${testTypeIndex}.sampleRunTime`,
+                            { valueAsNumber: true }
+                          )}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value) || 0;
+                            register(
+                              `testTypes.${testTypeIndex}.sampleRunTime`,
+                              { valueAsNumber: true }
+                            ).onChange({ target: { value } });
+                            handleTestTypeChange(
+                              testTypeIndex,
+                              "sampleRunTime",
+                              value
+                            );
+                          }}
+                          className="w-full px-2 py-1 text-sm border rounded border-gray-300"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Run Time
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        {...register(`testTypes.${testTypeIndex}.runTime`, {
+                          valueAsNumber: true,
+                        })}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value) || 0;
+                          register(`testTypes.${testTypeIndex}.runTime`, {
+                            valueAsNumber: true,
+                          }).onChange({ target: { value } });
+                          handleTestTypeChange(testTypeIndex, "runTime", value);
+                        }}
+                        className="w-full px-2 py-1 text-sm border rounded border-gray-300"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 mb-4">
@@ -1602,8 +1718,16 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                       {errors.testTypes?.[testTypeIndex]?.numberOfInjectionsAMV
                         ?.message && (
                         <div className="mt-1 flex items-center text-sm text-red-600">
-                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          <svg
+                            className="w-4 h-4 mr-1"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                              clipRule="evenodd"
+                            />
                           </svg>
                           {
                             errors.testTypes[testTypeIndex]
@@ -1653,8 +1777,16 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                       {errors.testTypes?.[testTypeIndex]?.numberOfInjectionsPV
                         ?.message && (
                         <div className="mt-1 flex items-center text-sm text-red-600">
-                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          <svg
+                            className="w-4 h-4 mr-1"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                              clipRule="evenodd"
+                            />
                           </svg>
                           {
                             errors.testTypes[testTypeIndex].numberOfInjectionsPV
@@ -1704,8 +1836,16 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                       {errors.testTypes?.[testTypeIndex]?.numberOfInjectionsCV
                         ?.message && (
                         <div className="mt-1 flex items-center text-sm text-red-600">
-                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          <svg
+                            className="w-4 h-4 mr-1"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                              clipRule="evenodd"
+                            />
                           </svg>
                           {
                             errors.testTypes[testTypeIndex].numberOfInjectionsCV
@@ -1730,15 +1870,25 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                   detectorTypeId: "",
                   pharmacopoeialId: "",
                   sampleInjection: 0,
-                  standardInjection: 0,
+                  standardInjection: 0, // ← Added missing property
                   blankInjection: 0,
                   bracketingFrequency: 0,
-                  injectionTime: 0,
+                  injectionTime: 0, // ← Added missing property
+                  systemSuitability: 0,
+                  sensitivity: 0,
+                  placebo: 0,
+                  reference1: 0,
+                  reference2: 0,
+                  uniqueRuntimes: false,
+                  blankRunTime: 0,
+                  standardRunTime: 0,
+                  sampleRunTime: 0,
                   runTime: 0,
                   washTime: 0,
                   numberOfInjectionsAMV: 0,
                   numberOfInjectionsPV: 0,
                   numberOfInjectionsCV: 0,
+                  numberOfInjections: 0,
                   bulk: false,
                   fp: false,
                   stabilityPartial: false,
@@ -1825,7 +1975,6 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
     </div>
   );
 };
-
 
 const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
   ({ onSubmit, initialData, onCancel }, ref) => {
@@ -1916,30 +2065,37 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
     useEffect(() => {
       const loadExistingColumnDisplayTexts = async () => {
         if (!watchedApis || watchedApis.length === 0) return;
-        
+
         const newDisplayTexts: { [key: string]: string } = {};
-        
+
         for (let apiIndex = 0; apiIndex < watchedApis.length; apiIndex++) {
           const api = watchedApis[apiIndex];
           if (!api.testTypes) continue;
-          
-          for (let testTypeIndex = 0; testTypeIndex < api.testTypes.length; testTypeIndex++) {
+
+          for (
+            let testTypeIndex = 0;
+            testTypeIndex < api.testTypes.length;
+            testTypeIndex++
+          ) {
             const testType = api.testTypes[testTypeIndex];
-            
+
             if (testType.selectMakeSpecific && testType.columnCode) {
               try {
-                const displayText = await fetchColumnDisplayText(testType.columnCode);
+                const displayText = await fetchColumnDisplayText(
+                  testType.columnCode
+                );
                 newDisplayTexts[`${apiIndex}-${testTypeIndex}`] = displayText;
               } catch (error) {
-                console.error('Error loading column display text:', error);
-                newDisplayTexts[`${apiIndex}-${testTypeIndex}`] = testType.columnCode;
+                console.error("Error loading column display text:", error);
+                newDisplayTexts[`${apiIndex}-${testTypeIndex}`] =
+                  testType.columnCode;
               }
             }
           }
         }
-        
+
         if (Object.keys(newDisplayTexts).length > 0) {
-          setColumnDisplayTexts(prev => ({ ...prev, ...newDisplayTexts }));
+          setColumnDisplayTexts((prev) => ({ ...prev, ...newDisplayTexts }));
         }
       };
 
@@ -1995,9 +2151,9 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
     // Enhanced error handler for form validation errors
     const handleFormError = (errors: any) => {
       console.error("MFC Form validation errors:", errors);
-      
+
       let errorMessages: string[] = [];
-      
+
       // Basic form errors
       if (errors.mfcNumber) {
         errorMessages.push(`🔸 MFC Number: ${errors.mfcNumber.message}`);
@@ -2014,65 +2170,82 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
       if (errors.productIds) {
         errorMessages.push(`🔸 Product Codes: ${errors.productIds.message}`);
       }
-      
+
       // API errors
       if (errors.apis) {
-        if (typeof errors.apis === 'object' && 'message' in errors.apis) {
+        if (typeof errors.apis === "object" && "message" in errors.apis) {
           errorMessages.push(`🔸 APIs: ${errors.apis.message}`);
         }
-        
+
         if (Array.isArray(errors.apis)) {
           errors.apis.forEach((apiError: any, apiIndex: number) => {
             if (apiError) {
               errorMessages.push(`\n📋 API ${apiIndex + 1} Issues:`);
-              
+
               if (apiError.apiName) {
-                errorMessages.push(`   • API Name: ${apiError.apiName.message}`);
+                errorMessages.push(
+                  `   • API Name: ${apiError.apiName.message}`
+                );
               }
-              
+
               if (apiError.testTypes) {
-                if (typeof apiError.testTypes === 'object' && 'message' in apiError.testTypes) {
-                  errorMessages.push(`   • Test Types: ${apiError.testTypes.message}`);
+                if (
+                  typeof apiError.testTypes === "object" &&
+                  "message" in apiError.testTypes
+                ) {
+                  errorMessages.push(
+                    `   • Test Types: ${apiError.testTypes.message}`
+                  );
                 }
-                
+
                 if (Array.isArray(apiError.testTypes)) {
-                  apiError.testTypes.forEach((testTypeError: any, testTypeIndex: number) => {
-                    if (testTypeError) {
-                      errorMessages.push(`   📝 Test Type ${testTypeIndex + 1}:`);
-                      
-                      Object.keys(testTypeError).forEach(fieldName => {
-                        const error = testTypeError[fieldName];
-                        if (error && error.message) {
-                          const friendlyFieldName = fieldName
-                            .replace(/([A-Z])/g, ' $1')
-                            .toLowerCase()
-                            .replace(/^./, str => str.toUpperCase());
-                          errorMessages.push(`      • ${friendlyFieldName}: ${error.message}`);
-                        }
-                      });
+                  apiError.testTypes.forEach(
+                    (testTypeError: any, testTypeIndex: number) => {
+                      if (testTypeError) {
+                        errorMessages.push(
+                          `   📝 Test Type ${testTypeIndex + 1}:`
+                        );
+
+                        Object.keys(testTypeError).forEach((fieldName) => {
+                          const error = testTypeError[fieldName];
+                          if (error && error.message) {
+                            const friendlyFieldName = fieldName
+                              .replace(/([A-Z])/g, " $1")
+                              .toLowerCase()
+                              .replace(/^./, (str) => str.toUpperCase());
+                            errorMessages.push(
+                              `      • ${friendlyFieldName}: ${error.message}`
+                            );
+                          }
+                        });
+                      }
                     }
-                  });
+                  );
                 }
               }
             }
           });
         }
       }
-      
+
       // Show comprehensive error message
       if (errorMessages.length > 0) {
-        const alertMessage = `❌ Please fix the following errors:\n\n${errorMessages.join('\n')}`;
-        setSubmitError("Please check all required fields and fix the validation errors before submitting.");
+        const alertMessage = `❌ Please fix the following errors:\n\n${errorMessages.join(
+          "\n"
+        )}`;
+        setSubmitError(
+          "Please check all required fields and fix the validation errors before submitting."
+        );
         alert(alertMessage);
       } else {
         setSubmitError("Please check all required fields and try again.");
         alert("❌ Please check all required fields and try again.");
       }
-      
+
       // Scroll to first error field
-      const firstErrorField = document.querySelector('.border-red-400');
+      const firstErrorField = document.querySelector(".border-red-400");
       if (firstErrorField) {
-        firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        firstErrorField.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     };
 
@@ -2097,10 +2270,19 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
               sampleInjection: 0,
               standardInjection: 0,
               blankInjection: 0,
-              bracketingFrequency: 0,
-              injectionTime: 0,
-              runTime: 0,
-              washTime: 0,
+              bracketingFrequency: 0, // ✅ Add this
+              injectionTime: 0, // ✅ Add this
+              runTime: 0, // ✅ Add this
+              washTime: 0, // ✅ Add this
+              systemSuitability: 0,
+              sensitivity: 0,
+              placebo: 0,
+              reference1: 0,
+              reference2: 0,
+              uniqueRuntimes: false,
+              blankRunTime: 0,
+              standardRunTime: 0,
+              sampleRunTime: 0,
               numberOfInjectionsAMV: 0,
               numberOfInjectionsPV: 0,
               numberOfInjectionsCV: 0,
@@ -2194,10 +2376,22 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
               {submitError && (
                 <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
                   <div className="flex items-center">
-                    <svg className="w-5 h-5 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <svg
+                      className="w-5 h-5 text-red-600 mr-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
                     </svg>
-                    <p className="text-sm font-medium text-red-800">{submitError}</p>
+                    <p className="text-sm font-medium text-red-800">
+                      {submitError}
+                    </p>
                   </div>
                 </div>
               )}
@@ -2211,14 +2405,24 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
                     type="text"
                     {...register("mfcNumber")}
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.mfcNumber ? "border-red-400 bg-red-50" : "border-gray-300"
+                      errors.mfcNumber
+                        ? "border-red-400 bg-red-50"
+                        : "border-gray-300"
                     }`}
                     placeholder="Enter MFC number"
                   />
                   {errors.mfcNumber?.message && (
                     <div className="mt-1 flex items-center text-sm text-red-600">
-                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      <svg
+                        className="w-4 h-4 mr-1"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                          clipRule="evenodd"
+                        />
                       </svg>
                       {errors.mfcNumber.message}
                     </div>
@@ -2233,14 +2437,24 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
                     type="text"
                     {...register("genericName")}
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.genericName ? "border-red-400 bg-red-50" : "border-gray-300"
+                      errors.genericName
+                        ? "border-red-400 bg-red-50"
+                        : "border-gray-300"
                     }`}
                     placeholder="Enter generic name"
                   />
                   {errors.genericName?.message && (
                     <div className="mt-1 flex items-center text-sm text-red-600">
-                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      <svg
+                        className="w-4 h-4 mr-1"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                          clipRule="evenodd"
+                        />
                       </svg>
                       {errors.genericName.message}
                     </div>
@@ -2255,7 +2469,9 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
                     {...register("departmentId")}
                     disabled={masterDataLoading}
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.departmentId ? "border-red-400 bg-red-50" : "border-gray-300"
+                      errors.departmentId
+                        ? "border-red-400 bg-red-50"
+                        : "border-gray-300"
                     }`}
                   >
                     <option value="">Select Department</option>
@@ -2269,8 +2485,16 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
                   </select>
                   {errors.departmentId?.message && (
                     <div className="mt-1 flex items-center text-sm text-red-600">
-                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      <svg
+                        className="w-4 h-4 mr-1"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                          clipRule="evenodd"
+                        />
                       </svg>
                       {errors.departmentId.message}
                     </div>
@@ -2288,7 +2512,9 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
                     <div
                       key={apiIndex}
                       className={`bg-gradient-to-r from-gray-50 to-gray-100 p-5 rounded-lg border shadow-sm hover:shadow-md transition-shadow ${
-                        errors.apis?.[apiIndex] ? "border-red-200 bg-red-50" : "border-gray-200"
+                        errors.apis?.[apiIndex]
+                          ? "border-red-200 bg-red-50"
+                          : "border-gray-200"
                       }`}
                     >
                       <div className="flex gap-10 items-start justify-between">
@@ -2384,8 +2610,16 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
                 </div>
                 {errors.apis?.message && (
                   <div className="mt-1 flex items-center text-sm text-red-600">
-                    <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    <svg
+                      className="w-4 h-4 mr-1"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                     {errors.apis.message}
                   </div>
@@ -2402,7 +2636,9 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
                     onChange={(e) => setSelectedProduct(e.target.value)}
                     disabled={isLoadingProducts}
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.productIds ? "border-red-400 bg-red-50" : "border-gray-300"
+                      errors.productIds
+                        ? "border-red-400 bg-red-50"
+                        : "border-gray-300"
                     }`}
                   >
                     <option value="">Select Product Code</option>
@@ -2423,8 +2659,16 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
                 </div>
                 {errors.productIds?.message && (
                   <div className="mt-1 flex items-center text-sm text-red-600">
-                    <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    <svg
+                      className="w-4 h-4 mr-1"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                     {errors.productIds.message}
                   </div>
@@ -2510,7 +2754,6 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
     );
   }
 );
-
 
 MFCMasterForm.displayName = "MFCMasterForm";
 

@@ -443,7 +443,7 @@ const MFCMasterPage: React.FC = () => {
       console.log("APIs lookup data:", apis.slice(0, 3));
     }
   }, [mfcRecords, apis]);
-  
+
   const renderCreateData = (audit: AuditRecord) => (
     <div className="bg-green-50 p-3">
       <h5 className="font-medium text-green-800 mb-2">Created Record:</h5>
@@ -1398,7 +1398,7 @@ const MFCMasterPage: React.FC = () => {
             )}
 
             {/* Removed the top search input section completely */}
-            
+
             {/* Status bar showing records count */}
             <div className="px-6 py-3 border-b border-gray-300 bg-gray-50">
               <div className="text-sm text-gray-600">
@@ -1489,35 +1489,19 @@ const MFCMasterPage: React.FC = () => {
                       >
                         Pharmacopoeial
                       </th>
+                      {/* New Injection & Reference Fields Group */}
                       <th
-                        rowSpan={2}
-                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                        colSpan={9}
+                        className="px-2 py-2 text-center font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-blue-100"
                       >
-                        Sample Inj
+                        Injection & Reference Fields
                       </th>
+                      {/* New Runtime & Wash Fields Group */}
                       <th
-                        rowSpan={2}
-                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                        colSpan={4}
+                        className="px-2 py-2 text-center font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-green-100"
                       >
-                        Std Inj
-                      </th>
-                      <th
-                        rowSpan={2}
-                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
-                      >
-                        Blank
-                      </th>
-                      <th
-                        rowSpan={2}
-                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
-                      >
-                        Run Time
-                      </th>
-                      <th
-                        rowSpan={2}
-                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
-                      >
-                        Wash Time
+                        Runtime & Wash Fields
                       </th>
                       <th
                         rowSpan={2}
@@ -1545,6 +1529,7 @@ const MFCMasterPage: React.FC = () => {
                       </th>
                     </tr>
                     <tr>
+                      {/* Mobile Phase sub-headers */}
                       <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-gray-50">
                         MP1
                       </th>
@@ -1563,8 +1548,52 @@ const MFCMasterPage: React.FC = () => {
                       <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-gray-50">
                         Wash2
                       </th>
+
+                      {/* Injection & Reference Fields sub-headers */}
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
+                        Blank Inj
+                      </th>
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
+                        System Suit
+                      </th>
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
+                        Sensitivity
+                      </th>
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
+                        Placebo
+                      </th>
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
+                        Std Inj
+                      </th>
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
+                        Ref 1
+                      </th>
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
+                        Ref 2
+                      </th>
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
+                        Sample Inj
+                      </th>
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
+                        Bracket Freq
+                      </th>
+
+                      {/* Runtime & Wash Fields sub-headers */}
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                        Wash Time
+                      </th>
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                        Blank Run
+                      </th>
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                        Std Run
+                      </th>
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                        Sample Run
+                      </th>
                     </tr>
                   </thead>
+
                   <tbody className="bg-white divide-y divide-gray-200">
                     {mfcRecords.length > 0 ? (
                       (() => {
@@ -1573,308 +1602,363 @@ const MFCMasterPage: React.FC = () => {
                         mfcRecords.forEach((record, recordIndex) => {
                           record.generics?.forEach((generic, genericIndex) => {
                             generic.apis?.forEach((api, apiIndex) => {
-                              api.testTypes?.forEach((testType, testTypeIndex) => {
-                                const isFirstRowForRecord = genericIndex === 0 && apiIndex === 0 && testTypeIndex === 0;
-                                const isFirstRowForGeneric = apiIndex === 0 && testTypeIndex === 0;
-                                const isFirstRowForApi = testTypeIndex === 0;
+                              api.testTypes?.forEach(
+                                (testType, testTypeIndex) => {
+                                  const isFirstRowForRecord =
+                                    genericIndex === 0 &&
+                                    apiIndex === 0 &&
+                                    testTypeIndex === 0;
+                                  const isFirstRowForGeneric =
+                                    apiIndex === 0 && testTypeIndex === 0;
+                                  const isFirstRowForApi = testTypeIndex === 0;
 
-                                const totalTestTypesInRecord = record.generics?.reduce(
-                                  (total, g) =>
-                                    total +
-                                    (g.apis?.reduce(
-                                      (apiTotal, a) => apiTotal + (a.testTypes?.length || 0),
+                                  const totalTestTypesInRecord =
+                                    record.generics?.reduce(
+                                      (total, g) =>
+                                        total +
+                                        (g.apis?.reduce(
+                                          (apiTotal, a) =>
+                                            apiTotal +
+                                            (a.testTypes?.length || 0),
+                                          0
+                                        ) || 0),
                                       0
-                                    ) || 0),
-                                  0
-                                ) || 1;
+                                    ) || 1;
 
-                                const totalTestTypesInGeneric = generic.apis?.reduce(
-                                  (total, a) => total + (a.testTypes?.length || 0),
-                                  0
-                                ) || 1;
+                                  const totalTestTypesInGeneric =
+                                    generic.apis?.reduce(
+                                      (total, a) =>
+                                        total + (a.testTypes?.length || 0),
+                                      0
+                                    ) || 1;
 
-                                const testTypesInApi = api.testTypes?.length || 1;
-                                const productData = getProductCodesForMFC(record);
+                                  const testTypesInApi =
+                                    api.testTypes?.length || 1;
+                                  const productData =
+                                    getProductCodesForMFC(record);
 
-                                tableRows.push(
-                                  <tr
-                                    key={`${recordIndex}-${genericIndex}-${apiIndex}-${testTypeIndex}`}
-                                    onClick={() => handleRowSelect(record)}
-                                    className={`cursor-pointer transition-colors hover:bg-gray-50 ${
-                                      selectedRecord?._id === record._id
-                                        ? "bg-blue-100"
-                                        : ""
-                                    }`}
-                                  >
-                                    {/* MFC Number - spans all rows for this record */}
-                                    {isFirstRowForRecord && (
-                                      <td
-                                        rowSpan={totalTestTypesInRecord}
-                                        className="px-2 py-2 border border-gray-300 font-mono text-xs font-medium bg-blue-50"
-                                      >
-                                        <div className="text-center">
-                                          {record.mfcNumber}
+                                  tableRows.push(
+                                    <tr
+                                      key={`${recordIndex}-${genericIndex}-${apiIndex}-${testTypeIndex}`}
+                                      onClick={() => handleRowSelect(record)}
+                                      className={`cursor-pointer transition-colors hover:bg-gray-50 ${
+                                        selectedRecord?._id === record._id
+                                          ? "bg-blue-100"
+                                          : ""
+                                      }`}
+                                    >
+                                      {/* MFC Number - spans all rows for this record */}
+                                      {isFirstRowForRecord && (
+                                        <td
+                                          rowSpan={totalTestTypesInRecord}
+                                          className="px-2 py-2 border border-gray-300 font-mono text-xs font-medium bg-blue-50"
+                                        >
+                                          <div className="text-center">
+                                            {record.mfcNumber}
+                                          </div>
+                                        </td>
+                                      )}
+
+                                      {/* Product Codes - show all products in one cell, spans all rows for this record */}
+                                      {isFirstRowForRecord && (
+                                        <td
+                                          rowSpan={totalTestTypesInRecord}
+                                          className="px-2 py-2 border border-gray-300 text-xs bg-purple-50"
+                                          title={getProductCodeTooltip(
+                                            productData
+                                          )}
+                                        >
+                                          <div className="max-w-32">
+                                            {formatProductCodes(productData)}
+                                          </div>
+                                        </td>
+                                      )}
+
+                                      {/* Generic Name - spans all rows for this generic */}
+                                      {isFirstRowForGeneric && (
+                                        <td
+                                          rowSpan={totalTestTypesInGeneric}
+                                          className="px-2 py-2 border border-gray-300 text-xs font-medium bg-green-50"
+                                        >
+                                          {generic.genericName}
+                                        </td>
+                                      )}
+
+                                      {/* API Name - spans all rows for this api */}
+                                      {isFirstRowForApi && (
+                                        <td
+                                          rowSpan={testTypesInApi}
+                                          className="px-2 py-2 border border-gray-300 text-xs font-medium bg-yellow-50"
+                                        >
+                                          {getApiName(api.apiName)}
+                                        </td>
+                                      )}
+
+                                      {/* Test Type - one row per test type */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs">
+                                        <div className="font-medium text-gray-900">
+                                          {getTestTypeName(testType.testTypeId)}
                                         </div>
                                       </td>
-                                    )}
 
-                                    {/* Product Codes - show all products in one cell, spans all rows for this record */}
-                                    {isFirstRowForRecord && (
-                                      <td
-                                        rowSpan={totalTestTypesInRecord}
-                                        className="px-2 py-2 border border-gray-300 text-xs bg-purple-50"
-                                        title={getProductCodeTooltip(
-                                          productData
-                                        )}
-                                      >
-                                        <div className="max-w-32">
-                                          {formatProductCodes(productData)}
+                                      {/* Column - one row per test type */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs">
+                                        <div className="font-medium text-gray-900">
+                                          {getColumnDisplayText(
+                                            testType.columnCode
+                                          ) || testType.columnCode}
                                         </div>
                                       </td>
-                                    )}
 
-                                    {/* Generic Name - spans all rows for this generic */}
-                                    {isFirstRowForGeneric && (
-                                      <td
-                                        rowSpan={totalTestTypesInGeneric}
-                                        className="px-2 py-2 border border-gray-300 text-xs font-medium bg-green-50"
-                                      >
-                                        {generic.genericName}
-                                      </td>
-                                    )}
-
-                                    {/* API Name - spans all rows for this api */}
-                                    {isFirstRowForApi && (
-                                      <td
-                                        rowSpan={testTypesInApi}
-                                        className="px-2 py-2 border border-gray-300 text-xs font-medium bg-yellow-50"
-                                      >
-                                        {getApiName(api.apiName)}
-                                      </td>
-                                    )}
-
-                                    {/* Test Type - one row per test type */}
-                                    <td className="px-2 py-2 border border-gray-300 text-xs">
-                                      <div className="font-medium text-gray-900">
-                                        {getTestTypeName(testType.testTypeId)}
-                                      </div>
-                                    </td>
-
-                                    {/* Column - one row per test type */}
-                                    <td className="px-2 py-2 border border-gray-300 text-xs">
-                                      <div className="font-medium text-gray-900">
-                                        {getColumnDisplayText(
-                                          testType.columnCode
-                                        ) || testType.columnCode}
-                                      </div>
-                                    </td>
-
-                                    {/* Mobile Phase columns - one row per test type */}
-                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                      {testType.mobilePhaseCodes?.[0] ? (
-                                        <div>
-                                          <div className="font-medium text-gray-900">
+                                      {/* Mobile Phase columns - one row per test type */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                        {testType.mobilePhaseCodes?.[0] ? (
+                                          <div>
+                                            <div className="font-medium text-gray-900">
+                                              {getMobilePhaseName(
+                                                testType.mobilePhaseCodes[0]
+                                              )}
+                                            </div>
                                             {getMobilePhaseName(
                                               testType.mobilePhaseCodes[0]
+                                            ) !==
+                                              testType.mobilePhaseCodes[0] && (
+                                              <div className="text-gray-400 text-xs font-mono">
+                                                {testType.mobilePhaseCodes[0]}
+                                              </div>
                                             )}
                                           </div>
-                                          {getMobilePhaseName(
-                                            testType.mobilePhaseCodes[0]
-                                          ) !==
-                                            testType.mobilePhaseCodes[0] && (
-                                            <div className="text-gray-400 text-xs font-mono">
-                                              {testType.mobilePhaseCodes[0]}
-                                            </div>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        "-"
-                                      )}
-                                    </td>
+                                        ) : (
+                                          "-"
+                                        )}
+                                      </td>
 
-                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                      {testType.mobilePhaseCodes?.[1] ? (
-                                        <div>
-                                          <div className="font-medium text-gray-900">
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                        {testType.mobilePhaseCodes?.[1] ? (
+                                          <div>
+                                            <div className="font-medium text-gray-900">
+                                              {getMobilePhaseName(
+                                                testType.mobilePhaseCodes[1]
+                                              )}
+                                            </div>
                                             {getMobilePhaseName(
                                               testType.mobilePhaseCodes[1]
+                                            ) !==
+                                              testType.mobilePhaseCodes[1] && (
+                                              <div className="text-gray-400 text-xs font-mono">
+                                                {testType.mobilePhaseCodes[1]}
+                                              </div>
                                             )}
                                           </div>
-                                          {getMobilePhaseName(
-                                            testType.mobilePhaseCodes[1]
-                                          ) !==
-                                            testType.mobilePhaseCodes[1] && (
-                                            <div className="text-gray-400 text-xs font-mono">
-                                              {testType.mobilePhaseCodes[1]}
-                                            </div>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        "-"
-                                      )}
-                                    </td>
+                                        ) : (
+                                          "-"
+                                        )}
+                                      </td>
 
-                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                      {testType.mobilePhaseCodes?.[2] ? (
-                                        <div>
-                                          <div className="font-medium text-gray-900">
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                        {testType.mobilePhaseCodes?.[2] ? (
+                                          <div>
+                                            <div className="font-medium text-gray-900">
+                                              {getMobilePhaseName(
+                                                testType.mobilePhaseCodes[2]
+                                              )}
+                                            </div>
                                             {getMobilePhaseName(
                                               testType.mobilePhaseCodes[2]
+                                            ) !==
+                                              testType.mobilePhaseCodes[2] && (
+                                              <div className="text-gray-400 text-xs font-mono">
+                                                {testType.mobilePhaseCodes[2]}
+                                              </div>
                                             )}
                                           </div>
-                                          {getMobilePhaseName(
-                                            testType.mobilePhaseCodes[2]
-                                          ) !==
-                                            testType.mobilePhaseCodes[2] && (
-                                            <div className="text-gray-400 text-xs font-mono">
-                                              {testType.mobilePhaseCodes[2]}
-                                            </div>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        "-"
-                                      )}
-                                    </td>
+                                        ) : (
+                                          "-"
+                                        )}
+                                      </td>
 
-                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                      {testType.mobilePhaseCodes?.[3] ? (
-                                        <div>
-                                          <div className="font-medium text-gray-900">
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                        {testType.mobilePhaseCodes?.[3] ? (
+                                          <div>
+                                            <div className="font-medium text-gray-900">
+                                              {getMobilePhaseName(
+                                                testType.mobilePhaseCodes[3]
+                                              )}
+                                            </div>
                                             {getMobilePhaseName(
                                               testType.mobilePhaseCodes[3]
+                                            ) !==
+                                              testType.mobilePhaseCodes[3] && (
+                                              <div className="text-gray-400 text-xs font-mono">
+                                                {testType.mobilePhaseCodes[3]}
+                                              </div>
                                             )}
                                           </div>
-                                          {getMobilePhaseName(
-                                            testType.mobilePhaseCodes[3]
-                                          ) !==
-                                            testType.mobilePhaseCodes[3] && (
-                                            <div className="text-gray-400 text-xs font-mono">
-                                              {testType.mobilePhaseCodes[3]}
-                                            </div>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        "-"
-                                      )}
-                                    </td>
+                                        ) : (
+                                          "-"
+                                        )}
+                                      </td>
 
-                                    {/* NEW: Wash 1 column */}
-                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                      {testType.mobilePhaseCodes?.[4] ? (
-                                        <div>
-                                          <div className="font-medium text-gray-900">
+                                      {/* NEW: Wash 1 column */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                        {testType.mobilePhaseCodes?.[4] ? (
+                                          <div>
+                                            <div className="font-medium text-gray-900">
+                                              {getMobilePhaseName(
+                                                testType.mobilePhaseCodes[4]
+                                              )}
+                                            </div>
                                             {getMobilePhaseName(
                                               testType.mobilePhaseCodes[4]
+                                            ) !==
+                                              testType.mobilePhaseCodes[4] && (
+                                              <div className="text-gray-400 text-xs font-mono">
+                                                {testType.mobilePhaseCodes[4]}
+                                              </div>
                                             )}
                                           </div>
-                                          {getMobilePhaseName(
-                                            testType.mobilePhaseCodes[4]
-                                          ) !==
-                                            testType.mobilePhaseCodes[4] && (
-                                            <div className="text-gray-400 text-xs font-mono">
-                                              {testType.mobilePhaseCodes[4]}
-                                            </div>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        "-"
-                                      )}
-                                    </td>
+                                        ) : (
+                                          "-"
+                                        )}
+                                      </td>
 
-                                    {/* NEW: Wash 2 column */}
-                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                      {testType.mobilePhaseCodes?.[5] ? (
-                                        <div>
-                                          <div className="font-medium text-gray-900">
+                                      {/* NEW: Wash 2 column */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                        {testType.mobilePhaseCodes?.[5] ? (
+                                          <div>
+                                            <div className="font-medium text-gray-900">
+                                              {getMobilePhaseName(
+                                                testType.mobilePhaseCodes[5]
+                                              )}
+                                            </div>
                                             {getMobilePhaseName(
                                               testType.mobilePhaseCodes[5]
+                                            ) !==
+                                              testType.mobilePhaseCodes[5] && (
+                                              <div className="text-gray-400 text-xs font-mono">
+                                                {testType.mobilePhaseCodes[5]}
+                                              </div>
                                             )}
                                           </div>
-                                          {getMobilePhaseName(
-                                            testType.mobilePhaseCodes[5]
-                                          ) !==
-                                            testType.mobilePhaseCodes[5] && (
-                                            <div className="text-gray-400 text-xs font-mono">
-                                              {testType.mobilePhaseCodes[5]}
-                                            </div>
+                                        ) : (
+                                          "-"
+                                        )}
+                                      </td>
+
+                                      {/* Detector - one row per test type */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs">
+                                        <div className="font-medium text-gray-900">
+                                          {getDetectorTypeName(
+                                            testType.detectorTypeId
                                           )}
                                         </div>
-                                      ) : (
-                                        "-"
-                                      )}
-                                    </td>
+                                      </td>
 
-                                    {/* Detector - one row per test type */}
-                                    <td className="px-2 py-2 border border-gray-300 text-xs">
-                                      <div className="font-medium text-gray-900">
-                                        {getDetectorTypeName(
-                                          testType.detectorTypeId
-                                        )}
-                                      </div>
-                                    </td>
+                                      {/* Pharmacopoeial - one row per test type */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs">
+                                        <div className="font-medium text-gray-900">
+                                          {getPharmacopoeialsName(
+                                            testType.pharmacopoeialId
+                                          )}
+                                        </div>
+                                      </td>
 
-                                    {/* Pharmacopoeial - one row per test type */}
-                                    <td className="px-2 py-2 border border-gray-300 text-xs">
-                                      <div className="font-medium text-gray-900">
-                                        {getPharmacopoeialsName(
-                                          testType.pharmacopoeialId
-                                        )}
-                                      </div>
-                                    </td>
+                                      {/* INJECTION & REFERENCE FIELDS GROUP */}
+                                      {/* Blank Injection */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
+                                        {testType.blankInjection || "-"}
+                                      </td>
 
-                                    {/* Sample Injection - one row per test type */}
-                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                      {testType.sampleInjection}
-                                    </td>
+                                      {/* System Suitability */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
+                                        {testType.systemSuitability || "-"}
+                                      </td>
 
-                                    {/* Standard Injection - one row per test type */}
-                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                      {testType.standardInjection}
-                                    </td>
+                                      {/* Sensitivity */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
+                                        {testType.sensitivity || "-"}
+                                      </td>
 
-                                    {/* Blank Injection - one row per test type */}
-                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                      {testType.blankInjection}
-                                    </td>
+                                      {/* Placebo */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
+                                        {testType.placebo || "-"}
+                                      </td>
 
-                                    {/* Run Time - one row per test type */}
-                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                      {testType.runTime}
-                                    </td>
+                                      {/* Standard Injection */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
+                                        {testType.standardInjection || "-"}
+                                      </td>
 
-                                    {/* Wash Time - one row per test type */}
-                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                      {testType.washTime}
-                                    </td>
+                                      {/* Reference 1 */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
+                                        {testType.reference1 || "-"}
+                                      </td>
 
-                                    {/* NEW: AMV Injections */}
-                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                      {testType.amv
-                                        ? testType.numberOfInjectionsAMV || 0
-                                        : "-"}
-                                    </td>
+                                      {/* Reference 2 */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
+                                        {testType.reference2 || "-"}
+                                      </td>
 
-                                    {/* NEW: PV Injections */}
-                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                      {testType.pv
-                                        ? testType.numberOfInjectionsPV || 0
-                                        : "-"}
-                                    </td>
+                                      {/* Sample Injection */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
+                                        {testType.sampleInjection || "-"}
+                                      </td>
 
-                                    {/* NEW: CV Injections */}
-                                    <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                      {testType.cv
-                                        ? testType.numberOfInjectionsCV || 0
-                                        : "-"}
-                                    </td>
+                                      {/* Bracketing Frequency */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
+                                        {testType.bracketingFrequency || "-"}
+                                      </td>
 
-                                    {/* Flags - one row per test type */}
-                                    <td className="px-2 py-2 border border-gray-300 text-xs">
-                                      {getTestTypeFlags(testType)}
-                                    </td>
-                                  </tr>
-                                );
-                              });
+                                      {/* RUNTIME & WASH FIELDS GROUP */}
+                                      {/* Wash Time */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
+                                        {testType.washTime || "-"}
+                                      </td>
+
+                                      {/* Blank Run Time */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
+                                        {testType.blankRunTime || "-"}
+                                      </td>
+
+                                      {/* Standard Run Time */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
+                                        {testType.standardRunTime || "-"}
+                                      </td>
+
+                                      {/* Sample Run Time */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
+                                        {testType.sampleRunTime || "-"}
+                                      </td>
+
+                                      {/* NEW: AMV Injections */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                        {testType.amv
+                                          ? testType.numberOfInjectionsAMV || 0
+                                          : "-"}
+                                      </td>
+
+                                      {/* NEW: PV Injections */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                        {testType.pv
+                                          ? testType.numberOfInjectionsPV || 0
+                                          : "-"}
+                                      </td>
+
+                                      {/* NEW: CV Injections */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                        {testType.cv
+                                          ? testType.numberOfInjectionsCV || 0
+                                          : "-"}
+                                      </td>
+
+                                      {/* Flags - one row per test type */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs">
+                                        {getTestTypeFlags(testType)}
+                                      </td>
+                                    </tr>
+                                  );
+                                }
+                              );
                             });
                           });
                         });
@@ -1884,7 +1968,7 @@ const MFCMasterPage: React.FC = () => {
                     ) : (
                       <tr>
                         <td
-                          colSpan={19}
+                          colSpan={32}
                           className="px-6 py-4 text-center text-gray-500 border border-gray-300"
                         >
                           No MFC records found
@@ -1967,18 +2051,16 @@ const MFCMasterPage: React.FC = () => {
                   </button>
                 </div>
               </form>
-              
+
               {/* Show current search status */}
               <div className="mb-4 text-sm text-gray-600">
                 {isLoading ? (
                   "Searching..."
                 ) : (
                   <>
-                    {searchTerm ? (
-                      `Found ${pagination.total} results for "${searchTerm}"`
-                    ) : (
-                      `Showing ${pagination.total} total records`
-                    )}
+                    {searchTerm
+                      ? `Found ${pagination.total} results for "${searchTerm}"`
+                      : `Showing ${pagination.total} total records`}
                   </>
                 )}
               </div>
@@ -2016,19 +2098,30 @@ const MFCMasterPage: React.FC = () => {
                         </th>
                       </tr>
                     </thead>
+
                     <tbody className="bg-white divide-y divide-gray-200">
                       {mfcRecords.length > 0 ? (
                         mfcRecords.map((record, index) => {
                           const productCodes = getProductCodesForMFC(record);
-                          const apiCount = record.generics?.reduce((total, generic) => {
-                            return total + (generic.apis ? generic.apis.length : 0);
-                          }, 0) || 0;
-                          const testTypeCount = record.generics?.reduce((total, generic) => {
-                            return total + (generic.apis?.reduce((apiTotal, api) => {
-                              return apiTotal + (api.testTypes ? api.testTypes.length : 0);
-                            }, 0) || 0);
-                          }, 0) || 0;
-                          
+                          const apiCount =
+                            record.generics?.reduce((total, generic) => {
+                              return (
+                                total + (generic.apis ? generic.apis.length : 0)
+                              );
+                            }, 0) || 0;
+                          const testTypeCount =
+                            record.generics?.reduce((total, generic) => {
+                              return (
+                                total +
+                                (generic.apis?.reduce((apiTotal, api) => {
+                                  return (
+                                    apiTotal +
+                                    (api.testTypes ? api.testTypes.length : 0)
+                                  );
+                                }, 0) || 0)
+                              );
+                            }, 0) || 0;
+
                           return (
                             <tr
                               key={index}

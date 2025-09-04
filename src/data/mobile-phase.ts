@@ -395,5 +395,29 @@ export const MOBILE_PHASES: MobilePhase[] = [
     code: "MP65",
     baseSolvent: "Buffer",
     description: "Take 1.4664 g of NaH2PO4·2H2O (Monobasic sodium phosphate) and 0.0852 g of Na2HPO4 (Dibasic sodium phosphate) in 2000 ml of Distilled water and adjust pH 6.0 with dilute Sodium hydroxide."
-  }
+  },
+  {
+    srNo: 66,
+    code: "MP66",
+    baseSolvent: "Buffer",
+    description: "4.1 gm anhydrous sodium acetate 2.9 ml Glacial acetic acid,5.1 gm tetrabutylammonium hydrogen sulfate 50 ml acetonitrile dilute with buffer and set pH to 5.5 with sodium hydroxide."
+  },
+  {
+    srNo: 67,
+    code: "MP67",
+    baseSolvent: "Buffer",
+    description: "13.800 gm monobasic sodium dihydrogen orthophosphate in water to obtain 1000 ml water."
+  },
+{
+    srNo: 68,
+    code: "MP68",
+    baseSolvent: "Mobile Phase",
+    description: "Water:Acetonitrile:Glacial acetic acid (49 : 50 : 1)."
+  },
+  {
+    srNo: 69,
+    code: "MP69",
+    baseSolvent: "Mobile Phase",
+    description: "SODIUM Phosphate Monobasic 3.12 gm, Sodium Perchlorate 0.56 gm, Adjust pH 2.50 with OPA"
+  },
 ];

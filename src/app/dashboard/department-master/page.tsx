@@ -13,6 +13,7 @@ interface Department {
   description: string;
   companyId: string;
   locationId: string;
+  daysOfUrgency: number;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -24,7 +25,7 @@ function DepartmentMaster() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [formData, setFormData] = useState({ department: "", description: "" });
+  const [formData, setFormData] = useState({ department: "", description: "", daysOfUrgency: "" });
   const [isFormEnabled, setIsFormEnabled] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentDepartmentIndex, setCurrentDepartmentIndex] = useState(-1);
@@ -210,77 +211,83 @@ function DepartmentMaster() {
   const handleAddNew = () => {
     setIsFormEnabled(true);
     setIsEditMode(false);
-    setFormData({ department: "", description: "" });
+    setFormData({ department: "", description: "", daysOfUrgency: "" });
     setSelectedDepartment(null);
     setCurrentDepartmentIndex(-1);
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
   const handleSave = async () => {
-    if (!isFormEnabled || !formData.department.trim()) {
-      setError("Department name is required");
+  if (!isFormEnabled || !formData.department.trim()) {
+    setError("Department name is required");
+    return;
+  }
+
+  try {
+    if (!companyId || !locationId) {
+      setError("Company ID or Location ID not found in localStorage");
       return;
     }
 
-    try {
-      if (!companyId || !locationId) {
-        setError("Company ID or Location ID not found in localStorage");
-        return;
-      }
+    const url = "/api/admin/department";
+    const method = isEditMode && selectedDepartment ? "PUT" : "POST";
+    const body = {
+      id: isEditMode && selectedDepartment ? selectedDepartment._id : undefined,
+      department: formData.department,
+      description: formData.description,
+      companyId,
+      locationId,
+      // Fixed: Always send daysOfUrgency, converting empty string to 0
+      daysOfUrgency: formData.daysOfUrgency !== "" ? Number(formData.daysOfUrgency) : 0,
+    };
 
-      const url = "/api/admin/department";
-      const method = isEditMode && selectedDepartment ? "PUT" : "POST";
-      const body = {
-        id: isEditMode && selectedDepartment ? selectedDepartment._id : undefined,
-        department: formData.department,
-        description: formData.description,
-        companyId,
-        locationId,
-      };
+    const response = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      credentials: "include",
+    });
 
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        credentials: "include",
-      });
+    const data = await response.json();
+    if (data.success) {
+      await logAuditAction(
+        isEditMode && selectedDepartment ? "UPDATE" : "CREATE",
+        {
+          department: formData.department,
+          description: formData.description,
+          // Fixed: Same logic for audit logging
+          daysOfUrgency: formData.daysOfUrgency !== "" ? Number(formData.daysOfUrgency) : 0,
+          companyId,
+          locationId,
+        },
+        isEditMode && selectedDepartment
+          ? {
+              department: selectedDepartment.department,
+              description: selectedDepartment.description,
+              daysOfUrgency: selectedDepartment.daysOfUrgency,
+              companyId: selectedDepartment.companyId,
+              locationId: selectedDepartment.locationId,
+            }
+          : null
+      );
 
-      const data = await response.json();
-      if (data.success) {
-        await logAuditAction(
-          isEditMode && selectedDepartment ? "UPDATE" : "CREATE",
-          {
-            department: formData.department,
-            description: formData.description,
-            companyId,
-            locationId,
-          },
-          isEditMode && selectedDepartment
-            ? {
-                department: selectedDepartment.department,
-                description: selectedDepartment.description,
-                companyId: selectedDepartment.companyId,
-                locationId: selectedDepartment.locationId,
-              }
-            : null
-        );
-
-        setFormData({ department: "", description: "" });
-        setIsFormEnabled(false);
-        setIsEditMode(false);
-        setSelectedDepartment(null);
-        setCurrentDepartmentIndex(-1);
-        await fetchDepartments();
-      } else {
-        setError(data.error || "Failed to save department");
-      }
-    } catch (err: any) {
-      setError(`Failed to save department: ${err.message}`);
+      setFormData({ department: "", description: "", daysOfUrgency: "" });
+      setIsFormEnabled(false);
+      setIsEditMode(false);
+      setSelectedDepartment(null);
+      setCurrentDepartmentIndex(-1);
+      await fetchDepartments();
+    } else {
+      setError(data.error || "Failed to save department");
     }
-  };
+  } catch (err: any) {
+    setError(`Failed to save department: ${err.message}`);
+  }
+};
+
 
   const handleClear = () => {
-    setFormData({ department: "", description: "" });
+    setFormData({ department: "", description: "", daysOfUrgency: "" });
     setIsFormEnabled(false);
     setIsEditMode(false);
     setSelectedDepartment(null);
@@ -301,6 +308,7 @@ function DepartmentMaster() {
       setFormData({
         department: department.department,
         description: department.description || "",
+        daysOfUrgency: department.daysOfUrgency?.toString() || "",
       });
     }
   };
@@ -314,6 +322,7 @@ function DepartmentMaster() {
       setFormData({
         department: department.department,
         description: department.description || "",
+        daysOfUrgency: department.daysOfUrgency?.toString() || "",
       });
     } else if (currentDepartmentIndex === -1 && departments.length > 0) {
       setCurrentDepartmentIndex(0);
@@ -322,6 +331,7 @@ function DepartmentMaster() {
       setFormData({
         department: department.department,
         description: department.description || "",
+        daysOfUrgency: department.daysOfUrgency?.toString() || "",
       });
     }
   };
@@ -340,6 +350,7 @@ function DepartmentMaster() {
       setFormData({
         department: selectedDepartment.department,
         description: selectedDepartment.description || "",
+        daysOfUrgency: selectedDepartment.daysOfUrgency?.toString() || "",
       });
       setTimeout(() => inputRef.current?.focus(), 100);
     }
@@ -362,12 +373,13 @@ function DepartmentMaster() {
         await logAuditAction("DELETE", {
           department: selectedDepartment.department,
           description: selectedDepartment.description,
+          daysOfUrgency: selectedDepartment.daysOfUrgency,
           companyId: selectedDepartment.companyId,
           locationId: selectedDepartment.locationId,
         });
 
         await fetchDepartments();
-        setFormData({ department: "", description: "" });
+        setFormData({ department: "", description: "", daysOfUrgency: "" });
         setSelectedDepartment(null);
         setCurrentDepartmentIndex(-1);
         setIsFormEnabled(false);
@@ -404,11 +416,11 @@ function DepartmentMaster() {
           <h1>Department Database Report</h1>
           <p class="date">Generated on: ${new Date().toLocaleDateString()}</p>
           <table>
-            <tr><th>Department Name</th><th>Description</th><th>Created Date</th></tr>
+            <tr><th>Department Name</th><th>Description</th><th>Days of Urgency</th><th>Created Date</th></tr>
             ${departments
               .map(
                 (department) =>
-                  `<tr><td>${department.department}</td><td>${department.description || ""}</td><td>${new Date(
+                  `<tr><td>${department.department}</td><td>${department.description || ""}</td><td>${department.daysOfUrgency ?? "—"}</td><td>${new Date(
                     department.createdAt
                   ).toLocaleDateString()}</td></tr>`
               )
@@ -449,6 +461,7 @@ function DepartmentMaster() {
           setFormData({
             department: department.department,
             description: department.description || "",
+            daysOfUrgency: department.daysOfUrgency?.toString() || "",
           });
           setSelectedDepartment(department);
           setCurrentDepartmentIndex(departments.findIndex((c) => c._id === department._id));
@@ -467,7 +480,8 @@ function DepartmentMaster() {
     const searchResults = departments.filter(
       (department) =>
         department.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (department.description && department.description.toLowerCase().includes(searchTerm.toLowerCase()))
+        (department.description && department.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (department.daysOfUrgency?.toString().includes(searchTerm))
     );
 
     switch (e.key) {
@@ -488,6 +502,7 @@ function DepartmentMaster() {
           setFormData({
             department: department.department,
             description: department.description || "",
+            daysOfUrgency: department.daysOfUrgency?.toString() || "",
           });
           setSelectedDepartment(department);
           setCurrentDepartmentIndex(departments.findIndex((c) => c._id === department._id));
@@ -623,6 +638,7 @@ function DepartmentMaster() {
                           setFormData({
                             department: department.department,
                             description: department.description || "",
+                            daysOfUrgency: department.daysOfUrgency?.toString() || "",
                           });
                           setSelectedDepartment(department);
                           setCurrentDepartmentIndex(departments.findIndex((c) => c._id === department._id));
@@ -631,9 +647,10 @@ function DepartmentMaster() {
                         }}
                       >
                         <div className="font-medium text-gray-800">{department.department}</div>
-                        {department.description && (
-                          <div className="text-sm text-gray-500">{department.description}</div>
-                        )}
+                        <div className="text-sm text-gray-500">
+                          {department.description ? `${department.description} | ` : ""}
+                          Days of Urgency: {department.daysOfUrgency ?? "—"}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -657,6 +674,33 @@ function DepartmentMaster() {
                     boxShadow: isFormEnabled ? "inset 1px 1px 2px rgba(0,0,0,0.1)" : "none",
                   }}
                   placeholder="Enter description (optional)"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Days of Urgency
+                </label>
+                <input
+                  type="number"
+                  value={formData.daysOfUrgency}
+                  disabled={!isFormEnabled}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === "" || (/^\d*$/.test(value) && Number(value) >= 0 && Number(value) <= 30)) {
+                      setFormData({ ...formData, daysOfUrgency: value });
+                    }
+                  }}
+                  className={`w-full px-3 py-2 border border-[#a6c8ff] rounded focus:ring-2 focus:ring-[#66a3ff] focus:outline-none ${
+                    isFormEnabled ? "bg-white" : "bg-[#f0f0f0]"
+                  }`}
+                  style={{
+                    borderStyle: "inset",
+                    boxShadow: isFormEnabled ? "inset 1px 1px 2px rgba(0,0,0,0.1)" : "none",
+                  }}
+                  placeholder="Enter days of urgency (0-30, optional)"
+                  min="0"
+                  max="30"
                 />
               </div>
             </div>
@@ -720,6 +764,9 @@ function DepartmentMaster() {
                         Description
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                        Days of Urgency
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                         Created
                       </th>
                     </tr>
@@ -740,6 +787,7 @@ function DepartmentMaster() {
                             setFormData({
                               department: department.department,
                               description: department.description || "",
+                              daysOfUrgency: department.daysOfUrgency?.toString() || "",
                             });
                           }
                         }}
@@ -752,6 +800,11 @@ function DepartmentMaster() {
                         <td className="px-6 py-4">
                           <div className="text-gray-600 max-w-xs truncate">
                             {department.description || "—"}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-gray-600">
+                            {department.daysOfUrgency ?? "—"}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -809,7 +862,8 @@ function DepartmentMaster() {
                   (department) =>
                     department.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
                     (department.description &&
-                      department.description.toLowerCase().includes(searchTerm.toLowerCase()))
+                      department.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                    (department.daysOfUrgency?.toString().includes(searchTerm))
                 )
                 .map((department, index) => (
                   <div
@@ -823,6 +877,7 @@ function DepartmentMaster() {
                       setFormData({
                         department: department.department,
                         description: department.description || "",
+                        daysOfUrgency: department.daysOfUrgency?.toString() || "",
                       });
                       setSelectedDepartment(department);
                       setCurrentDepartmentIndex(
@@ -834,9 +889,10 @@ function DepartmentMaster() {
                     }}
                   >
                     <div className="font-medium text-gray-800">{department.department}</div>
-                    {department.description && (
-                      <div className="text-sm text-gray-500">{department.description}</div>
-                    )}
+                    <div className="text-sm text-gray-500">
+                      {department.description ? `${department.description} | ` : ""}
+                      Days of Urgency: {department.daysOfUrgency ?? "—"}
+                    </div>
                   </div>
                 ))}
             </div>
@@ -863,7 +919,7 @@ function DepartmentMaster() {
 
       {showAuditModal && (
         <div
-          className="fixed inset-0  bg-opacity-30 flex items-center justify-center z-50"
+          className="fixed inset-0 bg-opacity-30 flex items-center justify-center z-50"
           style={{ backdropFilter: "blur(2px)" }}
         >
           <div
@@ -896,7 +952,7 @@ function DepartmentMaster() {
                     borderStyle: "inset",
                     boxShadow: "inset 1px 1px 2px rgba(0,0,0,0.1)",
                   }}
-                  placeholder="Search department name or description..."
+                  placeholder="Search department name, description, or days of urgency..."
                 />
               </div>
               <div>
@@ -974,8 +1030,10 @@ function DepartmentMaster() {
                     <th className="px-3 py-2 text-left text-gray-700">Action</th>
                     <th className="px-3 py-2 text-left text-gray-700">Department Name</th>
                     <th className="px-3 py-2 text-left text-gray-700">Description</th>
+                    <th className="px-3 py-2 text-left text-gray-700">Days of Urgency</th>
                     <th className="px-3 py-2 text-left text-gray-700">Previous Department Name</th>
                     <th className="px-3 py-2 text-left text-gray-700">Previous Description</th>
+                    <th className="px-3 py-2 text-left text-gray-700">Previous Days of Urgency</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#a6c8ff]">
@@ -1008,10 +1066,16 @@ function DepartmentMaster() {
                         <div className="max-w-xs truncate">{log.data.description || "—"}</div>
                       </td>
                       <td className="px-3 py-2">
+                        <div className="max-w-xs truncate">{log.data.daysOfUrgency ?? "—"}</div>
+                      </td>
+                      <td className="px-3 py-2">
                         <div className="max-w-xs truncate">{log.previousData?.department || "—"}</div>
                       </td>
                       <td className="px-3 py-2">
                         <div className="max-w-xs truncate">{log.previousData?.description || "—"}</div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="max-w-xs truncate">{log.previousData?.daysOfUrgency ?? "—"}</div>
                       </td>
                     </tr>
                   ))}
@@ -1138,6 +1202,7 @@ function DepartmentMaster() {
                 <ul className="ml-4 mt-2 space-y-1">
                   <li>• All fields are disabled by default until Add/Edit</li>
                   <li>• Department name is required for saving</li>
+                  <li>• Days of Urgency is optional (0-30)</li>
                   <li>• Use arrow keys in search modal for quick navigation</li>
                   <li>• All actions are logged in audit trail</li>
                   <li>• Contact support at support@company.com for issues</li>

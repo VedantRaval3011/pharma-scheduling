@@ -4,15 +4,25 @@ export interface ITestType {
   testTypeId: string;
   selectMakeSpecific: boolean;
   columnCode: string;
+  isColumnCodeLinkedToMfc: boolean;
   mobilePhaseCodes: string[];  // Array of exactly 6 strings (can be empty)
   detectorTypeId: string;
   pharmacopoeialId: string;
   sampleInjection: number;
   standardInjection: number;
   blankInjection: number;
+  systemSuitability: number;
+  sensitivity: number;
+  placebo: number;
+  reference1: number;
+  reference2: number;
   bracketingFrequency: number;
   injectionTime: number;
   runTime: number;
+  uniqueRuntimes: boolean;
+  blankRunTime?: number;
+  standardRunTime?: number;
+  sampleRunTime?: number;
   washTime: number;
   testApplicability: boolean;
   numberOfInjections?: number;
@@ -27,6 +37,7 @@ export interface ITestType {
   pv: boolean;
   cv: boolean;
   isLinked: boolean;
+  priority: 'urgent' | 'high' | 'normal';
 }
 
 export interface IAPI {
@@ -50,34 +61,43 @@ export interface IMFCMaster extends Document {
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
+  priority: 'urgent' | 'high' | 'normal';
 }
 
 const TestTypeSchema = new Schema<ITestType>({
   testTypeId: { type: String, required: true },
   selectMakeSpecific: { type: Boolean, default: false },
   columnCode: { type: String, required: true },
-  // FIXED: Allow empty strings in the array, validate length and first element at application level
- mobilePhaseCodes: {
-  type: [String],
-  default: ["", "", "", "", "", ""],
-  validate: {
-    validator: function (arr: string[]): boolean {
-      if (arr.length !== 6) return false;
-      return !!arr[0] && arr[0].trim() !== "";
+  isColumnCodeLinkedToMfc: { type: Boolean, default: false },
+  mobilePhaseCodes: {
+    type: [String],
+    default: ["", "", "", "", "", ""],
+    validate: {
+      validator: function (arr: string[]): boolean {
+        if (arr.length !== 6) return false;
+        return !!arr[0] && arr[0].trim() !== "";
+      },
+      message:
+        "Mobile phase codes must have exactly 6 elements with MP01 (first element) required",
     },
-    message:
-      "Mobile phase codes must have exactly 6 elements with MP01 (first element) required",
   },
-},
-
   detectorTypeId: { type: String, required: true },
   pharmacopoeialId: { type: String, required: true },
   sampleInjection: { type: Number, default: 0 },
   standardInjection: { type: Number, default: 0 },
   blankInjection: { type: Number, default: 0 },
+  systemSuitability: { type: Number, default: 0 },
+  sensitivity: { type: Number, default: 0 },
+  placebo: { type: Number, default: 0 },
+  reference1: { type: Number, default: 0 },
+  reference2: { type: Number, default: 0 },
   bracketingFrequency: { type: Number, default: 0 },
   injectionTime: { type: Number, default: 0 },
   runTime: { type: Number, default: 0 },
+  uniqueRuntimes: { type: Boolean, default: false },
+  blankRunTime: { type: Number, default: 0 },
+  standardRunTime: { type: Number, default: 0 },
+  sampleRunTime: { type: Number, default: 0 },
   washTime: { type: Number, default: 0 },
   testApplicability: { type: Boolean, default: false },
   numberOfInjections: { type: Number, default: 0 },
@@ -92,6 +112,7 @@ const TestTypeSchema = new Schema<ITestType>({
   pv: { type: Boolean, default: false },
   cv: { type: Boolean, default: false },
   isLinked: { type: Boolean, default: false },
+  priority: { type: String, enum: ['urgent', 'high', 'normal'], default: 'normal' },
 });
 
 const APISchema = new Schema<IAPI>({
@@ -115,6 +136,7 @@ const MFCMasterSchema = new Schema<IMFCMaster>({
   createdBy: { type: String, required: true },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
+  priority: { type: String, enum: ['urgent', 'high', 'normal'], default: 'normal' },
 });
 
 // Compound + unique index

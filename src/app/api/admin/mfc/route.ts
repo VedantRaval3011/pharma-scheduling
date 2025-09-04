@@ -1,4 +1,3 @@
-//api/admin/mfc
 import { NextRequest, NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/db';
 import MFCMaster from '@/models/MFCMaster';
@@ -51,20 +50,17 @@ async function syncMFCProductRelationship(
   }
 }
 
-
 // Validation schema for TestType
 const testTypeSchema = z.object({
   testTypeId: z.string().min(1, { message: 'Test type ID is required' }),
   selectMakeSpecific: z.boolean().default(false),
   columnCode: z.string().min(1, { message: 'Column code is required' }),
+  isColumnCodeLinkedToMfc: z.boolean().default(false),
   mobilePhaseCodes: z
     .array(z.string())
-    .length(6, { message: 'Must have exactly 6 mobile phase slots' }) // Ensure exactly 6 elements
+    .length(6, { message: 'Must have exactly 6 mobile phase slots' })
     .refine(
-      (codes) => {
-        // At least MP01 (index 0) must be filled
-        return codes[0] && codes[0].trim() !== "";
-      },
+      (codes) => codes[0] && codes[0].trim() !== "",
       { message: 'MP01 (first mobile phase) is required' }
     ),
   detectorTypeId: z.string().min(1, { message: 'Detector type ID is required' }),
@@ -72,18 +68,24 @@ const testTypeSchema = z.object({
   sampleInjection: z.number().min(0).default(0),
   standardInjection: z.number().min(0).default(0),
   blankInjection: z.number().min(0).default(0),
+  systemSuitability: z.number().min(0).default(0),
+  sensitivity: z.number().min(0).default(0),
+  placebo: z.number().min(0).default(0),
+  reference1: z.number().min(0).default(0),
+  reference2: z.number().min(0).default(0),
   bracketingFrequency: z.number().min(0).default(0),
   injectionTime: z.number().min(0).default(0),
   runTime: z.number().min(0).default(0),
+  uniqueRuntimes: z.boolean().default(false),
+  blankRunTime: z.number().min(0).default(0).optional(),
+  standardRunTime: z.number().min(0).default(0).optional(),
+  sampleRunTime: z.number().min(0).default(0).optional(),
   washTime: z.number().min(0).default(0),
   testApplicability: z.boolean().default(false),
-
-  // ✅ Updated injections
   numberOfInjections: z.number().min(0).default(0).optional(),
   numberOfInjectionsAMV: z.number().min(0).default(0).optional(),
   numberOfInjectionsPV: z.number().min(0).default(0).optional(),
   numberOfInjectionsCV: z.number().min(0).default(0).optional(),
-
   bulk: z.boolean().default(false),
   fp: z.boolean().default(false),
   stabilityPartial: z.boolean().default(false),
@@ -92,7 +94,9 @@ const testTypeSchema = z.object({
   pv: z.boolean().default(false),
   cv: z.boolean().default(false),
   isLinked: z.boolean().default(false),
+  priority: z.enum(['urgent', 'high', 'normal']).default('normal'),
 });
+
 // Validation schema for API
 const apiSchema = z.object({
   apiName: z.string().min(1, { message: 'API name is required' }),
@@ -118,6 +122,7 @@ const mfcSchema = z.object({
   departmentId: z.string().min(1, { message: 'Department ID is required' }),
   wash: z.number().min(0).default(0),
   createdBy: z.string().min(1, { message: 'Created by is required' }),
+  priority: z.enum(['urgent', 'high', 'normal']).default('normal'),
 });
 
 // Validation schema for updating MFC record
@@ -189,8 +194,6 @@ export async function buildSearchQuery(
 
   return query;
 }
-
-
 
 // GET - Retrieve all MFC records for company and location
 export async function GET(request: NextRequest) {
@@ -285,7 +288,6 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
 
 // POST - Create new MFC record with audit logging
 export async function POST(request: NextRequest) {
@@ -397,7 +399,6 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
 
 // PUT - Update MFC record with audit logging
 export async function PUT(request: NextRequest) {

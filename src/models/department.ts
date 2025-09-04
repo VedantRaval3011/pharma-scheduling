@@ -23,6 +23,12 @@ const departmentSchema = new mongoose.Schema({
     required: [true, 'Location ID is required'],
     trim: true
   },
+  daysOfUrgency: {
+    type: Number,
+    min: [0, 'Days of urgency cannot be negative'],
+    max: [30, 'Days of urgency cannot exceed 30 days'],
+    default: 0
+  },
   createdBy: {
     type: String,
     required: [true, 'Created by is required']

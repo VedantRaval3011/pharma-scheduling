@@ -36,14 +36,18 @@ function validateDepartmentData(data: any) {
   } else if (typeof data.locationId !== 'string' || data.locationId.trim().length === 0) {
     errors.push('Location ID must be a non-empty string');
   }
+  if (data.daysOfUrgency !== undefined && data.daysOfUrgency !== null) {
+    if (typeof data.daysOfUrgency !== 'number') {
+      errors.push('Days of urgency must be a number');
+    } else if (!Number.isInteger(data.daysOfUrgency)) {
+      errors.push('Days of urgency must be an integer');
+    } else if (data.daysOfUrgency < 0) {
+      errors.push('Days of urgency cannot be negative');
+    } else if (data.daysOfUrgency > 30) {
+      errors.push('Days of urgency cannot exceed 30 days');
+    }
+  }
   return errors;
-}
-
-// Helper function to validate companyId and locationId against session
-function validateCompanyAndLocation(session: any, companyId: string, locationId: string) {
-  // If session validation is simplified, just return true for now
-  // You can implement proper validation based on your session structure
-  return true;
 }
 
 export async function POST(request: NextRequest) {
@@ -59,10 +63,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { department, description, companyId, locationId } = body;
+    const { department, description, companyId, locationId, daysOfUrgency } = body;
 
     // Validate input data
-    const validationErrors = validateDepartmentData({ department, description, companyId, locationId });
+    const validationErrors = validateDepartmentData({ department, description, companyId, locationId, daysOfUrgency });
     if (validationErrors.length > 0) {
       return NextResponse.json(
         { success: false, error: validationErrors.join(', '), validationErrors },
@@ -85,6 +89,7 @@ export async function POST(request: NextRequest) {
       description: description?.trim() || '',
       companyId,
       locationId,
+      daysOfUrgency: daysOfUrgency !== undefined && daysOfUrgency !== null ? Number(daysOfUrgency) : 0,
       createdBy: session.user?.id || "system",
       updatedBy: session.user?.id || "system",
     });
@@ -153,6 +158,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// FIXED PUT REQUEST
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -164,7 +170,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, department, description, companyId, locationId } = body;
+    const { id, department, description, companyId, locationId, daysOfUrgency } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -183,6 +189,15 @@ export async function PUT(request: NextRequest) {
     if (!companyId || !locationId) {
       return NextResponse.json(
         { success: false, error: "Company ID and Location ID are required" },
+        { status: 400 }
+      );
+    }
+
+    // Validate input data
+    const validationErrors = validateDepartmentData({ department, description, companyId, locationId, daysOfUrgency });
+    if (validationErrors.length > 0) {
+      return NextResponse.json(
+        { success: false, error: validationErrors.join(', '), validationErrors },
         { status: 400 }
       );
     }
@@ -218,15 +233,20 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Update the department
+    // FIXED: Always include daysOfUrgency in the update
+    const updateData: any = {
+      department: department.trim(),
+      description: description?.trim() || "",
+      daysOfUrgency: daysOfUrgency !== undefined && daysOfUrgency !== null && daysOfUrgency !== ''
+        ? Number(daysOfUrgency)
+        : 0,
+      updatedBy: session.user?.id || "system",
+      updatedAt: new Date(),
+    };
+
     const updatedDepartment = await Department.findByIdAndUpdate(
       id,
-      {
-        department: department.trim(),
-        description: description?.trim() || "",
-        updatedBy: session.user?.id || "system",
-        updatedAt: new Date(),
-      },
+      updateData,
       { new: true, runValidators: true }
     );
 
