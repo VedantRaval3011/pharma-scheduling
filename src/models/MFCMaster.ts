@@ -7,7 +7,7 @@ export interface ITestType {
   isColumnCodeLinkedToMfc: boolean;
   mobilePhaseCodes: string[];  // Array of exactly 6 strings (can be empty)
   detectorTypeId: string;
-  pharmacopoeialId: string;
+  pharmacopoeialId: string[]; // Changed to array for multi-select
   sampleInjection: number;
   standardInjection: number;
   blankInjection: number;
@@ -20,9 +20,19 @@ export interface ITestType {
   injectionTime: number;
   runTime: number;
   uniqueRuntimes: boolean;
+
+  // Existing runtimes
   blankRunTime?: number;
   standardRunTime?: number;
   sampleRunTime?: number;
+
+  // Newly added runtimes
+  systemSuitabilityRunTime?: number;
+  sensitivityRunTime?: number;
+  placeboRunTime?: number;
+  reference1RunTime?: number;
+  reference2RunTime?: number;
+
   washTime: number;
   testApplicability: boolean;
   numberOfInjections?: number;
@@ -38,6 +48,9 @@ export interface ITestType {
   cv: boolean;
   isLinked: boolean;
   priority: 'urgent' | 'high' | 'normal';
+
+  // New field
+  isOutsourcedTest: boolean;
 }
 
 export interface IAPI {
@@ -62,6 +75,8 @@ export interface IMFCMaster extends Document {
   createdAt: Date;
   updatedAt: Date;
   priority: 'urgent' | 'high' | 'normal';
+  isObsolete: boolean; // New field
+  isRawMaterial: boolean; // New field
 }
 
 const TestTypeSchema = new Schema<ITestType>({
@@ -82,7 +97,7 @@ const TestTypeSchema = new Schema<ITestType>({
     },
   },
   detectorTypeId: { type: String, required: true },
-  pharmacopoeialId: { type: String, required: true },
+  pharmacopoeialId: { type: [String], required: true }, // Changed to array for multi-select
   sampleInjection: { type: Number, default: 0 },
   standardInjection: { type: Number, default: 0 },
   blankInjection: { type: Number, default: 0 },
@@ -95,9 +110,19 @@ const TestTypeSchema = new Schema<ITestType>({
   injectionTime: { type: Number, default: 0 },
   runTime: { type: Number, default: 0 },
   uniqueRuntimes: { type: Boolean, default: false },
+
+  // Existing runtimes
   blankRunTime: { type: Number, default: 0 },
   standardRunTime: { type: Number, default: 0 },
   sampleRunTime: { type: Number, default: 0 },
+
+  // New runtimes
+  systemSuitabilityRunTime: { type: Number, default: 0 },
+  sensitivityRunTime: { type: Number, default: 0 },
+  placeboRunTime: { type: Number, default: 0 },
+  reference1RunTime: { type: Number, default: 0 },
+  reference2RunTime: { type: Number, default: 0 },
+
   washTime: { type: Number, default: 0 },
   testApplicability: { type: Boolean, default: false },
   numberOfInjections: { type: Number, default: 0 },
@@ -113,6 +138,9 @@ const TestTypeSchema = new Schema<ITestType>({
   cv: { type: Boolean, default: false },
   isLinked: { type: Boolean, default: false },
   priority: { type: String, enum: ['urgent', 'high', 'normal'], default: 'normal' },
+
+  // New field
+  isOutsourcedTest: { type: Boolean, default: false },
 });
 
 const APISchema = new Schema<IAPI>({
@@ -137,6 +165,8 @@ const MFCMasterSchema = new Schema<IMFCMaster>({
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
   priority: { type: String, enum: ['urgent', 'high', 'normal'], default: 'normal' },
+  isObsolete: { type: Boolean, default: false }, // New field
+  isRawMaterial: { type: Boolean, default: false }, // New field
 });
 
 // Compound + unique index

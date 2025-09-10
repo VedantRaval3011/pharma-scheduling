@@ -6,6 +6,8 @@ import { createMFCAuditLog } from '@/lib/auditUtils';
 import { z } from 'zod';
 import { IMFCMaster } from "@/models/MFCMaster";
 import { FilterQuery } from 'mongoose';
+import { isValidObjectId } from 'mongoose';
+
 
 async function syncMFCProductRelationship(
   mfcId: string,
@@ -50,7 +52,7 @@ async function syncMFCProductRelationship(
   }
 }
 
-// Validation schema for TestType
+// Updated validation schema for TestType with new fields
 const testTypeSchema = z.object({
   testTypeId: z.string().min(1, { message: 'Test type ID is required' }),
   selectMakeSpecific: z.boolean().default(false),
@@ -64,7 +66,9 @@ const testTypeSchema = z.object({
       { message: 'MP01 (first mobile phase) is required' }
     ),
   detectorTypeId: z.string().min(1, { message: 'Detector type ID is required' }),
-  pharmacopoeialId: z.string().min(1, { message: 'Pharmacopoeial ID is required' }),
+  // Updated to array for multi-select
+  pharmacopoeialId: z.array(z.string().min(1, { message: 'Pharmacopoeial ID cannot be empty' }))
+    .min(1, { message: 'At least one Pharmacopoeial ID is required' }),
   sampleInjection: z.number().min(0).default(0),
   standardInjection: z.number().min(0).default(0),
   blankInjection: z.number().min(0).default(0),
@@ -77,9 +81,19 @@ const testTypeSchema = z.object({
   injectionTime: z.number().min(0).default(0),
   runTime: z.number().min(0).default(0),
   uniqueRuntimes: z.boolean().default(false),
+  
+  // Existing runtime fields
   blankRunTime: z.number().min(0).default(0).optional(),
   standardRunTime: z.number().min(0).default(0).optional(),
   sampleRunTime: z.number().min(0).default(0).optional(),
+  
+  // NEW: Additional runtime fields
+  systemSuitabilityRunTime: z.number().min(0).default(0).optional(),
+  sensitivityRunTime: z.number().min(0).default(0).optional(),
+  placeboRunTime: z.number().min(0).default(0).optional(),
+  reference1RunTime: z.number().min(0).default(0).optional(),
+  reference2RunTime: z.number().min(0).default(0).optional(),
+  
   washTime: z.number().min(0).default(0),
   testApplicability: z.boolean().default(false),
   numberOfInjections: z.number().min(0).default(0).optional(),
@@ -95,6 +109,9 @@ const testTypeSchema = z.object({
   cv: z.boolean().default(false),
   isLinked: z.boolean().default(false),
   priority: z.enum(['urgent', 'high', 'normal']).default('normal'),
+  
+  // NEW: Outsourced test field
+  isOutsourcedTest: z.boolean().default(false),
 });
 
 // Validation schema for API
@@ -109,7 +126,7 @@ const genericSchema = z.object({
   apis: z.array(apiSchema).min(1, { message: 'At least one API is required' }),
 });
 
-// Validation schema for creating MFC record with productIds
+// Updated validation schema for creating MFC record with new fields
 const mfcSchema = z.object({
   mfcNumber: z.string().min(1, { message: 'MFC number is required' }),
   companyId: z.string().uuid({ message: 'Valid company ID is required' }),
@@ -123,7 +140,13 @@ const mfcSchema = z.object({
   wash: z.number().min(0).default(0),
   createdBy: z.string().min(1, { message: 'Created by is required' }),
   priority: z.enum(['urgent', 'high', 'normal']).default('normal'),
+  
+  // NEW: MFC-level fields
+  isObsolete: z.boolean().default(false).optional(),
+  isRawMaterial: z.boolean().default(false).optional(),
 });
+
+
 
 // Validation schema for updating MFC record
 const updateMfcSchema = mfcSchema.partial().extend({
@@ -161,41 +184,103 @@ async function validateProductIds(
   }
 }
 
-// Helper function to build search query with productIds
 export async function buildSearchQuery(
   companyId: string,
   locationId: string,
-  search?: string,
-  productId?: string
+  search?: string,  
+  productId?: string | null,
+  isObsolete?: string | null,
+  isRawMaterial?: string | null
 ): Promise<FilterQuery<IMFCMaster>> {
   const query: FilterQuery<IMFCMaster> = {
     companyId,
     locationId,
   };
 
-  // Optional product filter
-  if (productId) {
-    query.productIds = { $in: [productId] };
+  // Handle obsolete filter
+  if (isObsolete === 'true') {
+    query.isObsolete = true;
+  } else if (isObsolete === 'false') {
+    // Show records where isObsolete is false or doesn't exist (null/undefined)
+    query.$or = [
+      { isObsolete: { $exists: false } },
+      { isObsolete: false },
+      { isObsolete: null }
+    ];
   }
 
-  // Optional text search
+  // Handle raw material filter
+  if (isRawMaterial === 'true') {
+    query.isRawMaterial = true;
+  } else if (isRawMaterial === 'false') {
+    // Show records where isRawMaterial is false or doesn't exist (null/undefined)
+    if (query.$or) {
+      // If we already have $or from isObsolete, we need to use $and
+      query.$and = [
+        { $or: query.$or }, // Previous $or condition
+        {
+          $or: [
+            { isRawMaterial: { $exists: false } },
+            { isRawMaterial: false },
+            { isRawMaterial: null }
+          ]
+        }
+      ];
+      delete query.$or;
+    } else {
+      query.$or = [
+        { isRawMaterial: { $exists: false } },
+        { isRawMaterial: false },
+        { isRawMaterial: null }
+      ];
+    }
+  }
+
+  // Optional product filter
+  if (productId) {
+    if (query.$and) {
+      query.$and.push({ productIds: { $in: [productId] } });
+    } else {
+      query.productIds = { $in: [productId] };
+    }
+  }
+
+  // Optional text search - updated to include new array field
   if (search && search.trim() !== "") {
     const regex = new RegExp(search, "i"); // case-insensitive
 
-    query.$or = [
-      { mfcNumber: regex },
-      { "generics.genericName": regex },
-      { "generics.apis.apiName": regex },
-      { "generics.apis.testTypes.columnCode": regex },
-      { "generics.apis.testTypes.detectorTypeId": regex },
-      { "generics.apis.testTypes.pharmacopoeialId": regex },
-    ];
+    const searchCondition = {
+      $or: [
+        { mfcNumber: regex },
+        { "generics.genericName": regex },
+        { "generics.apis.apiName": regex },
+        { "generics.apis.testTypes.columnCode": regex },
+        { "generics.apis.testTypes.detectorTypeId": regex },
+        // Updated to handle array of pharmacopoeialId
+        { "generics.apis.testTypes.pharmacopoeialId": { $in: [regex] } },
+      ]
+    };
+
+    if (query.$and) {
+      query.$and.push(searchCondition);
+    } else if (query.$or) {
+      // If we have $or but no $and, convert to $and
+      query.$and = [
+        { $or: query.$or },
+        searchCondition
+      ];
+      delete query.$or;
+    } else {
+      query.$or = searchCondition.$or;
+    }
   }
 
   return query;
 }
 
-// GET - Retrieve all MFC records for company and location
+
+// GET - Retrieve all MFC records for company and location (updated to handle new fields)
+
 export async function GET(request: NextRequest) {
   try {
     await connectToDatabase();
@@ -208,6 +293,8 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || '';
     const populate = searchParams.get('populate') === 'true';
     const productId = searchParams.get('productId');
+    const isObsolete = searchParams.get('isObsolete');
+    const isRawMaterial = searchParams.get('isRawMaterial');
 
     if (!companyId || !locationId) {
       return NextResponse.json(
@@ -216,12 +303,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Make buildSearchQuery async
-    let query = await buildSearchQuery(companyId, locationId, search);
-
-    if (productId) {
-      query.productIds = { $in: [productId] };
+    // Validate productId if provided
+    if (productId && !isValidObjectId(productId)) {
+      return NextResponse.json(
+        { error: `Invalid productId provided: ${productId}` },
+        { status: 400 }
+      );
     }
+
+    // Build query with the new filter parameters
+    const query = await buildSearchQuery(
+      companyId,
+      locationId,
+      search,
+      productId,
+      isObsolete,
+      isRawMaterial
+    );
+
+    console.log('Built query:', JSON.stringify(query, null, 2)); // Debug log
 
     const skip = (page - 1) * limit;
 
@@ -244,8 +344,10 @@ export async function GET(request: NextRequest) {
                 _id: { $in: record.productIds },
                 companyId: record.companyId,
                 locationId: record.locationId,
-              }).select('_id name productCode description').lean();
-              
+              })
+                .select('_id name productCode description')
+                .lean();
+
               return {
                 ...record,
                 productDetails,
@@ -260,13 +362,53 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Enhanced statistics with breakdown by filter type
+    const baseStatsQuery = { companyId, locationId };
+
     const statistics = {
       totalRecords: total,
       recordsWithProducts: await MFCMaster.countDocuments({
-        companyId,
-        locationId,
+        ...baseStatsQuery,
         productIds: { $exists: true, $not: { $size: 0 } },
       }),
+      activeRecords: await MFCMaster.countDocuments({
+        ...baseStatsQuery,
+        $and: [
+          {
+            $or: [
+              { isObsolete: { $exists: false } },
+              { isObsolete: false },
+              { isObsolete: null },
+            ],
+          },
+          {
+            $or: [
+              { isRawMaterial: { $exists: false } },
+              { isRawMaterial: false },
+              { isRawMaterial: null },
+            ],
+          },
+        ],
+      }),
+      obsoleteRecords: await MFCMaster.countDocuments({
+        ...baseStatsQuery,
+        isObsolete: true,
+      }),
+      rawMaterialRecords: await MFCMaster.countDocuments({
+        ...baseStatsQuery,
+        isRawMaterial: true,
+      }),
+      outsourcedTestRecords: await MFCMaster.countDocuments({
+        ...baseStatsQuery,
+        'generics.apis.testTypes.isOutsourcedTest': true,
+      }),
+      currentFilter: {
+        isObsolete: isObsolete,
+        isRawMaterial: isRawMaterial,
+        search: search,
+        productId: productId,
+        resultsCount: total,
+      },
     };
 
     return NextResponse.json({
@@ -279,6 +421,12 @@ export async function GET(request: NextRequest) {
         total,
         totalPages: Math.ceil(total / limit),
       },
+      appliedFilters: {
+        isObsolete,
+        isRawMaterial,
+        search,
+        productId,
+      },
     });
   } catch (error: any) {
     console.error('Error fetching MFC records:', error);
@@ -289,7 +437,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Create new MFC record with audit logging
+// POST - Create new MFC record with audit logging (updated for new fields)
 export async function POST(request: NextRequest) {
   try {
     await connectToDatabase();
@@ -400,7 +548,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT - Update MFC record with audit logging
+// PUT - Update MFC record with audit logging (updated for new fields)
 export async function PUT(request: NextRequest) {
   try {
     await connectToDatabase();
@@ -526,7 +674,7 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// DELETE - Bulk delete MFC records
+// DELETE - Bulk delete MFC records (unchanged functionality)
 export async function DELETE(request: NextRequest) {
   try {
     await connectToDatabase();

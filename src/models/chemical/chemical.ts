@@ -1,13 +1,21 @@
 import mongoose from 'mongoose';
 
-const pharmacopeialSchema = new mongoose.Schema({ // Changed from pharmacopoeialSchema
-  pharmacopeial: { // Changed from pharmacopoeial
+const chemicalSchema = new mongoose.Schema({
+  chemicalName: {
     type: String,
-    required: [true, 'Pharmacopeial name is required'],
+    required: [true, 'Chemical name is required'],
     trim: true,
-    maxlength: [100, 'Pharmacopeial name cannot exceed 100 characters']
+    maxlength: [100, 'Chemical name cannot exceed 100 characters']
   },
-  description: {
+  isSolvent: {
+    type: Boolean,
+    default: false
+  },
+  isBuffer: {
+    type: Boolean,
+    default: false
+  },
+  desc: {
     type: String,
     trim: true,
     maxlength: [500, 'Description cannot exceed 500 characters'],
@@ -33,11 +41,11 @@ const pharmacopeialSchema = new mongoose.Schema({ // Changed from pharmacopoeial
 });
 
 // Compound index to ensure uniqueness per company/location
-pharmacopeialSchema.index({ pharmacopeial: 1, companyId: 1, locationId: 1 }, { unique: true }); // Changed field name
+chemicalSchema.index({ chemicalName: 1, companyId: 1, locationId: 1 }, { unique: true });
 
 // Index for better query performance
-pharmacopeialSchema.index({ companyId: 1, locationId: 1 });
+chemicalSchema.index({ companyId: 1, locationId: 1 });
 
-const Pharmacopeial = mongoose.models.Pharmacopeial || mongoose.model('Pharmacopeial', pharmacopeialSchema); // Updated schema variable name
+const Chemical = mongoose.models.Chemical || mongoose.model('Chemical', chemicalSchema);
 
-export default Pharmacopeial;
+export default Chemical;

@@ -35,6 +35,12 @@ const productSchema = new mongoose.Schema({
     type: String,
     trim: true
   }],
+  pharmacopeiaToUse: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Pharmacopeia to use cannot exceed 100 characters'],
+    default: ''
+  },
   companyId: {
     type: String,
     required: [true, 'Company ID is required'],

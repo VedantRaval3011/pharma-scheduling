@@ -81,6 +81,9 @@ function validateProductData(data: any) {
   if (data.marketedBy && typeof data.marketedBy !== 'string') {
     errors.push('Marketed by must be a string');
   }
+  if (data.pharmacopeiaToUse && typeof data.pharmacopeiaToUse !== 'string') {
+    errors.push('Pharmacopeia to use must be a string');
+  }
   if (!data.makeId) {
     errors.push('Make ID is required');
   } else if (typeof data.makeId !== 'string' || data.makeId.trim().length === 0) {
@@ -115,10 +118,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { productName, productCode, genericName, makeId, marketedBy, mfcs, companyId, locationId } = body;
+    const { productName, productCode, genericName, makeId, marketedBy, mfcs, pharmacopeiaToUse, companyId, locationId } = body;
 
     // Validate input data
-    const validationErrors = validateProductData({ productName, productCode, genericName, makeId, marketedBy, mfcs, companyId, locationId });
+    const validationErrors = validateProductData({ productName, productCode, genericName, makeId, marketedBy, mfcs, pharmacopeiaToUse, companyId, locationId });
     if (validationErrors.length > 0) {
       return NextResponse.json(
         { success: false, error: validationErrors.join(', '), validationErrors },
@@ -143,6 +146,7 @@ export async function POST(request: NextRequest) {
       makeId,
       marketedBy: marketedBy?.trim() || '',
       mfcs: mfcs || [],
+      pharmacopeiaToUse: pharmacopeiaToUse?.trim() || '',
       companyId,
       locationId,
       createdBy: session.user?.id || "system",
@@ -197,7 +201,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, productName, productCode, genericName, makeId, marketedBy, mfcs, companyId, locationId } = body;
+    const { id, productName, productCode, genericName, makeId, marketedBy, mfcs, pharmacopeiaToUse, companyId, locationId } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -275,6 +279,7 @@ export async function PUT(request: NextRequest) {
         makeId,
         marketedBy: marketedBy?.trim() || "",
         mfcs: mfcs || [],
+        pharmacopeiaToUse: pharmacopeiaToUse?.trim() || "",
         updatedBy: session.user?.id || "system",
         updatedAt: new Date(),
       },
@@ -440,4 +445,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-

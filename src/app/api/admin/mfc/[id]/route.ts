@@ -31,7 +31,6 @@ async function syncMFCProductRelationship(
         }
       );
     }
-
     // Add MFC to new products
     const productsToAdd = newProductIds.filter(id => !oldProductIds.includes(id));
     if (productsToAdd.length > 0) {
@@ -52,7 +51,7 @@ async function syncMFCProductRelationship(
   }
 }
 
-// Validation schema for TestType
+// Updated validation schema for TestType with new fields
 const testTypeSchema = z.object({
   testTypeId: z.string().min(1, { message: 'Test type ID is required' }),
   selectMakeSpecific: z.boolean().default(false),
@@ -66,7 +65,9 @@ const testTypeSchema = z.object({
       { message: 'MP01 (first mobile phase) is required' }
     ),
   detectorTypeId: z.string().min(1, { message: 'Detector type ID is required' }),
-  pharmacopoeialId: z.string().min(1, { message: 'Pharmacopoeial ID is required' }),
+  // Updated to array for multi-select
+  pharmacopoeialId: z.array(z.string().min(1, { message: 'Pharmacopoeial ID cannot be empty' }))
+    .min(1, { message: 'At least one Pharmacopoeial ID is required' }),
   sampleInjection: z.number().min(0).default(0),
   standardInjection: z.number().min(0).default(0),
   blankInjection: z.number().min(0).default(0),
@@ -79,9 +80,19 @@ const testTypeSchema = z.object({
   injectionTime: z.number().min(0).default(0),
   runTime: z.number().min(0).default(0),
   uniqueRuntimes: z.boolean().default(false),
+  
+  // Existing runtime fields
   blankRunTime: z.number().min(0).default(0).optional(),
   standardRunTime: z.number().min(0).default(0).optional(),
   sampleRunTime: z.number().min(0).default(0).optional(),
+  
+  // NEW: Additional runtime fields
+  systemSuitabilityRunTime: z.number().min(0).default(0).optional(),
+  sensitivityRunTime: z.number().min(0).default(0).optional(),
+  placeboRunTime: z.number().min(0).default(0).optional(),
+  reference1RunTime: z.number().min(0).default(0).optional(),
+  reference2RunTime: z.number().min(0).default(0).optional(),
+  
   washTime: z.number().min(0).default(0),
   testApplicability: z.boolean().default(false),
   numberOfInjections: z.number().min(0).default(0).optional(),
@@ -97,9 +108,12 @@ const testTypeSchema = z.object({
   cv: z.boolean().default(false),
   isLinked: z.boolean().default(false),
   priority: z.enum(['urgent', 'high', 'normal']).default('normal'),
+  
+  // NEW: Outsourced test field
+  isOutsourcedTest: z.boolean().default(false),
 });
 
-// Update the updateSingleMfcSchema
+// Updated validation schema for MFC Master with new fields
 const updateSingleMfcSchema = z.object({
   mfcNumber: z.string().min(1, { message: 'MFC number is required' }).optional(),
   productIds: z
@@ -125,6 +139,10 @@ const updateSingleMfcSchema = z.object({
   wash: z.number().min(0).optional(),
   updatedBy: z.string().min(1, { message: 'Updated by is required' }).optional(),
   priority: z.enum(['urgent', 'high', 'normal']).default('normal').optional(),
+  
+  // NEW: MFC-level fields
+  isObsolete: z.boolean().default(false).optional(),
+  isRawMaterial: z.boolean().default(false).optional(),
 });
 
 // Helper function to safely convert productId to valid ObjectId string
@@ -221,7 +239,7 @@ async function populateRelatedData(enrichedRecord: any, companyId: string, locat
         companyId,
         locationId,
       });
-      if (departmentData) {
+      if (departmentData && typeof departmentData.toObject === 'function') {
         enrichedRecord.departmentDetails = departmentData.toObject();
       }
     } catch (error) {
@@ -243,7 +261,9 @@ async function populateRelatedData(enrichedRecord: any, companyId: string, locat
         });
         
         if (productsData.length > 0) {
-          enrichedRecord.productDetails = productsData.map(p => p.toObject());
+          enrichedRecord.productDetails = productsData
+            .filter(p => p && typeof p.toObject === 'function')
+            .map(p => p.toObject());
         }
       } else {
         console.warn('No valid product IDs found after conversion');
@@ -260,23 +280,31 @@ async function populateRelatedData(enrichedRecord: any, companyId: string, locat
           const [testTypeData, detectorTypeData, pharmacopoeialData] = await Promise.allSettled([
             testType.testTypeId
               ? TestType.findOne({ _id: testType.testTypeId, companyId, locationId })
-              : null,
+              : Promise.resolve(null),
             testType.detectorTypeId
               ? DetectorType.findOne({ _id: testType.detectorTypeId, companyId, locationId })
-              : null,
-            testType.pharmacopoeialId
-              ? Pharmacopoeial.findOne({ _id: testType.pharmacopoeialId, companyId, locationId })
-              : null,
+              : Promise.resolve(null),
+            testType.pharmacopoeialId && testType.pharmacopoeialId.length > 0
+              ? Pharmacopoeial.find({ _id: { $in: testType.pharmacopoeialId }, companyId, locationId })
+              : Promise.resolve(null),
           ]);
 
-          if (testTypeData.status === 'fulfilled' && testTypeData.value) {
+          if (testTypeData.status === 'fulfilled' && testTypeData.value && typeof testTypeData.value.toObject === 'function') {
             testType.testTypeDetails = testTypeData.value.toObject();
           }
-          if (detectorTypeData.status === 'fulfilled' && detectorTypeData.value) {
+          
+          if (detectorTypeData.status === 'fulfilled' && detectorTypeData.value && typeof detectorTypeData.value.toObject === 'function') {
             testType.detectorTypeDetails = detectorTypeData.value.toObject();
           }
+          
           if (pharmacopoeialData.status === 'fulfilled' && pharmacopoeialData.value) {
-            testType.pharmacopoeialDetails = pharmacopoeialData.value.toObject();
+            if (Array.isArray(pharmacopoeialData.value)) {
+              testType.pharmacopoeialDetails = pharmacopoeialData.value
+                .filter(p => p && typeof p.toObject === 'function')
+                .map(p => p.toObject());
+            } else if ((pharmacopoeialData.value as any) && typeof (pharmacopoeialData.value as any).toObject === 'function') {
+              testType.pharmacopoeialDetails = [(pharmacopoeialData.value as any).toObject()];
+            }
           }
         } catch (error) {
           console.warn('Error fetching test type related data:', error);
@@ -286,14 +314,13 @@ async function populateRelatedData(enrichedRecord: any, companyId: string, locat
   }
 }
 
-// GET - Retrieve single MFC record
+// GET - Retrieve single MFC record (unchanged functionality, will include new fields)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB();
-
     const { id } = await params;
     const { searchParams } = new URL(request.url);
     const companyId = searchParams.get('companyId');
@@ -374,14 +401,13 @@ export async function GET(
   }
 }
 
-// PUT - Update single MFC record
+// PUT - Update single MFC record (updated to handle new fields)
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB();
-
     const { id } = await params;
     const { searchParams } = new URL(request.url);
     const companyId = searchParams.get('companyId');
@@ -488,6 +514,10 @@ export async function PUT(
       locationId
     );
 
+    // Type check before calling toObject()
+    const oldMFCData = oldMFC && typeof oldMFC.toObject === 'function' ? oldMFC.toObject() : oldMFC;
+    const updatedRecordData = updatedRecord && typeof updatedRecord.toObject === 'function' ? updatedRecord.toObject() : updatedRecord;
+
     await createMFCAuditLog({
       mfcId: updatedRecord._id.toString(),
       mfcNumber: updatedRecord.mfcNumber,
@@ -495,8 +525,8 @@ export async function PUT(
       locationId: updatedRecord.locationId,
       action: 'UPDATE',
       performedBy: validatedData.updatedBy || 'system',
-      oldData: oldMFC.toObject(),
-      newData: updatedRecord.toObject(),
+      oldData: oldMFCData,
+      newData: updatedRecordData,
       ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
       userAgent: request.headers.get('user-agent') || 'unknown',
     });
@@ -512,14 +542,12 @@ export async function PUT(
     });
   } catch (error: any) {
     console.error('Error updating MFC record:', error);
-
     if (error.name === 'ZodError') {
       return NextResponse.json(
         { error: 'Validation error', details: error.errors },
         { status: 400 }
       );
     }
-
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -527,14 +555,13 @@ export async function PUT(
   }
 }
 
-// DELETE - Delete single MFC record
+// DELETE - Delete single MFC record (unchanged functionality)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB();
-
     const { id } = await params;
     const { searchParams } = new URL(request.url);
     const companyId = searchParams.get('companyId');
@@ -594,6 +621,9 @@ export async function DELETE(
       );
     }
 
+    // Type check before calling toObject()
+    const mfcToDeleteData = mfcToDelete && typeof mfcToDelete.toObject === 'function' ? mfcToDelete.toObject() : mfcToDelete;
+
     await createMFCAuditLog({
       mfcId: deletedRecord._id.toString(),
       mfcNumber: deletedRecord.mfcNumber,
@@ -601,7 +631,7 @@ export async function DELETE(
       locationId: deletedRecord.locationId,
       action: 'DELETE',
       performedBy: deletedBy || 'system',
-      oldData: mfcToDelete.toObject(),
+      oldData: mfcToDeleteData,
       ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
       userAgent: request.headers.get('user-agent') || 'unknown',
     });

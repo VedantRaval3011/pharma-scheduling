@@ -139,6 +139,10 @@ export const adminEmployeeNavData: NavItem[] = [
         path: "/dashboard/mobile-phase",
       },
       {
+        label: "Chemical Master",
+        path: "/dashboard/chemical",
+      },
+      {
         label: "MFC Master",
         path: "/dashboard/mfc-master",
       },

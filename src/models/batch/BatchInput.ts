@@ -37,12 +37,13 @@ const batchInputSchema = new mongoose.Schema(
   {
     companyId: { type: String, required: true },
     locationId: { type: String, required: true },
-
+    
     // Product details
     productCode: { type: String, required: true },
     productName: { type: String, required: true },
     genericName: { type: String, required: true },
-
+    pharmacopialToUse: { type: String }, // Add this field for pharmacopoeial filtering
+    
     // Batch details
     batchNumber: { type: String, required: true },
     manufacturingDate: { type: Date, required: true },
@@ -52,17 +53,17 @@ const batchInputSchema = new mongoose.Schema(
       required: true,
     },
     daysForUrgency: { type: Number, required: true },
-
+    
     // MFC & Department
     mfcNumber: { type: String, required: true },
     departmentName: { type: String, required: true },
-
-    // Sample type
+    
+    // Sample type - Changed to array for multi-select
     typeOfSample: {
-      type: String,
+      type: [String],
       enum: [
         "Bulk",
-        "FP",
+        "FP", 
         "Stability Partial",
         "Stability Final",
         "AMV",
@@ -70,11 +71,17 @@ const batchInputSchema = new mongoose.Schema(
         "CV",
       ],
       required: true,
+      validate: {
+        validator: function(v: string[]) {
+          return v && v.length > 0;
+        },
+        message: 'At least one sample type must be selected'
+      }
     },
-
+    
     // Tests
     tests: [testSchema],
-
+    
     // Batch level status (optional)
     batchStatus: {
       type: String,

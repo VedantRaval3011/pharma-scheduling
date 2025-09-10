@@ -17,6 +17,7 @@ interface Product {
   makeId: string;
   marketedBy: string;
   mfcs: string[];
+  pharmacopeiaToUse: string;
   companyId: string;
   locationId: string;
   createdBy: string;
@@ -32,9 +33,24 @@ interface ProductMake {
 interface Mfc {
   _id: string;
   mfcNumber: string;
+  generics: Array<{
+    genericName: string;
+    apis: Array<{
+      apiName: string;
+      testTypes: Array<{
+        pharmacopoeialId: string | string[];
+        [key: string]: any;
+      }>;
+    }>;
+  }>;
 }
 
-// Separate form interface with single MFC
+interface Pharmacopeial {
+  _id: string;
+  pharmacopeial: string;
+  description: string;
+}
+
 interface ProductForm {
   productName: string;
   productCode: string;
@@ -42,6 +58,7 @@ interface ProductForm {
   makeId: string;
   marketedBy: string;
   mfc: string | null;
+  pharmacopeiaToUse: string;
 }
 
 function ProductMaster() {
@@ -50,6 +67,8 @@ function ProductMaster() {
   const [products, setProducts] = useState<Product[]>([]);
   const [productMakes, setProductMakes] = useState<ProductMake[]>([]);
   const [mfcs, setMfcs] = useState<Mfc[]>([]);
+  const [allPharmacopeials, setAllPharmacopeials] = useState<Pharmacopeial[]>([]);
+  const [mfcRelatedPharmacopeials, setMfcRelatedPharmacopeials] = useState<Pharmacopeial[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [formData, setFormData] = useState<ProductForm>({
@@ -59,6 +78,7 @@ function ProductMaster() {
     makeId: "",
     marketedBy: "",
     mfc: null,
+    pharmacopeiaToUse: "",
   });
   const [isFormEnabled, setIsFormEnabled] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -77,6 +97,7 @@ function ProductMaster() {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [locationId, setLocationId] = useState<string | null>(null);
+  const [mfcsLoaded, setMfcsLoaded] = useState(false);
 
   // Message system states
   const [successMessage, setSuccessMessage] = useState<string>("");
@@ -160,40 +181,117 @@ function ProductMaster() {
     }
   };
 
-  const fetchMfcs = async () => {
-    if (!companyId || !locationId) {
-      setError("Company ID or Location ID not found");
-      return;
-    }
+  // Fetch all pharmacopeials (for reference and lookup)
+  const fetchAllPharmacopeials = async () => {
+    if (!companyId || !locationId) return;
     try {
       const response = await fetch(
-        `/api/admin/mfc?companyId=${companyId}&locationId=${locationId}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-        }
+        `/api/admin/pharmacopeial?companyId=${companyId}&locationId=${locationId}`
       );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-
       const data = await response.json();
-
-      if (data.data) {
-        setMfcs(data.data || []);
-        console.log("MFCs fetched successfully:", data.data);
-      } else {
-        throw new Error("No MFC data found in response");
+      if (data.success) {
+        setAllPharmacopeials(data.data);
       }
-    } catch (err: any) {
-      console.error("Error fetching MFCs:", err.message || err);
-      setError(`Failed to fetch MFCs: ${err.message || "Unknown error"}`);
+    } catch (err) {
+      console.error("Failed to fetch pharmacopeials");
     }
   };
+
+  // Extract pharmacopoeia IDs from selected MFC
+  const extractPharmacopoeiaIdsFromMFC = (mfcId: string): string[] => {
+    const selectedMFC = mfcs.find(mfc => mfc._id === mfcId);
+    if (!selectedMFC) return [];
+
+    const pharmacopoeiaIds = new Set<string>();
+
+    selectedMFC.generics?.forEach(generic => {
+      generic.apis?.forEach(api => {
+        api.testTypes?.forEach(testType => {
+          if (testType.pharmacopoeialId) {
+            // Handle both string and array formats
+            if (Array.isArray(testType.pharmacopoeialId)) {
+              testType.pharmacopoeialId.forEach(id => {
+                if (id && id.trim()) pharmacopoeiaIds.add(id);
+              });
+            } else if (typeof testType.pharmacopoeialId === 'string' && testType.pharmacopoeialId.trim()) {
+              pharmacopoeiaIds.add(testType.pharmacopoeialId);
+            }
+          }
+        });
+      });
+    });
+
+    return Array.from(pharmacopoeiaIds);
+  };
+
+  // Fetch MFC-related pharmacopeials based on selected MFC
+  const fetchMfcRelatedPharmacopeials = async (mfcId: string) => {
+    if (!mfcId || !allPharmacopeials.length) {
+      setMfcRelatedPharmacopeials([]);
+      return;
+    }
+
+    try {
+      const pharmacopoeiaIds = extractPharmacopoeiaIdsFromMFC(mfcId);
+      
+      if (pharmacopoeiaIds.length === 0) {
+        setMfcRelatedPharmacopeials([]);
+        return;
+      }
+
+      // Filter pharmacopeials based on IDs found in MFC
+      const relatedPharmacopeials = allPharmacopeials.filter(pharmacopeial => 
+        pharmacopoeiaIds.includes(pharmacopeial._id)
+      );
+
+      setMfcRelatedPharmacopeials(relatedPharmacopeials);
+
+      // If current pharmacopeiaToUse is not in the new list, clear it
+      if (formData.pharmacopeiaToUse && !relatedPharmacopeials.some(p => p._id === formData.pharmacopeiaToUse)) {
+        setFormData(prev => ({ ...prev, pharmacopeiaToUse: "" }));
+      }
+
+    } catch (err) {
+      console.error("Failed to fetch MFC-related pharmacopeials:", err);
+      setMfcRelatedPharmacopeials([]);
+    }
+  };
+
+  const fetchMfcs = async () => {
+  if (!companyId || !locationId) {
+    setError("Company ID or Location ID not found");
+    return;
+  }
+  try {
+    // Add limit parameter to get all records (or set a high limit)
+    const response = await fetch(
+      `/api/admin/mfc?companyId=${companyId}&locationId=${locationId}&limit=1000&page=1`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.data) {
+      setMfcs(data.data || []);
+      setMfcsLoaded(true);
+    } else {
+      throw new Error("No MFC data found in response");
+    }
+  } catch (err: any) {
+    console.error("Error fetching MFCs:", err.message || err);
+    setError(`Failed to fetch MFCs: ${err.message || "Unknown error"}`);
+  }
+};
 
   const fetchProducts = async () => {
     if (!companyId || !locationId) {
@@ -337,19 +435,63 @@ function ProductMaster() {
     }
   };
 
+  // Updated useEffect to load all pharmacopeials first
   useEffect(() => {
     if (companyId && locationId) {
-      fetchProducts();
-      fetchProductMakes();
-      fetchMfcs();
+      const loadData = async () => {
+        try {
+          // Load MFCs and pharmacopeials first
+          await fetchMfcs();
+          await fetchProductMakes();
+          await fetchAllPharmacopeials();
+          // Load products after MFCs are available
+          await fetchProducts();
+        } catch (error) {
+          console.error("Error loading data:", error);
+        }
+      };
+      
+      loadData();
     }
   }, [companyId, locationId]);
+
+  // Effect to fetch MFC-related pharmacopeials when MFC selection changes
+  useEffect(() => {
+    if (formData.mfc && allPharmacopeials.length > 0) {
+      fetchMfcRelatedPharmacopeials(formData.mfc);
+    } else {
+      setMfcRelatedPharmacopeials([]);
+      if (formData.pharmacopeiaToUse) {
+        setFormData(prev => ({ ...prev, pharmacopeiaToUse: "" }));
+      }
+    }
+  }, [formData.mfc, allPharmacopeials]);
 
   const filteredProducts = products.filter((product) =>
     product.productName
       .toLowerCase()
       .startsWith(formData.productName.toLowerCase())
   );
+
+  // Helper function to set form data from product
+  const setFormDataFromProduct = (product: Product) => {
+    const newFormData = {
+      productName: product.productName,
+      productCode: product.productCode,
+      genericName: product.genericName || "",
+      makeId: product.makeId,
+      marketedBy: product.marketedBy || "",
+      mfc: product.mfcs?.[0] || null,
+      pharmacopeiaToUse: product.pharmacopeiaToUse || "",
+    };
+    
+    setFormData(newFormData);
+    
+    // If MFC is selected, fetch its related pharmacopeials
+    if (newFormData.mfc && allPharmacopeials.length > 0) {
+      fetchMfcRelatedPharmacopeials(newFormData.mfc);
+    }
+  };
 
   const handleAddNew = () => {
     setIsFormEnabled(true);
@@ -361,7 +503,9 @@ function ProductMaster() {
       makeId: "",
       marketedBy: "",
       mfc: null,
+      pharmacopeiaToUse: "",
     });
+    setMfcRelatedPharmacopeials([]);
     setSelectedProduct(null);
     setCurrentProductIndex(-1);
     setTimeout(() => inputRef.current?.focus(), 100);
@@ -393,7 +537,8 @@ function ProductMaster() {
         genericName: formData.genericName,
         makeId: formData.makeId,
         marketedBy: formData.marketedBy,
-        mfcs: formData.mfc ? [formData.mfc] : [], // Convert single MFC to array
+        mfcs: formData.mfc ? [formData.mfc] : [],
+        pharmacopeiaToUse: formData.pharmacopeiaToUse,
         companyId,
         locationId,
       };
@@ -407,11 +552,9 @@ function ProductMaster() {
 
       const data = await response.json();
       if (data.success) {
-        // Add success message
         setSuccessMessage(isEditMode ? "Product updated successfully!" : "Product created successfully!");
         setShowNotification(true);
         
-        // Auto-hide after 3 seconds
         setTimeout(() => {
           setShowNotification(false);
           setSuccessMessage("");
@@ -425,7 +568,8 @@ function ProductMaster() {
             genericName: formData.genericName,
             makeId: formData.makeId,
             marketedBy: formData.marketedBy,
-            mfcs: formData.mfc ? [formData.mfc] : [], // Convert for audit log
+            mfcs: formData.mfc ? [formData.mfc] : [],
+            pharmacopeiaToUse: formData.pharmacopeiaToUse,
             companyId,
             locationId,
           },
@@ -437,6 +581,7 @@ function ProductMaster() {
                 makeId: selectedProduct.makeId,
                 marketedBy: selectedProduct.marketedBy,
                 mfcs: selectedProduct.mfcs,
+                pharmacopeiaToUse: selectedProduct.pharmacopeiaToUse,
                 companyId: selectedProduct.companyId,
                 locationId: selectedProduct.locationId,
               }
@@ -450,7 +595,9 @@ function ProductMaster() {
           makeId: "",
           marketedBy: "",
           mfc: null,
+          pharmacopeiaToUse: "",
         });
+        setMfcRelatedPharmacopeials([]);
         setIsFormEnabled(false);
         setIsEditMode(false);
         setSelectedProduct(null);
@@ -472,7 +619,9 @@ function ProductMaster() {
       makeId: "",
       marketedBy: "",
       mfc: null,
+      pharmacopeiaToUse: "",
     });
+    setMfcRelatedPharmacopeials([]);
     setIsFormEnabled(false);
     setIsEditMode(false);
     setSelectedProduct(null);
@@ -490,14 +639,7 @@ function ProductMaster() {
       setCurrentProductIndex(newIndex);
       const product = products[newIndex];
       setSelectedProduct(product);
-      setFormData({
-        productName: product.productName,
-        productCode: product.productCode,
-        genericName: product.genericName || "",
-        makeId: product.makeId,
-        marketedBy: product.marketedBy || "",
-        mfc: product.mfcs?.[0] || null, // Take first MFC or null
-      });
+      setFormDataFromProduct(product);
     }
   };
 
@@ -507,26 +649,12 @@ function ProductMaster() {
       setCurrentProductIndex(newIndex);
       const product = products[newIndex];
       setSelectedProduct(product);
-      setFormData({
-        productName: product.productName,
-        productCode: product.productCode,
-        genericName: product.genericName || "",
-        makeId: product.makeId,
-        marketedBy: product.marketedBy || "",
-        mfc: product.mfcs?.[0] || null, // Take first MFC or null
-      });
+      setFormDataFromProduct(product);
     } else if (currentProductIndex === -1 && products.length > 0) {
       setCurrentProductIndex(0);
       const product = products[0];
       setSelectedProduct(product);
-      setFormData({
-        productName: product.productName,
-        productCode: product.productCode,
-        genericName: product.genericName || "",
-        makeId: product.makeId,
-        marketedBy: product.marketedBy || "",
-        mfc: product.mfcs?.[0] || null, // Take first MFC or null
-      });
+      setFormDataFromProduct(product);
     }
   };
 
@@ -541,14 +669,7 @@ function ProductMaster() {
     if (selectedProduct) {
       setIsFormEnabled(true);
       setIsEditMode(true);
-      setFormData({
-        productName: selectedProduct.productName,
-        productCode: selectedProduct.productCode,
-        genericName: selectedProduct.genericName || "",
-        makeId: selectedProduct.makeId,
-        marketedBy: selectedProduct.marketedBy || "",
-        mfc: selectedProduct.mfcs?.[0] || null, // Take first MFC or null
-      });
+      setFormDataFromProduct(selectedProduct);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
@@ -575,11 +696,9 @@ function ProductMaster() {
 
       const data = await response.json();
       if (data.success) {
-        // Add success message for deletion
         setSuccessMessage("Product deleted successfully!");
         setShowNotification(true);
         
-        // Auto-hide after 3 seconds
         setTimeout(() => {
           setShowNotification(false);
           setSuccessMessage("");
@@ -592,6 +711,7 @@ function ProductMaster() {
           makeId: selectedProduct.makeId,
           marketedBy: selectedProduct.marketedBy,
           mfcs: selectedProduct.mfcs,
+          pharmacopeiaToUse: selectedProduct.pharmacopeiaToUse,
           companyId: selectedProduct.companyId,
           locationId: selectedProduct.locationId,
         });
@@ -604,7 +724,9 @@ function ProductMaster() {
           makeId: "",
           marketedBy: "",
           mfc: null,
+          pharmacopeiaToUse: "",
         });
+        setMfcRelatedPharmacopeials([]);
         setSelectedProduct(null);
         setCurrentProductIndex(-1);
         setIsFormEnabled(false);
@@ -641,7 +763,7 @@ function ProductMaster() {
           <h1>Product Database Report</h1>
           <p class="date">Generated on: ${new Date().toLocaleDateString()}</p>
           <table>
-            <tr><th>Product Name</th><th>Code</th><th>Generic Name</th><th>Make</th><th>Marketed By</th><th>MFCs</th><th>Created Date</th></tr>
+            <tr><th>Product Name</th><th>Code</th><th>Generic Name</th><th>Make</th><th>Marketed By</th><th>Pharmacopeia</th><th>MFCs</th><th>Created Date</th></tr>
             ${products
               .map(
                 (product) =>
@@ -650,7 +772,7 @@ function ProductMaster() {
                   }</td><td>${product.genericName || ""}</td><td>${
                     productMakes.find((m) => m._id === product.makeId)
                       ?.makeName || ""
-                  }</td><td>${product.marketedBy || ""}</td><td>${product.mfcs
+                  }</td><td>${product.marketedBy || ""}</td><td>${getPharmacopeiaName(product.pharmacopeiaToUse) || ""}</td><td>${product.mfcs
                     .map(
                       (id) => mfcs.find((m) => m._id === id)?.mfcNumber || ""
                     )
@@ -674,6 +796,15 @@ function ProductMaster() {
     setShowHelpModal(true);
   };
 
+  // Handle MFC selection change
+  const handleMfcChange = (selectedMFC: string | null) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      mfc: selectedMFC,
+      pharmacopeiaToUse: "" // Clear pharmacopeia when MFC changes
+    }));
+  };
+
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
     if (!showDropdown) return;
 
@@ -695,14 +826,7 @@ function ProductMaster() {
           filteredProducts[dropdownSelectedIndex]
         ) {
           const product = filteredProducts[dropdownSelectedIndex];
-          setFormData({
-            productName: product.productName,
-            productCode: product.productCode,
-            genericName: product.genericName || "",
-            makeId: product.makeId,
-            marketedBy: product.marketedBy || "",
-            mfc: product.mfcs?.[0] || null, // Take first MFC or null
-          });
+          setFormDataFromProduct(product);
           setSelectedProduct(product);
           setCurrentProductIndex(
             products.findIndex((c) => c._id === product._id)
@@ -744,14 +868,7 @@ function ProductMaster() {
           searchResults[dropdownSelectedIndex]
         ) {
           const product = searchResults[dropdownSelectedIndex];
-          setFormData({
-            productName: product.productName,
-            productCode: product.productCode,
-            genericName: product.genericName || "",
-            makeId: product.makeId,
-            marketedBy: product.marketedBy || "",
-            mfc: product.mfcs?.[0] || null, // Take first MFC or null
-          });
+          setFormDataFromProduct(product);
           setSelectedProduct(product);
           setCurrentProductIndex(
             products.findIndex((c) => c._id === product._id)
@@ -772,10 +889,66 @@ function ProductMaster() {
   const getMakeName = (makeId: string) =>
     productMakes.find((m) => m._id === makeId)?.makeName || "Unknown";
 
-  const getMfcDetails = (mfcIds: string[]) =>
-    mfcIds
-      .map((id) => mfcs.find((m) => m._id === id)?.mfcNumber || "Unknown")
-      .join(", ");
+  const getPharmacopeiaName = (pharmacopeiaId: string) =>
+    allPharmacopeials.find((p) => p._id === pharmacopeiaId)?.pharmacopeial || "Unknown";
+
+  const getMfcDetails = (mfcIds: string[]) => {
+  // Return dash if no MFC IDs
+  if (!mfcIds || mfcIds.length === 0) {
+    return "—";
+  }
+
+  // Wait for MFCs to be loaded before processing
+  if (!mfcsLoaded || !mfcs || mfcs.length === 0) {
+    return "Loading...";
+  }
+
+  const mfcNumbers = mfcIds
+    .filter(id => id && id.trim())
+    .map((id) => {
+      const foundMfc = mfcs.find((m) => m._id === id);
+      if (!foundMfc) {
+        console.warn(`MFC with ID ${id} not found in MFC list. Available MFCs:`, mfcs.map(m => m._id));
+        return null; // Return null instead of string to filter out later
+      }
+      return foundMfc.mfcNumber;
+    })
+    .filter(Boolean);
+
+  return mfcNumbers.length > 0 ? mfcNumbers.join(", ") : "MFC not found";
+};
+
+useEffect(() => {
+  if (companyId && locationId) {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        
+        // Load MFCs first - CRITICAL for product display
+        await fetchMfcs();
+        
+        // Load other reference data in parallel
+        await Promise.all([
+          fetchProductMakes(),
+          fetchAllPharmacopeials()
+        ]);
+        
+        // Load products last, after all reference data is available
+        await fetchProducts();
+        
+      } catch (error) {
+        console.error("Error loading data:", error);
+        setError("Failed to load data. Please refresh the page.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadData();
+  }
+}, [companyId, locationId]);
+  
+
 
   if (status === "loading") {
     return (
@@ -948,14 +1121,7 @@ function ProductMaster() {
                               : "hover:bg-[#e6f0fa]"
                           }`}
                           onClick={() => {
-                            setFormData({
-                              productName: product.productName,
-                              productCode: product.productCode,
-                              genericName: product.genericName || "",
-                              makeId: product.makeId,
-                              marketedBy: product.marketedBy || "",
-                              mfc: product.mfcs?.[0] || null, // Take first MFC or null
-                            });
+                            setFormDataFromProduct(product);
                             setSelectedProduct(product);
                             setCurrentProductIndex(
                               products.findIndex((c) => c._id === product._id)
@@ -1079,28 +1245,88 @@ function ProductMaster() {
                 />
               </div>
 
-              <div className="md:col-span-2">
+              <div className="md:col-span-1">
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-sm font-medium text-gray-700">
-                    Select MFC
+                    Select MFC *
                   </label>
                   {formData.mfc && (
                     <span className="text-xs text-green-600 flex items-center">
                       <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
-                      MFC Linked
+                      MFC Selected
                     </span>
                   )}
                 </div>
                 <MFCSelector
                   selectedMFC={formData.mfc}
-                  onChange={(selectedMFC) =>
-                    setFormData({ ...formData, mfc: selectedMFC })
-                  }
-                  placeholder="Select MFC record..."
+                  onChange={handleMfcChange}
+                  placeholder="Select MFC record first..."
                   disabled={!isFormEnabled}
                 />
+                {!formData.mfc && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Select an MFC to see available pharmacopeias
+                  </p>
+                )}
+              </div>
+
+              {/* Pharmacopeia Selection - Only show when MFC is selected */}
+              <div className="md:col-span-1">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Pharmacopeia
+                    {!formData.mfc && (
+                      <span className="text-gray-400 text-xs ml-1">(Select MFC first)</span>
+                    )}
+                  </label>
+                  {formData.pharmacopeiaToUse && (
+                    <span className="text-xs text-blue-600 flex items-center">
+                      <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      Pharmacopeia Selected
+                    </span>
+                  )}
+                </div>
+                <select
+                  value={formData.pharmacopeiaToUse}
+                  disabled={!isFormEnabled || !formData.mfc || mfcRelatedPharmacopeials.length === 0}
+                  onChange={(e) =>
+                    setFormData({ ...formData, pharmacopeiaToUse: e.target.value })
+                  }
+                  className={`w-full px-3 py-2 border border-[#a6c8ff] rounded focus:ring-2 focus:ring-[#66a3ff] focus:outline-none ${
+                    isFormEnabled && formData.mfc && mfcRelatedPharmacopeials.length > 0 
+                      ? "bg-white" 
+                      : "bg-[#f0f0f0]"
+                  }`}
+                  style={{
+                    borderStyle: "inset",
+                    boxShadow: isFormEnabled && formData.mfc && mfcRelatedPharmacopeials.length > 0
+                      ? "inset 1px 1px 2px rgba(0,0,0,0.1)"
+                      : "none",
+                  }}
+                >
+                  <option value="">
+                    {!formData.mfc 
+                      ? "Select MFC first"
+                      : mfcRelatedPharmacopeials.length === 0
+                      ? "No pharmacopeias available for this MFC"
+                      : "Select Pharmacopeia"
+                    }
+                  </option>
+                  {mfcRelatedPharmacopeials.map((pharmacopeial) => (
+                    <option key={pharmacopeial._id} value={pharmacopeial._id}>
+                      {pharmacopeial.pharmacopeial} - {pharmacopeial.description}
+                    </option>
+                  ))}
+                </select>
+                {formData.mfc && mfcRelatedPharmacopeials.length > 0 && (
+                  <p className="text-xs text-green-600 mt-1">
+                    {mfcRelatedPharmacopeials.length} pharmacopeia(s) available from selected MFC
+                  </p>
+                )}
               </div>
             </div>
 
@@ -1141,7 +1367,7 @@ function ProductMaster() {
               </h2>
             </div>
 
-            {loading ? (
+            {loading || !mfcsLoaded ? (
               <div className="p-8 text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0055a4] mx-auto"></div>
                 <p className="mt-2 text-gray-600">Loading products...</p>
@@ -1174,6 +1400,9 @@ function ProductMaster() {
                         Marketed By
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                        Pharmacopeia
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                         MFCs
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
@@ -1194,14 +1423,7 @@ function ProductMaster() {
                           if (!isFormEnabled) {
                             setSelectedProduct(product);
                             setCurrentProductIndex(index);
-                            setFormData({
-                              productName: product.productName,
-                              productCode: product.productCode,
-                              genericName: product.genericName || "",
-                              makeId: product.makeId,
-                              marketedBy: product.marketedBy || "",
-                              mfc: product.mfcs?.[0] || null, // Take first MFC or null
-                            });
+                            setFormDataFromProduct(product);
                           }
                         }}
                       >
@@ -1223,6 +1445,9 @@ function ProductMaster() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {product.marketedBy || "—"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {getPharmacopeiaName(product.pharmacopeiaToUse) || "—"}
                         </td>
                         <td className="px-6 py-4">
                           <div className="text-gray-600 max-w-xs truncate">
@@ -1301,14 +1526,7 @@ function ProductMaster() {
                         : "hover:bg-[#e6f0fa]"
                     }`}
                     onClick={() => {
-                      setFormData({
-                        productName: product.productName,
-                        productCode: product.productCode,
-                        genericName: product.genericName || "",
-                        makeId: product.makeId,
-                        marketedBy: product.marketedBy || "",
-                        mfc: product.mfcs?.[0] || null, // Take first MFC or null
-                      });
+                      setFormDataFromProduct(product);
                       setSelectedProduct(product);
                       setCurrentProductIndex(
                         products.findIndex((c) => c._id === product._id)
@@ -1721,6 +1939,7 @@ function ProductMaster() {
                   <li>• Use arrow keys in search modal for quick navigation</li>
                   <li>• All actions are logged in audit trail</li>
                   <li>• MFC records sync automatically when updated</li>
+                  <li>• Pharmacopeia selection is optional</li>
                   <li>• Contact support at support@company.com for issues</li>
                 </ul>
               </div>

@@ -1,7 +1,14 @@
 "use client";
 
 import React, { forwardRef, useEffect, useState } from "react";
-import { useForm, useFieldArray, Controller, Control } from "react-hook-form";
+import {
+  useForm,
+  useFieldArray,
+  Controller,
+  Control,
+  UseFormReturn,
+  Resolver,
+} from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMasterDataContext } from "@/context/MasterDataContext";
@@ -12,16 +19,24 @@ import ColumnPopup from "./ColumnPopUp";
 const testTypeSchema = z.object({
   testTypeId: z.string().min(1, "Test Type is required"),
   selectMakeSpecific: z.boolean(),
+  isOutsourcedTest: z.boolean(), // Add this line
   columnCode: z.string().min(1, "Column is required"),
   mobilePhaseCodes: z
     .array(z.string())
-    .length(6, "Must have exactly 6 mobile phase slots") // Ensure exactly 6 slots
-    .refine((codes) => {
-      // At least MP01 (index 0) must be filled
-      return codes[0] && codes[0].trim() !== "";
-    }, "MP01 (first mobile phase) is required"),
+    .length(6, "Must have exactly 6 mobile phase slots")
+    .refine(
+      (codes) => codes[0] && codes[0].trim() !== "",
+      "MP01 (first mobile phase) is required"
+    ),
   detectorTypeId: z.string().min(1, "Detector Type is required"),
-  pharmacopoeialId: z.string().min(1, "Pharmacopoeial is required"),
+  pharmacopoeialId: z
+    .array(z.string().min(1))
+    .refine(
+      (arr) => arr.length === 0 || arr.every((id) => id.trim().length > 0),
+      {
+        message: "All pharmacopoeial IDs must be valid",
+      }
+    ),
   sampleInjection: z.number().min(0, "Sample Injection must be >= 0"),
   standardInjection: z.number().min(0, "Standard Injection must be >= 0"),
   blankInjection: z.number().min(0, "Blank Injection must be >= 0"),
@@ -37,6 +52,25 @@ const testTypeSchema = z.object({
     .min(0, "Standard Run Time must be >= 0")
     .optional(),
   sampleRunTime: z.number().min(0, "Sample Run Time must be >= 0").optional(),
+  // Add the new runtime fields
+  systemSuitabilityRunTime: z
+    .number()
+    .min(0, "System Suitability Run Time must be >= 0")
+    .optional(),
+  sensitivityRunTime: z
+    .number()
+    .min(0, "Sensitivity Run Time must be >= 0")
+    .optional(),
+  placeboRunTime: z.number().min(0, "Placebo Run Time must be >= 0").optional(),
+  reference1RunTime: z
+    .number()
+    .min(0, "Reference1 Run Time must be >= 0")
+    .optional(),
+  reference2RunTime: z
+    .number()
+    .min(0, "Reference2 Run Time must be >= 0")
+    .optional(),
+  // ... rest of your existing fields
   bracketingFrequency: z.number().min(0, "Bracketing Frequency must be >= 0"),
   injectionTime: z.number().min(0, "Injection Time must be >= 0"),
   runTime: z.number().min(0, "Run Time must be >= 0"),
@@ -91,6 +125,8 @@ const mfcFormSchema = z
       )
       .min(0, "Product Code is optional"),
     isLinked: z.boolean(),
+    isObsolete: z.boolean().default(false),
+    isRawMaterial: z.boolean().default(false),
   })
   .superRefine((data, ctx) => {
     data.apis.forEach((api, apiIndex) => {
@@ -214,6 +250,7 @@ const areTestTypesIdentical = (
   const fieldsToCompare = [
     "testTypeId",
     "selectMakeSpecific",
+    "isOutsourcedTest", // Add this
     "columnCode",
     "mobilePhaseCodes",
     "detectorTypeId",
@@ -232,6 +269,11 @@ const areTestTypesIdentical = (
     "blankRunTime",
     "standardRunTime",
     "sampleRunTime",
+    "systemSuitabilityRunTime", // Add this
+    "sensitivityRunTime", // Add this
+    "placeboRunTime", // Add this
+    "reference1RunTime", // Add this
+    "reference2RunTime", // Add this
     "runTime",
     "washTime",
     "numberOfInjections",
@@ -248,14 +290,21 @@ const areTestTypesIdentical = (
     if (field === "mobilePhaseCodes") {
       const codes1 = normalizeMobilePhaseCodes(testType1.mobilePhaseCodes);
       const codes2 = normalizeMobilePhaseCodes(testType2.mobilePhaseCodes);
-
       for (let i = 0; i < 6; i++) {
         if (codes1[i] !== codes2[i]) return false;
+      }
+    } else if (field === "pharmacopoeialId") {
+      const arr1 = testType1.pharmacopoeialId || [];
+      const arr2 = testType2.pharmacopoeialId || [];
+      if (arr1.length !== arr2.length) return false;
+      const sortedArr1 = [...arr1].sort();
+      const sortedArr2 = [...arr2].sort();
+      for (let i = 0; i < sortedArr1.length; i++) {
+        if (sortedArr1[i] !== sortedArr2[i]) return false;
       }
     } else {
       const val1 = testType1[field as keyof TestTypeData];
       const val2 = testType2[field as keyof TestTypeData];
-
       if (typeof val1 === "number" || typeof val2 === "number") {
         const num1 = val1 ?? 0;
         const num2 = val2 ?? 0;
@@ -269,7 +318,6 @@ const areTestTypesIdentical = (
       }
     }
   }
-
   return true;
 };
 
@@ -479,6 +527,8 @@ const transformInitialData = (
       wash: 0,
       productIds: [],
       isLinked: false,
+      isObsolete: false,
+      isRawMaterial: false,
     };
   }
 
@@ -520,7 +570,11 @@ const transformInitialData = (
         numberOfInjectionsPV: testType.numberOfInjectionsPV || 0,
         numberOfInjectionsCV: testType.numberOfInjectionsCV || 0,
         detectorTypeId: testType.detectorTypeId || "",
-        pharmacopoeialId: testType.pharmacopoeialId || "",
+        pharmacopoeialId: Array.isArray(testType.pharmacopoeialId)
+          ? testType.pharmacopoeialId
+          : testType.pharmacopoeialId
+          ? [testType.pharmacopoeialId]
+          : [], // Ensure array
         sampleInjection: testType.sampleInjection || 0,
         standardInjection: testType.standardInjection || 0,
         blankInjection: testType.blankInjection || 0,
@@ -533,6 +587,12 @@ const transformInitialData = (
         blankRunTime: testType.blankRunTime || 0,
         standardRunTime: testType.standardRunTime || 0,
         sampleRunTime: testType.sampleRunTime || 0,
+        systemSuitabilityRunTime: testType.systemSuitabilityRunTime || 0,
+        sensitivityRunTime: testType.sensitivityRunTime || 0,
+        placeboRunTime: testType.placeboRunTime || 0,
+        reference1RunTime: testType.reference1RunTime || 0,
+        reference2RunTime: testType.reference2RunTime || 0,
+        isOutsourcedTest: testType.isOutsourcedTest || false,
         bracketingFrequency: testType.bracketingFrequency || 0,
         injectionTime: testType.injectionTime || 0,
         runTime: testType.runTime || 0,
@@ -552,6 +612,8 @@ const transformInitialData = (
     wash: Number(data.wash) || 0,
     productIds: transformedProductIds,
     isLinked: data.isLinked ?? false,
+    isObsolete: data.isObsolete ?? false,
+    isRawMaterial: data.isRawMaterial ?? false,
   };
 };
 
@@ -566,8 +628,8 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
   const {
     getTestTypeOptions,
     getDetectorTypeOptions,
-    getPharmacopoeialOptions,
     getColumnOptions,
+    getPharmacopoeialOptions,
     getApiOptions,
   } = useMasterDataContext();
 
@@ -602,7 +664,7 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                 columnCode: "",
                 mobilePhaseCodes: ["", "", "", "", "", ""],
                 detectorTypeId: "",
-                pharmacopoeialId: "",
+                pharmacopoeialId: [],
                 blankInjection: 0,
                 systemSuitability: 0,
                 sensitivity: 0,
@@ -616,6 +678,12 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                 blankRunTime: 0,
                 standardRunTime: 0,
                 sampleRunTime: 0,
+                systemSuitabilityRunTime: 0,
+                sensitivityRunTime: 0,
+                placeboRunTime: 0,
+                reference1RunTime: 0,
+                reference2RunTime: 0,
+                isOutsourcedTest: false,
                 runTime: 0,
                 washTime: 0,
                 numberOfInjectionsAMV: 0,
@@ -1189,31 +1257,29 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                     )}
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Select Make Specific
-                    </label>
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        {...register(
+                  <div className="flex items-center mt-3 gap-3 px-3">
+                    <input
+                      type="checkbox"
+                      {...register(
+                        `testTypes.${testTypeIndex}.selectMakeSpecific`
+                      )}
+                      onChange={(e) => {
+                        register(
                           `testTypes.${testTypeIndex}.selectMakeSpecific`
-                        )}
-                        onChange={(e) => {
-                          register(
-                            `testTypes.${testTypeIndex}.selectMakeSpecific`
-                          ).onChange(e);
-                          handleTestTypeChange(
-                            testTypeIndex,
-                            "selectMakeSpecific",
-                            e.target.checked
-                          );
-                        }}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-2"
-                      />
-                      <span className="text-sm text-gray-700">
-                        Make Specific
-                      </span>
+                        ).onChange(e);
+                        handleTestTypeChange(
+                          testTypeIndex,
+                          "selectMakeSpecific",
+                          e.target.checked
+                        );
+                      }}
+                      className="h-5 w-5 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                    />
+                    <label
+                      htmlFor={`testTypes.${testTypeIndex}.selectMakeSpecific`}
+                      className="text-sm font-medium text-gray-800 cursor-pointer select-none"
+                    >
+                      Make Specific
                     </label>
                   </div>
 
@@ -1369,35 +1435,47 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Pharmacopoeial *
                     </label>
-                    <select
-                      {...register(
-                        `testTypes.${testTypeIndex}.pharmacopoeialId`
+                    <Controller
+                      name={`testTypes.${testTypeIndex}.pharmacopoeialId`}
+                      control={control}
+                      render={({ field }) => (
+                        <div className="grid grid-cols-2 gap-2">
+                          {pharmacopoeialOptions.map(
+                            (option: { value: string; label: string }) => (
+                              <label
+                                key={option.value}
+                                className="flex items-center"
+                              >
+                                <input
+                                  type="checkbox"
+                                  value={option.value}
+                                  checked={
+                                    field.value?.includes(option.value) || false
+                                  }
+                                  onChange={(e) => {
+                                    const newValue = e.target.checked
+                                      ? [...(field.value || []), option.value]
+                                      : (field.value || []).filter(
+                                          (val: string) => val !== option.value
+                                        );
+                                    field.onChange(newValue);
+                                    handleTestTypeChange(
+                                      testTypeIndex,
+                                      "pharmacopoeialId",
+                                      newValue
+                                    );
+                                  }}
+                                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-2"
+                                />
+                                <span className="text-sm text-gray-700">
+                                  {option.label}
+                                </span>
+                              </label>
+                            )
+                          )}
+                        </div>
                       )}
-                      onChange={(e) => {
-                        register(
-                          `testTypes.${testTypeIndex}.pharmacopoeialId`
-                        ).onChange(e);
-                        handleTestTypeChange(
-                          testTypeIndex,
-                          "pharmacopoeialId",
-                          e.target.value
-                        );
-                      }}
-                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        errors.testTypes?.[testTypeIndex]?.pharmacopoeialId
-                          ? "border-red-400 bg-red-50"
-                          : "border-gray-300"
-                      }`}
-                    >
-                      <option value="">Select Pharmacopoeial</option>
-                      {pharmacopoeialOptions.map(
-                        (option: { value: string; label: string }) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        )
-                      )}
-                    </select>
+                    />
                     {errors.testTypes?.[testTypeIndex]?.pharmacopoeialId
                       ?.message && (
                       <div className="mt-1 flex items-center text-sm text-red-600">
@@ -1535,7 +1613,7 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                   </label>
 
                   {watchedValues?.testTypes?.[testTypeIndex]?.uniqueRuntimes ? (
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-4 gap-3">
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">
                           Blank Run Time
@@ -1562,6 +1640,7 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                           className="w-full px-2 py-1 text-sm border rounded border-gray-300"
                         />
                       </div>
+
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">
                           Standard Run Time
@@ -1588,6 +1667,7 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                           className="w-full px-2 py-1 text-sm border rounded border-gray-300"
                         />
                       </div>
+
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">
                           Sample Run Time
@@ -1608,6 +1688,141 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                             handleTestTypeChange(
                               testTypeIndex,
                               "sampleRunTime",
+                              value
+                            );
+                          }}
+                          className="w-full px-2 py-1 text-sm border rounded border-gray-300"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          System Suitability Runtime
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          {...register(
+                            `testTypes.${testTypeIndex}.systemSuitabilityRunTime`,
+                            { valueAsNumber: true }
+                          )}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value) || 0;
+                            register(
+                              `testTypes.${testTypeIndex}.systemSuitabilityRunTime`,
+                              { valueAsNumber: true }
+                            ).onChange({ target: { value } });
+                            handleTestTypeChange(
+                              testTypeIndex,
+                              "systemSuitabilityRunTime",
+                              value
+                            );
+                          }}
+                          className="w-full px-2 py-1 text-sm border rounded border-gray-300"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Sensitivity Runtime
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          {...register(
+                            `testTypes.${testTypeIndex}.sensitivityRunTime`,
+                            { valueAsNumber: true }
+                          )}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value) || 0;
+                            register(
+                              `testTypes.${testTypeIndex}.sensitivityRunTime`,
+                              { valueAsNumber: true }
+                            ).onChange({ target: { value } });
+                            handleTestTypeChange(
+                              testTypeIndex,
+                              "sensitivityRunTime",
+                              value
+                            );
+                          }}
+                          className="w-full px-2 py-1 text-sm border rounded border-gray-300"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Placebo Runtime
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          {...register(
+                            `testTypes.${testTypeIndex}.placeboRunTime`,
+                            { valueAsNumber: true }
+                          )}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value) || 0;
+                            register(
+                              `testTypes.${testTypeIndex}.placeboRunTime`,
+                              { valueAsNumber: true }
+                            ).onChange({ target: { value } });
+                            handleTestTypeChange(
+                              testTypeIndex,
+                              "placeboRunTime",
+                              value
+                            );
+                          }}
+                          className="w-full px-2 py-1 text-sm border rounded border-gray-300"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Reference1 Runtime
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          {...register(
+                            `testTypes.${testTypeIndex}.reference1RunTime`,
+                            { valueAsNumber: true }
+                          )}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value) || 0;
+                            register(
+                              `testTypes.${testTypeIndex}.reference1RunTime`,
+                              { valueAsNumber: true }
+                            ).onChange({ target: { value } });
+                            handleTestTypeChange(
+                              testTypeIndex,
+                              "reference1RunTime",
+                              value
+                            );
+                          }}
+                          className="w-full px-2 py-1 text-sm border rounded border-gray-300"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Reference2 Runtime
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          {...register(
+                            `testTypes.${testTypeIndex}.reference2RunTime`,
+                            { valueAsNumber: true }
+                          )}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value) || 0;
+                            register(
+                              `testTypes.${testTypeIndex}.reference2RunTime`,
+                              { valueAsNumber: true }
+                            ).onChange({ target: { value } });
+                            handleTestTypeChange(
+                              testTypeIndex,
+                              "reference2RunTime",
                               value
                             );
                           }}
@@ -1648,6 +1863,7 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                     { field: "amv", label: "AMV" },
                     { field: "pv", label: "PV" },
                     { field: "cv", label: "CV" },
+                    { field: "isOutsourcedTest", label: "Outsourced Test" },
                     { field: "isLinked", label: "Manual Link" },
                   ].map(({ field, label }) => (
                     <label key={field} className="flex items-center">
@@ -1868,7 +2084,7 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                   columnCode: "",
                   mobilePhaseCodes: ["", "", "", "", "", ""],
                   detectorTypeId: "",
-                  pharmacopoeialId: "",
+                  pharmacopoeialId: [],
                   sampleInjection: 0,
                   standardInjection: 0, // ← Added missing property
                   blankInjection: 0,
@@ -1883,6 +2099,12 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
                   blankRunTime: 0,
                   standardRunTime: 0,
                   sampleRunTime: 0,
+                  systemSuitabilityRunTime: 0,
+                  sensitivityRunTime: 0,
+                  placeboRunTime: 0,
+                  reference1RunTime: 0,
+                  reference2RunTime: 0,
+                  isOutsourcedTest: false,
                   runTime: 0,
                   washTime: 0,
                   numberOfInjectionsAMV: 0,
@@ -2011,11 +2233,11 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
       reset,
       setValue,
       watch,
-    } = useForm<MFCFormData>({
-      resolver: zodResolver(mfcFormSchema),
-      defaultValues: transformInitialData(initialData),
-      mode: "onChange", // Enable real-time validation
-    });
+    } = useForm({
+      resolver: zodResolver(mfcFormSchema) as Resolver<MFCFormData>,
+      defaultValues: transformInitialData(initialData) as MFCFormData,
+      mode: "onChange" as const,
+    }) as UseFormReturn<MFCFormData>;
 
     const {
       fields: productFields,
@@ -2029,8 +2251,6 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
     const watchedApis = watch("apis");
     const { companyId, locationId } = getStorageIds();
 
-    // ... (keep all your existing helper functions and useEffects)
-
     const getTestTypeLabel = (id: string) => {
       const option = getTestTypeOptions().find((opt: any) => opt.value === id);
       return option?.label || id;
@@ -2038,13 +2258,6 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
 
     const getDetectorTypeLabel = (id: string) => {
       const option = getDetectorTypeOptions().find(
-        (opt: any) => opt.value === id
-      );
-      return option?.label || id;
-    };
-
-    const getPharmacopoeialLabel = (id: string) => {
-      const option = getPharmacopoeialOptions().find(
         (opt: any) => opt.value === id
       );
       return option?.label || id;
@@ -2059,8 +2272,6 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
       const option = getApiOptions().find((opt: any) => opt.value === name);
       return option?.label || name;
     };
-
-    // ... (keep all your existing useEffects)
 
     useEffect(() => {
       const loadExistingColumnDisplayTexts = async () => {
@@ -2266,7 +2477,7 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
               columnCode: "",
               mobilePhaseCodes: ["", "", "", "", "", ""],
               detectorTypeId: "",
-              pharmacopoeialId: "",
+              pharmacopoeialId: [],
               sampleInjection: 0,
               standardInjection: 0,
               blankInjection: 0,
@@ -2283,6 +2494,12 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
               blankRunTime: 0,
               standardRunTime: 0,
               sampleRunTime: 0,
+              systemSuitabilityRunTime: 0,
+              sensitivityRunTime: 0,
+              placeboRunTime: 0,
+              reference1RunTime: 0,
+              reference2RunTime: 0,
+              isOutsourcedTest: false,
               numberOfInjectionsAMV: 0,
               numberOfInjectionsPV: 0,
               numberOfInjectionsCV: 0,
@@ -2501,6 +2718,63 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
                   )}
                 </div>
               </div>
+
+              {/* NEW: Add MFC Status Section */}
+              <div className="mb-8">
+                <label className="block text-sm font-medium text-gray-700 mb-4">
+                  MFC Status & Configuration
+                </label>
+                <div className="flex flex-wrap gap-6">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      {...register("isObsolete")}
+                      className="h-5 w-5 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-sm font-medium text-gray-700">
+                      Mark as Obsolete
+                    </span>
+                  </label>
+
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      {...register("isRawMaterial")}
+                      className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-sm font-medium text-gray-700">
+                      Raw Material
+                    </span>
+                  </label>
+
+                 
+                </div>
+              </div>
+
+              {/* Visual Warning for Obsolete Status */}
+              {watch("isObsolete") && (
+                <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-center">
+                    <svg
+                      className="w-5 h-5 text-red-600 mr-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.728-.833-2.498 0L4.316 15.5c-.77.833.192 2.5 1.732 2.5z"
+                      />
+                    </svg>
+                    <p className="text-sm font-medium text-red-800">
+                      ⚠️ This MFC is marked as <strong>OBSOLETE</strong>. It
+                      will be archived and not available for active use.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="mb-8">
                 <label className="block text-sm font-medium text-gray-700 mb-4">

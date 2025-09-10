@@ -420,4 +420,40 @@ export const MOBILE_PHASES: MobilePhase[] = [
     baseSolvent: "Mobile Phase",
     description: "SODIUM Phosphate Monobasic 3.12 gm, Sodium Perchlorate 0.56 gm, Adjust pH 2.50 with OPA"
   },
+    {
+    srNo: 70,
+    code: "MP70",
+    baseSolvent: "Mobile Phase",
+    description: "Citro-phosphate buffer pH 5.0: Mix 48.5 ml of 0.1 M citric acid with sufficient 0.2 M disodium Hydrogen phosphate 100 ml."
+  },
+  {
+    srNo: 71,
+    code: "MP71",
+    baseSolvent: "Mobile Phase",
+    description: "Dissolve 1.0 ml of OPA in 1000 ml of water and adjust pH to 3.0 with Triethylamine."
+  },
+  {
+    srNo: 72,
+    code: "MP72",
+    baseSolvent: "Mobile Phase",
+    description: "Acetonitrile , 0.24 % sodium dodecyl sulfate and glacial acetic acid(400:580:20) 0.05 N HCL add 4.0 ml of HCL to 500 ml of water, dilute with water to 1000 ml and mix. "
+  },
+  {
+    srNo: 73,
+    code: "MP73",
+    baseSolvent: "Mobile Phase",
+    description: "To 1000 ml of 0.01 m Potassium dihydrogen phosphate add 2.0 ml of triethylamine and adjust pH to 3.0 with orthophosphoric acid."
+ },
+ {
+    srNo: 74,
+    code: "MP74",
+    baseSolvent: "Mobile Phase",
+    description: "2 ml ortophosphoric acid in 1000 ml of distilled water."
+ },
+  {
+    srNo: 75,
+    code: "MP75",
+    baseSolvent: "Mobile Phase",
+    description: "0.04 M sodium heptane sulfonate sodium salt in water adjust pH 3.4 with orthophosphoric acid solution ."
+ },
 ];

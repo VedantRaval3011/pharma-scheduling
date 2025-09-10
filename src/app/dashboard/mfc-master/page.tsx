@@ -104,6 +104,9 @@ const MFCMasterPage: React.FC = () => {
     dateFrom: "",
     dateTo: "",
   });
+  const [activeTab, setActiveTab] = useState<
+    "active" | "obsolete" | "rawMaterial"
+  >("active");
 
   // Lookup data states
   const [testTypes, setTestTypes] = useState<TestType[]>([]);
@@ -444,104 +447,133 @@ const MFCMasterPage: React.FC = () => {
     }
   }, [mfcRecords, apis]);
 
-  const renderCreateData = (audit: AuditRecord) => (
-    <div className="bg-green-50 p-3">
-      <h5 className="font-medium text-green-800 mb-2">Created Record:</h5>
-      <div className="grid grid-cols-2 gap-2 text-sm">
-        {Object.entries(audit.newData || {}).map(([key, value]) => (
-          <div key={key} className="flex">
-            <span className="font-medium w-1/3">{key}:</span>
-            <span className="w-2/3">{formatChangeValue(value)}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  const getPharmacopoeialsTickTableForTestType = (
+    testType: any,
+    apiName?: string
+  ): JSX.Element | string => {
+    if (!testType?.pharmacopoeialId || !pharmacopoeials.length) return "-";
 
-  const renderUpdateChanges = (audit: AuditRecord) => (
-    <div>
-      <h5 className="font-medium text-blue-800 mb-2">Changes Made:</h5>
-      {audit.changes.map((change, index) => (
-        <div key={index} className="mb-3 bg-blue-50 p-3 rounded">
-          <div className="font-medium text-sm mb-1">{change.field}</div>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-red-600 font-medium">Before:</span>
-              <div className="bg-red-50 p-2 rounded mt-1">
-                {formatChangeValue(change.oldValue)}
-              </div>
-            </div>
-            <div>
-              <span className="text-green-600 font-medium">After:</span>
-              <div className="bg-green-50 p-2 rounded mt-1">
-                {formatChangeValue(change.newValue)}
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+    const selectedIds = Array.isArray(testType.pharmacopoeialId)
+      ? testType.pharmacopoeialId
+      : [testType.pharmacopoeialId];
 
-  const renderDeleteData = (audit: AuditRecord) => (
-    <div className="bg-red-50 p-3">
-      <h5 className="font-medium text-red-800 mb-2">Deleted Record:</h5>
-      <div className="grid grid-cols-2 gap-2 text-sm">
-        {Object.entries(audit.oldData || {}).map(([key, value]) => (
-          <div key={key} className="flex">
-            <span className="font-medium w-1/3">{key}:</span>
-            <span className="w-2/3">{formatChangeValue(value)}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+    // Get the specific pharmacopoeials that are selected for this test type
+    const selectedPharmcos = pharmacopoeials.filter((pharmaco) =>
+      selectedIds.some(
+        (id: string) => id === pharmaco.value || id === pharmaco._id
+      )
+    );
 
-  const renderAuditRecord = (audit: AuditRecord) => {
+    // Show more pharmacopoeials if needed, but limit to prevent excessive width
+    const maxCols = Math.min(pharmacopoeials.length, 12); // Max 12 columns
+    const displayPharmcos = pharmacopoeials.slice(0, maxCols);
+
+    if (displayPharmcos.length === 0) return "-";
+
     return (
-      <div className="border border-gray-200 rounded-lg p-4 mb-4">
-        {/* Header */}
-        <div className="bg-gray-50 p-3 rounded-t border-b">
-          <div className="flex justify-between items-center">
-            <h4 className="font-semibold text-lg">
-              {audit.action} - {audit.mfcNumber}
-            </h4>
-            <span className="text-sm text-gray-600">
-              {new Date(audit.performedAt).toLocaleString()}
-            </span>
-          </div>
-          <p className="text-sm text-gray-600">
-            By: {audit.performedBy} | IP: {audit.ipAddress || "N/A"}
-          </p>
-          {audit.reason && (
-            <p className="text-sm text-blue-600 mt-1">Reason: {audit.reason}</p>
-          )}
+      <div
+        className="pharmaco-grid text-xs w-full"
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${displayPharmcos.length}, minmax(1rem, 1fr))`,
+          gap: "0.25rem",
+        }}
+      >
+        {/* Headers */}
+        <div className="contents">
+          {displayPharmcos.map((pharmaco, index) => {
+            const label = pharmaco.label || pharmaco.name || "";
+            const shortLabel = label.length > 4 ? label.substring(0, 4) : label;
+            return (
+              <div
+                key={`header-${index}`}
+                className="pharmaco-header text-center font-medium text-gray-600 mb-1 text-xs"
+                title={label} // Show full name on hover
+              >
+                {shortLabel}
+              </div>
+            );
+          })}
         </div>
 
-        {/* Changes */}
-        {audit.action === "CREATE" && renderCreateData(audit)}
-        {audit.action === "UPDATE" && renderUpdateChanges(audit)}
-        {audit.action === "DELETE" && renderDeleteData(audit)}
+        {/* Ticks/Crosses */}
+        <div className="contents">
+          {displayPharmcos.map((pharmaco, index) => {
+            const isSelected = selectedIds.some(
+              (id: string) => id === pharmaco.value || id === pharmaco._id
+            );
+            return (
+              <div key={`tick-${index}`} className="text-center">
+                <span
+                  className={`inline-block font-bold ${
+                    isSelected ? "text-green-600" : "text-red-500"
+                  }`}
+                >
+                  {isSelected ? "✔️" : "❌"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   };
 
-  const applyAuditFilters = () => {
-    const recordForAudit = editingRecord || selectedRecord;
-    fetchAuditRecords(recordForAudit?._id as string | undefined, auditFilters);
-  };
+  const getPharmacopoeialsTickTable = (
+    ids: string | string[],
+    testType?: any // Add testType parameter to get context-specific pharmacopoeials
+  ): JSX.Element | string => {
+    if (!ids || !pharmacopoeials.length) return "-";
 
-  const clearAuditFilters = () => {
-    setAuditFilters({
-      search: "",
-      action: "",
-      dateFrom: "",
-      dateTo: "",
-    });
-    const recordForAudit = editingRecord || selectedRecord;
-    fetchAuditRecords(recordForAudit?._id as string | undefined);
-  };
+    // Handle both single ID and array of IDs
+    const idArray = Array.isArray(ids) ? ids : [ids];
 
+    // If we have a specific testType, we can get more targeted pharmacopoeials
+    // Otherwise, get the commonly used ones (first 6)
+    const displayPharmcos = pharmacopoeials.slice(0, 6);
+
+    if (displayPharmcos.length === 0) return "-";
+
+    return (
+      <div className="pharmaco-grid grid grid-cols-6 gap-1 text-xs">
+        {/* Headers */}
+        <div className="contents">
+          {displayPharmcos.map((pharmaco, index) => {
+            const label = pharmaco.label || pharmaco.name || "";
+            const shortLabel = label.length > 3 ? label.substring(0, 3) : label;
+            return (
+              <div
+                key={`header-${index}`}
+                className="pharmaco-header text-center font-medium text-gray-600 mb-1"
+              >
+                {shortLabel}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Ticks/Crosses */}
+        <div className="contents">
+          {displayPharmcos.map((pharmaco, index) => {
+            const isSelected = idArray.some(
+              (id) => id === pharmaco.value || id === pharmaco._id
+            );
+            return (
+              <div key={`tick-${index}`} className="text-center">
+                <span
+                  className={`inline-block ${
+                    isSelected ? "text-green-600" : "text-red-500"
+                  }`}
+                >
+                  {isSelected ? "✓" : "✗"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
   const getTestTypeName = (id: string) => getLabel(id, testTypes);
   const getApiName = (id: string) => {
     if (!id) return "";
@@ -553,7 +585,22 @@ const MFCMasterPage: React.FC = () => {
     return id;
   };
   const getDetectorTypeName = (id: string) => getLabel(id, detectorTypes);
-  const getPharmacopoeialsName = (id: string) => getLabel(id, pharmacopoeials);
+  const getPharmacopoeialsName = (ids: string | string[]): string => {
+    if (!ids) return "";
+
+    // Handle both single ID (backward compatibility) and array of IDs
+    const idArray = Array.isArray(ids) ? ids : [ids];
+
+    const names = idArray.map((id) => {
+      const found = pharmacopoeials.find(
+        (item) => item.value === id || item._id === id
+      );
+      return found ? found.label : "";
+    });
+
+    return names.join(", ");
+  };
+
   const getDepartmentName = (id: string) => getLabel(id, departments);
   const getColumnName = (columnId: string) => {
     if (!columnId) return "";
@@ -587,12 +634,6 @@ const MFCMasterPage: React.FC = () => {
     } else if (mfcRecord.productIds) {
       productIds = mfcRecord.productIds.map((id) => id.toString());
     }
-
-    console.log("=== PROCESSING MFC RECORD ===");
-    console.log("MFC Record:", mfcRecord.mfcNumber);
-    console.log("MFC Record Full Object:", mfcRecord);
-    console.log("Product IDs in MFC:", productIds);
-    console.log("Available products count:", products.length);
 
     if (!productIds || productIds.length === 0) {
       console.log("No productIds found in MFC record");
@@ -684,17 +725,23 @@ const MFCMasterPage: React.FC = () => {
         locationId,
         page: page.toString(),
         limit: "10",
-        populate: "true", // Request populated data
+        populate: "true",
       });
 
-      // Only add search parameter if search term is provided
+      // Filter based on active tab
+      if (activeTab === "obsolete") {
+        params.append("isObsolete", "true");
+      } else if (activeTab === "rawMaterial") {
+        params.append("isRawMaterial", "true");
+      } else {
+        // Active tab - show only normal records (not obsolete and not raw material)
+        params.append("isObsolete", "false");
+        params.append("isRawMaterial", "false");
+      }
+
       if (search.trim()) {
         params.append("search", search.trim());
       }
-
-      console.log("=== FETCHING MFC RECORDS ===");
-      console.log("Request URL:", `/api/admin/mfc?${params}`);
-      console.log("Search term:", search);
 
       const response = await fetch(`/api/admin/mfc?${params}`);
       const data = await response.json();
@@ -703,27 +750,11 @@ const MFCMasterPage: React.FC = () => {
 
       if (response.ok) {
         const records = data.data || [];
-        console.log("Fetched MFC records:", records.length);
-        console.log("Sample record:", records[0]);
-
-        // Log productIds for each record
-        records.forEach((record: any, index: number) => {
-          console.log(`Record ${index + 1} (${record.mfcNumber}):`, {
-            id: record._id,
-            productIds: record.productIds,
-            productIdsType: typeof record.productIds,
-            productIdsLength: record.productIds?.length || 0,
-          });
-        });
+        console.log(`Fetched ${records.length} ${activeTab} MFC records`);
 
         setMfcRecords(records);
         setPagination(
-          data.pagination || {
-            page: 1,
-            limit: 10,
-            total: 0,
-            totalPages: 1,
-          }
+          data.pagination || { page: 1, limit: 10, total: 0, totalPages: 1 }
         );
       } else {
         setErrorMessage(data.error || "Failed to fetch MFC records");
@@ -735,6 +766,45 @@ const MFCMasterPage: React.FC = () => {
       setMfcRecords([]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleTabChange = (tab: "active" | "obsolete" | "rawMaterial") => {
+    setActiveTab(tab);
+    setSelectedRecord(null);
+    setSearchTerm("");
+    setPagination((prev) => ({ ...prev, page: 1 })); // Reset to first page
+  };
+
+  // Add useEffect to refetch data when tab changes
+  useEffect(() => {
+    fetchMFCRecords(1, ""); // Reset to page 1 and clear search when tab changes
+  }, [activeTab]);
+
+  // Add function to get tab display info
+  const getTabInfo = () => {
+    switch (activeTab) {
+      case "obsolete":
+        return {
+          title: "Obsolete MFC Records",
+          description: "MFC records that have been marked as obsolete",
+          bgColor: "bg-orange-50",
+          borderColor: "border-orange-200",
+        };
+      case "rawMaterial":
+        return {
+          title: "Raw Material MFC Records",
+          description: "MFC records for raw material testing",
+          bgColor: "bg-green-50",
+          borderColor: "border-green-200",
+        };
+      default:
+        return {
+          title: "Active MFC Records",
+          description: "Currently active MFC records",
+          bgColor: "bg-blue-50",
+          borderColor: "border-blue-200",
+        };
     }
   };
 
@@ -788,7 +858,6 @@ const MFCMasterPage: React.FC = () => {
     }
   };
 
-  // Handle form submission
   const handleFormSubmit = async (formData: any) => {
     try {
       setIsLoading(true);
@@ -832,6 +901,9 @@ const MFCMasterPage: React.FC = () => {
         departmentId: formData.departmentId,
         wash: formData.wash,
         productIds, // Include productIds in the payload
+        // Add the new fields
+        isObsolete: formData.isObsolete || false,
+        isRawMaterial: formData.isRawMaterial || false,
         companyId,
         locationId,
         createdBy: session?.user?.userId || "unknown",
@@ -855,11 +927,14 @@ const MFCMasterPage: React.FC = () => {
         );
       } else {
         // For creating new record
-        response = await fetch("/api/admin/mfc", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(transformedPayload),
-        });
+        response = await fetch(
+          `/api/admin/mfc?companyId=${companyId}&locationId=${locationId}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(transformedPayload),
+          }
+        );
       }
 
       const data = await response.json();
@@ -888,7 +963,6 @@ const MFCMasterPage: React.FC = () => {
       setIsLoading(false);
     }
   };
-
   // Handle delete
   const handleDelete = async (record: IMFCMaster) => {
     if (
@@ -1106,6 +1180,12 @@ const MFCMasterPage: React.FC = () => {
     if (value === null || value === undefined) return "N/A";
     if (typeof value === "boolean") return value ? "Yes" : "No";
 
+    // Special handling for pharmacopeial arrays
+    if (fieldName?.toLowerCase().includes("pharmacopeial")) {
+      if (Array.isArray(value) || typeof value === "string") {
+        return getPharmacopoeialsTickTable(value);
+      }
+    }
     // Special handling for generics field - make it more readable
     if (
       fieldName === "generics" ||
@@ -1176,7 +1256,7 @@ const MFCMasterPage: React.FC = () => {
     if (valueStr.length === 24 && /^[0-9a-fA-F]{24}$/.test(valueStr)) {
       const testTypeName = getTestTypeName(valueStr);
       const detectorTypeName = getDetectorTypeName(valueStr);
-      const pharmacopoeialsName = getPharmacopoeialsName(valueStr);
+      const pharmacopoeialsName = getPharmacopoeialsName(valueStr); // This will now handle both single and array
       const departmentName = getDepartmentName(valueStr);
       const columnName = getColumnName(valueStr);
       const apiName = getApiName(valueStr);
@@ -1187,6 +1267,19 @@ const MFCMasterPage: React.FC = () => {
       if (departmentName !== valueStr) return `${departmentName}`;
       if (columnName !== valueStr) return `${columnName}`;
       if (apiName !== valueStr) return `${apiName}`;
+    }
+
+    // Handle arrays of ObjectIds (for pharmacopeial arrays)
+    if (
+      Array.isArray(value) &&
+      value.every(
+        (v) =>
+          typeof v === "string" &&
+          v.length === 24 &&
+          /^[0-9a-fA-F]{24}$/.test(v)
+      )
+    ) {
+      return value.map((id) => getPharmacopoeialsName(id)).join(", ");
     }
 
     // Truncate very long strings
@@ -1376,6 +1469,39 @@ const MFCMasterPage: React.FC = () => {
               </div>
             </div>
 
+            <div className="px-6 py-3 flex gap-2 border-b border-gray-300 bg-gray-50">
+              <button
+                onClick={() => handleTabChange("active")}
+                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                  activeTab === "active"
+                    ? "bg-blue-500 text-white"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                }`}
+              >
+                Active MFCs
+              </button>
+              <button
+                onClick={() => handleTabChange("obsolete")}
+                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                  activeTab === "obsolete"
+                    ? "bg-orange-500 text-white"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                }`}
+              >
+                Obsolete MFCs
+              </button>
+              <button
+                onClick={() => handleTabChange("rawMaterial")}
+                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                  activeTab === "rawMaterial"
+                    ? "bg-green-500 text-white"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                }`}
+              >
+                Raw Material MFCs
+              </button>
+            </div>
+
             {errorMessage && (
               <div className="mx-6 mt-4 bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded">
                 <div className="flex items-center">
@@ -1397,26 +1523,37 @@ const MFCMasterPage: React.FC = () => {
               </div>
             )}
 
-            {/* Removed the top search input section completely */}
-
-            {/* Status bar showing records count */}
-            <div className="px-6 py-3 border-b border-gray-300 bg-gray-50">
-              <div className="text-sm text-gray-600">
-                {searchTerm ? (
-                  <span>
-                    Found {pagination.total} results for "{searchTerm}"
-                  </span>
-                ) : (
-                  <span>Showing {pagination.total} total records</span>
-                )}
-                {lookupLoading && (
-                  <span className="ml-4 text-orange-600">
-                    • Loading lookup data...
-                  </span>
-                )}
+            {/* Tab Content Description */}
+            <div
+              className={`p-3 rounded-lg ${getTabInfo().bgColor} ${
+                getTabInfo().borderColor
+              } border`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-800">
+                    {getTabInfo().title}
+                  </h3>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {getTabInfo().description}
+                  </p>
+                </div>
+                <div className="text-sm text-gray-600">
+                  {searchTerm ? (
+                    <span>
+                      Found {pagination.total} results for "{searchTerm}"
+                    </span>
+                  ) : (
+                    <span>Showing {pagination.total} total records</span>
+                  )}
+                  {lookupLoading && (
+                    <span className="ml-4 text-orange-600">
+                      • Loading lookup data...
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-
             {(isLoading || lookupLoading) && (
               <div className="px-6 py-12">
                 <div className="flex justify-center items-center">
@@ -1485,10 +1622,17 @@ const MFCMasterPage: React.FC = () => {
                       </th>
                       <th
                         rowSpan={2}
-                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                        className="px-2 py-2 font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                        style={{
+                          minWidth: `${
+                            Math.max(6, Math.min(pharmacopoeials.length, 12)) *
+                            2.5
+                          }rem`,
+                        }}
                       >
                         Pharmacopoeial
                       </th>
+
                       {/* New Injection & Reference Fields Group */}
                       <th
                         colSpan={9}
@@ -1498,7 +1642,7 @@ const MFCMasterPage: React.FC = () => {
                       </th>
                       {/* New Runtime & Wash Fields Group */}
                       <th
-                        colSpan={4}
+                        colSpan={9}
                         className="px-2 py-2 text-center font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-green-100"
                       >
                         Runtime & Wash Fields
@@ -1525,7 +1669,13 @@ const MFCMasterPage: React.FC = () => {
                         rowSpan={2}
                         className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
                       >
-                        Flags
+                        Outsourced
+                      </th>
+                      <th
+                        rowSpan={2}
+                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                      >
+                        Stage
                       </th>
                     </tr>
                     <tr>
@@ -1579,6 +1729,7 @@ const MFCMasterPage: React.FC = () => {
                       </th>
 
                       {/* Runtime & Wash Fields sub-headers */}
+                      {/* Updated Runtime & Wash Fields sub-headers */}
                       <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
                         Wash Time
                       </th>
@@ -1590,6 +1741,22 @@ const MFCMasterPage: React.FC = () => {
                       </th>
                       <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
                         Sample Run
+                      </th>
+                      {/* New Runtime Fields */}
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                        Sys Suit Run
+                      </th>
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                        Sensitivity Run
+                      </th>
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                        Placebo Run
+                      </th>
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                        Ref1 Run
+                      </th>
+                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                        Ref2 Run
                       </th>
                     </tr>
                   </thead>
@@ -1654,7 +1821,22 @@ const MFCMasterPage: React.FC = () => {
                                           className="px-2 py-2 border border-gray-300 font-mono text-xs font-medium bg-blue-50"
                                         >
                                           <div className="text-center">
-                                            {record.mfcNumber}
+                                            <div className="font-bold">
+                                              {record.mfcNumber}
+                                            </div>
+                                            <div className="mt-1 flex flex-col items-center gap-1">
+                                              {(record as any).isObsolete && (
+                                                <span className="bg-orange-100 text-orange-800 px-1 py-0.5 rounded text-xs font-normal">
+                                                  Obsolete
+                                                </span>
+                                              )}
+                                              {(record as any)
+                                                .isRawMaterial && (
+                                                <span className="bg-green-100 text-green-800 px-1 py-0.5 rounded text-xs font-normal">
+                                                  Raw Material
+                                                </span>
+                                              )}
+                                            </div>
                                           </div>
                                         </td>
                                       )}
@@ -1688,9 +1870,40 @@ const MFCMasterPage: React.FC = () => {
                                       {isFirstRowForApi && (
                                         <td
                                           rowSpan={testTypesInApi}
-                                          className="px-2 py-2 border border-gray-300 text-xs font-medium bg-yellow-50"
+                                          className="px-2 py-2 border border-gray-300 text-xs bg-yellow-50"
                                         >
-                                          {getApiName(api.apiName)}
+                                          {(() => {
+                                            // Check if any test type in this API is linked
+                                            const hasLinkedTestType =
+                                              api.testTypes?.some(
+                                                (testType) => testType.isLinked
+                                              );
+
+                                            return (
+                                              <div
+                                                className={`font-medium ${
+                                                  hasLinkedTestType
+                                                    ? "font-bold"
+                                                    : ""
+                                                }`}
+                                                style={{
+                                                  color: hasLinkedTestType
+                                                    ? "#af261c"
+                                                    : "#1e1e1e",
+                                                  fontWeight: hasLinkedTestType
+                                                    ? "bold"
+                                                    : "medium",
+                                                }}
+                                              >
+                                                {getApiName(api.apiName)}
+                                                {hasLinkedTestType && (
+                                                  <span className="ml-1 text-xs bg-green-100 text-green-800 px-1 rounded">
+                                                    LINKED
+                                                  </span>
+                                                )}
+                                              </div>
+                                            );
+                                          })()}
                                         </td>
                                       )}
 
@@ -1854,16 +2067,39 @@ const MFCMasterPage: React.FC = () => {
                                         </div>
                                       </td>
 
-                                      {/* Pharmacopoeial - one row per test type */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs">
-                                        <div className="font-medium text-gray-900">
-                                          {getPharmacopoeialsName(
-                                            testType.pharmacopoeialId
-                                          )}
-                                        </div>
+                                      <td
+                                        className="px-2 py-2 border border-gray-300 text-xs"
+                                        style={{
+                                          minWidth: `${
+                                            Math.max(
+                                              6,
+                                              Math.min(
+                                                pharmacopoeials.length,
+                                                12
+                                              )
+                                            ) * 2.5
+                                          }rem`,
+                                        }}
+                                      >
+                                        {record.generics?.[0]?.apis?.[0]
+                                          ?.testTypes?.[0]?.pharmacopoeialId ? (
+                                          <div className="font-mono text-center leading-tight w-full">
+                                            {getPharmacopoeialsTickTableForTestType(
+                                              record.generics[0].apis[0]
+                                                .testTypes[0],
+                                              getApiName(
+                                                record.generics[0].apis[0]
+                                                  .apiName
+                                              )
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <div className="text-center text-gray-400">
+                                            -
+                                          </div>
+                                        )}
                                       </td>
 
-                                      {/* INJECTION & REFERENCE FIELDS GROUP */}
                                       {/* Blank Injection */}
                                       <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
                                         {testType.blankInjection || "-"}
@@ -1909,7 +2145,6 @@ const MFCMasterPage: React.FC = () => {
                                         {testType.bracketingFrequency || "-"}
                                       </td>
 
-                                      {/* RUNTIME & WASH FIELDS GROUP */}
                                       {/* Wash Time */}
                                       <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
                                         {testType.washTime || "-"}
@@ -1928,6 +2163,32 @@ const MFCMasterPage: React.FC = () => {
                                       {/* Sample Run Time */}
                                       <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
                                         {testType.sampleRunTime || "-"}
+                                      </td>
+
+                                      {/* NEW: System Suitability Runtime */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
+                                        {testType.systemSuitabilityRunTime ||
+                                          "-"}
+                                      </td>
+
+                                      {/* NEW: Sensitivity Runtime */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
+                                        {testType.sensitivityRunTime || "-"}
+                                      </td>
+
+                                      {/* NEW: Placebo Runtime */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
+                                        {testType.placeboRunTime || "-"}
+                                      </td>
+
+                                      {/* NEW: Reference1 Runtime */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
+                                        {testType.reference1RunTime || "-"}
+                                      </td>
+
+                                      {/* NEW: Reference2 Runtime */}
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
+                                        {testType.reference2RunTime || "-"}
                                       </td>
 
                                       {/* NEW: AMV Injections */}
@@ -1950,6 +2211,19 @@ const MFCMasterPage: React.FC = () => {
                                           ? testType.numberOfInjectionsCV || 0
                                           : "-"}
                                       </td>
+                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                        <span
+                                          className={`inline-block ${
+                                            testType.isOutsourcedTest
+                                              ? "text-green-600"
+                                              : "text-red-500"
+                                          }`}
+                                        >
+                                          {testType.isOutsourcedTest
+                                            ? "✓"
+                                            : "✗"}
+                                        </span>
+                                      </td>
 
                                       {/* Flags - one row per test type */}
                                       <td className="px-2 py-2 border border-gray-300 text-xs">
@@ -1968,7 +2242,7 @@ const MFCMasterPage: React.FC = () => {
                     ) : (
                       <tr>
                         <td
-                          colSpan={32}
+                          colSpan={38}
                           className="px-6 py-4 text-center text-gray-500 border border-gray-300"
                         >
                           No MFC records found
@@ -2152,11 +2426,29 @@ const MFCMasterPage: React.FC = () => {
                               <td className="px-2 py-2 border border-gray-300 text-xs">
                                 {record.generics?.[0]?.genericName || "-"}
                               </td>
+
                               <td className="px-2 py-2 border border-gray-300 text-xs text-center">
                                 {apiCount}
                               </td>
                               <td className="px-2 py-2 border border-gray-300 text-xs text-center">
                                 {testTypeCount}
+                              </td>
+                              <td className="px-2 py-2 border border-gray-300 text-xs">
+                                {record.generics?.[0]?.apis?.[0]?.testTypes?.[0]
+                                  ?.pharmacopoeialId ? (
+                                  <div className="font-mono text-center leading-tight">
+                                    {getPharmacopoeialsTickTableForTestType(
+                                      record.generics[0].apis[0].testTypes[0],
+                                      getApiName(
+                                        record.generics[0].apis[0].apiName
+                                      )
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="text-center text-gray-400">
+                                    -
+                                  </div>
+                                )}
                               </td>
                               <td className="px-2 py-2 border border-gray-300 text-xs">
                                 {getDepartmentName(record.departmentId)}
@@ -2356,6 +2648,38 @@ const MFCMasterPage: React.FC = () => {
                             </td>
                             <td className="px-3 py-2 border text-xs">
                               {formatChangeValue(change.newValue)}
+                            </td>
+                            <td className="px-3 py-2 border text-xs">
+                              {change.field
+                                .toLowerCase()
+                                .includes("pharmacopeial") ? (
+                                <div className="font-mono text-center leading-tight">
+                                  <pre className="whitespace-pre text-xs m-0 p-0">
+                                    {formatChangeValue(
+                                      change.oldValue,
+                                      change.field
+                                    )}
+                                  </pre>
+                                </div>
+                              ) : (
+                                formatChangeValue(change.oldValue, change.field)
+                              )}
+                            </td>
+                            <td className="px-3 py-2 border text-xs">
+                              {change.field
+                                .toLowerCase()
+                                .includes("pharmacopeial") ? (
+                                <div className="font-mono text-center leading-tight">
+                                  <pre className="whitespace-pre text-xs m-0 p-0">
+                                    {formatChangeValue(
+                                      change.newValue,
+                                      change.field
+                                    )}
+                                  </pre>
+                                </div>
+                              ) : (
+                                formatChangeValue(change.newValue, change.field)
+                              )}
                             </td>
                           </tr>
                         ))

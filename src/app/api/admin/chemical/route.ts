@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
-import Pharmacopeial from '@/models/pharmacopeial'; // ✅ Already correct
+import Chemical from '@/models/chemical/chemical';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { 
@@ -9,17 +9,23 @@ import {
   broadcastMasterDataDelete 
 } from "@/lib/sse";
 
-// Helper function to validate Pharmacopeial data
-function validatePharmacopeialData(data: any) {
+// Helper function to validate Chemical data
+function validateChemicalData(data: any) {
   const errors: string[] = [];
-  if (!data.pharmacopeial) { // Changed from pharmacopoeial
-    errors.push('Pharmacopeial name is required');
-  } else if (typeof data.pharmacopeial !== 'string') { // Changed from pharmacopoeial
-    errors.push('Pharmacopeial name must be a string');
-  } else if (data.pharmacopeial.trim().length === 0) { // Changed from pharmacopoeial
-    errors.push('Pharmacopeial name cannot be empty');
-  } else if (data.pharmacopeial.trim().length > 100) { // Changed from pharmacopoeial
-    errors.push('Pharmacopeial name cannot exceed 100 characters');
+  if (!data.chemicalName) {
+    errors.push('Chemical name is required');
+  } else if (typeof data.chemicalName !== 'string') {
+    errors.push('Chemical name must be a string');
+  } else if (data.chemicalName.trim().length === 0) {
+    errors.push('Chemical name cannot be empty');
+  } else if (data.chemicalName.trim().length > 100) {
+    errors.push('Chemical name cannot exceed 100 characters');
+  }
+  if (typeof data.isSolvent !== 'boolean') {
+    errors.push('isSolvent must be a boolean');
+  }
+  if (typeof data.isBuffer !== 'boolean') {
+    errors.push('isBuffer must be a boolean');
   }
   if (data.description && typeof data.description !== 'string') {
     errors.push('Description must be a string');
@@ -39,12 +45,18 @@ function validatePharmacopeialData(data: any) {
   return errors;
 }
 
+// Helper function to validate companyId and locationId against session
+function validateCompanyAndLocation(session: any, companyId: string, locationId: string) {
+  return true; // Simplified validation, implement as needed
+}
+
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
     
     const session = await getServerSession(authOptions);
     if (!session) {
+      console.error("POST: Unauthorized - no session");
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
@@ -52,53 +64,60 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { pharmacopeial, description, companyId, locationId } = body; // Changed from pharmacopoeial
+    console.log("POST: Received body:", body);
+    const { chemicalName, isSolvent, isBuffer, description, companyId, locationId } = body;
 
     // Validate input data
-    const validationErrors = validatePharmacopeialData({ pharmacopeial, description, companyId, locationId }); // Changed parameter
+    const validationErrors = validateChemicalData({ chemicalName, isSolvent, isBuffer, description, companyId, locationId });
     if (validationErrors.length > 0) {
+      console.error("POST: Validation errors:", validationErrors);
       return NextResponse.json(
         { success: false, error: validationErrors.join(', '), validationErrors },
         { status: 400 }
       );
     }
 
-    // Check for existing pharmacopeial
-    const existingPharmacopeial = await Pharmacopeial.findOne({ pharmacopeial: pharmacopeial.trim(), companyId, locationId }); // Changed field name
-    if (existingPharmacopeial) {
+    // Check for existing Chemical
+    const existingChemical = await Chemical.findOne({ chemicalName: chemicalName.trim(), companyId, locationId });
+    if (existingChemical) {
+      console.error("POST: Chemical already exists", { chemicalName, companyId, locationId });
       return NextResponse.json(
-        { success: false, error: 'Pharmacopeial already exists' },
+        { success: false, error: 'Chemical already exists' },
         { status: 409 }
       );
     }
 
-    // Create new pharmacopeial
-    const newPharmacopeial = new Pharmacopeial({
-      pharmacopeial: pharmacopeial.trim(), // Changed field name
+    // Create new Chemical
+    const newChemical = new Chemical({
+      chemicalName: chemicalName.trim(),
+      isSolvent,
+      isBuffer,
       description: description?.trim() || '',
       companyId,
       locationId,
       createdBy: session.user?.id || "system",
       updatedBy: session.user?.id || "system",
     });
-
-    const savedPharmacopeial = await newPharmacopeial.save();
+    
+    console.log("POST: Creating Chemical:", newChemical);
+    const savedChemical = await newChemical.save();
 
     // Broadcast the create event to SSE clients
     broadcastMasterDataCreate(
-      "pharmacopeials",
-      savedPharmacopeial.toObject(),
+      "chemicals",
+      savedChemical.toObject(),
       companyId,
       locationId
     );
-
+    
+    console.log("POST: Chemical saved successfully:", savedChemical);
     return NextResponse.json({
       success: true,
-      data: savedPharmacopeial,
-      message: "Pharmacopeial created successfully",
+      data: savedChemical,
+      message: "Chemical created successfully",
     });
   } catch (error: any) {
-    console.error("Create pharmacopeial error:", error);
+    console.error("POST: Server error:", error);
     return NextResponse.json(
       { success: false, error: error.message || "Internal server error" },
       { status: 500 }
@@ -129,16 +148,16 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    const pharmacopeials = await Pharmacopeial.find({ companyId, locationId })
-      .sort({ pharmacopeial: 1 }) // Changed field name
+    const chemicals = await Chemical.find({ companyId, locationId })
+      .sort({ chemicalName: 1 })
       .lean();
 
     return NextResponse.json({
       success: true,
-      data: pharmacopeials,
+      data: chemicals,
     });
   } catch (error: any) {
-    console.error("Fetch pharmacopeials error:", error);
+    console.error("Fetch Chemicals error:", error);
     return NextResponse.json(
       { success: false, error: error.message || "Internal server error" },
       { status: 500 }
@@ -150,25 +169,27 @@ export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
+      console.error("PUT: Unauthorized - no session");
       return NextResponse.json(
-        { success: false, error: "Unauthorized" },
+        { success: false, error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
     const body = await request.json();
-    const { id, pharmacopeial, description, companyId, locationId } = body; // Changed from pharmacopoeial
+    console.log("PUT: Received body:", body);
+    const { id, chemicalName, isSolvent, isBuffer, description, companyId, locationId } = body;
 
     if (!id) {
       return NextResponse.json(
-        { success: false, error: "Pharmacopeial ID is required" },
+        { success: false, error: "Chemical ID is required" },
         { status: 400 }
       );
     }
 
-    if (!pharmacopeial?.trim()) { // Changed from pharmacopoeial
+    if (!chemicalName?.trim()) {
       return NextResponse.json(
-        { success: false, error: "Pharmacopeial is required" },
+        { success: false, error: "Chemical name is required" },
         { status: 400 }
       );
     }
@@ -182,40 +203,44 @@ export async function PUT(request: NextRequest) {
 
     await connectDB();
 
-    // Get the existing pharmacopeial for comparison
-    const existingPharmacopeial = await Pharmacopeial.findOne({
+    // Get the existing Chemical for comparison
+    const existingChemical = await Chemical.findOne({
       _id: id,
       companyId,
       locationId,
     });
 
-    if (!existingPharmacopeial) {
+    if (!existingChemical) {
+      console.error("PUT: Chemical not found", { id });
       return NextResponse.json(
-        { success: false, error: "Pharmacopeial not found" },
+        { success: false, error: "Chemical not found" },
         { status: 404 }
       );
     }
 
-    // Check if the new name conflicts with another pharmacopeial
-    const duplicatePharmacopeial = await Pharmacopeial.findOne({
-      pharmacopeial: pharmacopeial.trim(), // Changed field name
+    // Check if the new name conflicts with another Chemical
+    const duplicateChemical = await Chemical.findOne({
+      chemicalName: chemicalName.trim(),
       companyId,
       locationId,
       _id: { $ne: id },
     });
 
-    if (duplicatePharmacopeial) {
+    if (duplicateChemical) {
+      console.error("PUT: Chemical already exists", { chemicalName, companyId, locationId });
       return NextResponse.json(
-        { success: false, error: "Pharmacopeial name already exists" },
+        { success: false, error: "Chemical name already exists" },
         { status: 409 }
       );
     }
 
-    // Update the pharmacopeial
-    const updatedPharmacopeial = await Pharmacopeial.findByIdAndUpdate(
+    // Update the Chemical
+    const updatedChemical = await Chemical.findByIdAndUpdate(
       id,
       {
-        pharmacopeial: pharmacopeial.trim(), // Changed field name
+        chemicalName: chemicalName.trim(),
+        isSolvent,
+        isBuffer,
         description: description?.trim() || "",
         updatedBy: session.user?.id || "system",
         updatedAt: new Date(),
@@ -223,28 +248,30 @@ export async function PUT(request: NextRequest) {
       { new: true, runValidators: true }
     );
 
-    if (!updatedPharmacopeial) {
+    if (!updatedChemical) {
+      console.error("PUT: Failed to update Chemical", { id });
       return NextResponse.json(
-        { success: false, error: "Failed to update Pharmacopeial" },
+        { success: false, error: "Failed to update Chemical" },
         { status: 500 }
       );
     }
 
     // Broadcast the update event to SSE clients
     broadcastMasterDataUpdate(
-      "pharmacopeials",
-      updatedPharmacopeial.toObject(),
+      "chemicals",
+      updatedChemical.toObject(),
       companyId,
       locationId
     );
 
+    console.log("PUT: Chemical updated successfully:", updatedChemical);
     return NextResponse.json({
       success: true,
-      data: updatedPharmacopeial,
-      message: "Pharmacopeial updated successfully",
+      data: updatedChemical,
+      message: "Chemical updated successfully",
     });
   } catch (error: any) {
-    console.error("Update pharmacopeial error:", error);
+    console.error("PUT: Server error:", error);
     return NextResponse.json(
       { success: false, error: error.message || "Internal server error" },
       { status: 500 }
@@ -267,48 +294,48 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json(
-        { success: false, error: "Pharmacopeial ID is required" },
+        { success: false, error: "Chemical ID is required" },
         { status: 400 }
       );
     }
 
     await connectDB();
 
-    // Get the pharmacopeial before deleting for broadcasting
-    const pharmacopeialToDelete = await Pharmacopeial.findById(id);
+    // Get the Chemical before deleting for broadcasting
+    const chemicalToDelete = await Chemical.findById(id);
 
-    if (!pharmacopeialToDelete) {
+    if (!chemicalToDelete) {
       return NextResponse.json(
-        { success: false, error: "Pharmacopeial not found" },
+        { success: false, error: "Chemical not found" },
         { status: 404 }
       );
     }
 
-    // Delete the pharmacopeial
-    const deletedPharmacopeial = await Pharmacopeial.findByIdAndDelete(id);
+    // Delete the Chemical
+    const deletedChemical = await Chemical.findByIdAndDelete(id);
 
-    if (!deletedPharmacopeial) {
+    if (!deletedChemical) {
       return NextResponse.json(
-        { success: false, error: "Failed to delete Pharmacopeial" },
+        { success: false, error: "Failed to delete Chemical" },
         { status: 500 }
       );
     }
 
     // Broadcast the delete event to SSE clients
     broadcastMasterDataDelete(
-      "pharmacopeials",
-      deletedPharmacopeial.toObject(),
-      pharmacopeialToDelete.companyId,
-      pharmacopeialToDelete.locationId
+      "chemicals",
+      deletedChemical.toObject(),
+      chemicalToDelete.companyId,
+      chemicalToDelete.locationId
     );
 
     return NextResponse.json({
       success: true,
-      message: "Pharmacopeial deleted successfully",
-      data: deletedPharmacopeial,
+      message: "Chemical deleted successfully",
+      data: deletedChemical,
     });
   } catch (error: any) {
-    console.error("Delete pharmacopeial error:", error);
+    console.error("Delete Chemical error:", error);
     return NextResponse.json(
       { success: false, error: error.message || "Internal server error" },
       { status: 500 }
