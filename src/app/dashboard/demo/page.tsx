@@ -1,1361 +1,2032 @@
 "use client";
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect } from "react";
+import { X, Calculator, Clock, Beaker } from "lucide-react";
+import { v4 as uuidv4 } from "uuid";
 import {
-  Plus,
-  Play,
-  Clock,
-  Beaker,
-  Settings,
-  Save,
-  AlertCircle,
-  FlaskConical,
-  CheckCircle,
-  X,
-  Edit3,
-  Trash2,
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  Filter,
-} from "lucide-react";
+  DndContext,
+  DragEndEvent,
+  DragOverEvent,
+  DragStartEvent,
+  closestCenter,
+  useSensor,
+  useSensors,
+  PointerSensor,
+  DragOverlay,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
-import type {
-  MFCData,
-  TestType,
-  BatchMFC,
-  OptimizedGroup,
-  OptimizationResult,
-  PlanningData,
-  ScheduledBatch,
-  ExtractedPhases,
-  PriorityInfo,
-  API,
-  Generic,
-} from "@/types/hplc";
-
-// Updated Test Details Component with Columnar Layout
-interface TestDetailsCardProps {
-  test: TestType;
-  mfcNumber?: string;
-  showMfcNumber?: boolean;
+// All your existing interfaces (unchanged)
+interface Test {
+  testTypeId: string;
+  testName: string;
+  columnCode: string;
+  mobilePhaseCodes: string[];
+  detectorTypeId: string;
+  pharmacopoeialId: string[];
+  blankInjection: number;
+  standardInjection: number;
+  sampleInjection: number;
+  systemSuitability: number;
+  sensitivity: number;
+  placebo: number;
+  reference1: number;
+  reference2: number;
+  bracketingFrequency: number;
+  runTime: number;
+  washTime: number;
+  blankRunTime: number;
+  standardRunTime: number;
+  sampleRunTime: number;
+  systemSuitabilityRunTime: number;
+  sensitivityRunTime: number;
+  placeboRunTime: number;
+  reference1RunTime: number;
+  reference2RunTime: number;
+  outsourced: boolean;
+  continueTests: boolean;
+  testStatus: string;
+  numberOfInjections?: number;
+  numberOfInjectionsAMV?: number;
+  numberOfInjectionsPV?: number;
+  numberOfInjectionsCV?: number;
+  uniqueRuntimes?: boolean;
+  apiId?: string; 
 }
 
-const TestDetailsCard: React.FC<TestDetailsCardProps> = ({ test, mfcNumber, showMfcNumber = false }) => {
-  const masterPhases = test.mobilePhaseCodes.slice(0, 4).filter(Boolean).join(', ');
-  const washPhases = test.mobilePhaseCodes.slice(4, 6).filter(Boolean).join(', ');
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-lg p-3 mb-2 shadow-sm">
-      {/* Header Row */}
-      <div className="grid grid-cols-8 gap-3 text-xs font-semibold text-gray-500 mb-2 pb-2 border-b border-gray-100">
-        <div>Test Name</div>
-        <div>Column</div>
-        <div>Detector</div>
-        <div>Mobile Phase</div>
-        <div>Wash Phase</div>
-        <div>Runtime</div>
-        <div>Injections</div>
-        <div>Status</div>
-      </div>
-      
-      {/* Data Row */}
-      <div className="grid grid-cols-8 gap-3 text-sm">
-        <div>
-          <div className="font-semibold text-gray-800 truncate" title={test.testName}>
-            {test.testName}
-          </div>
-          {showMfcNumber && mfcNumber && (
-            <div className="text-xs text-blue-600 mt-1">MFC: {mfcNumber}</div>
-          )}
-        </div>
-        
-        <div className="truncate" title={test.columnCode}>
-          {test.columnCode}
-        </div>
-        
-        <div className="truncate" title={test.detectorType || 'N/A'}>
-          {test.detectorType || 'N/A'}
-        </div>
-        
-        <div className="truncate" title={masterPhases}>
-          {masterPhases || 'N/A'}
-        </div>
-        
-        <div className="truncate" title={washPhases}>
-          {washPhases || 'N/A'}
-        </div>
-        
-        <div className="font-medium text-gray-800">
-          {test.runTime} min
-        </div>
-        
-        <div className="text-xs space-y-1">
-          <div>S: {test.sampleInjection}</div>
-          <div>St: {test.standardInjection}</div>
-          <div>B: {test.blankInjection}</div>
-        </div>
-        
-        <div>
-          <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
-            Ready
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Test List Component with Table-like Headers
-interface TestListProps {
-  tests: TestType[];
-  mfcNumber?: string;
-  showMfcNumber?: boolean;
-  maxHeight?: string;
-  showHeaders?: boolean;
+interface Generic {
+  genericName: string;
+  apis: {
+    apiName: string;
+    testTypes: Test[];
+  }[];
 }
 
-const TestList: React.FC<TestListProps> = ({ 
-  tests, 
-  mfcNumber, 
-  showMfcNumber = false, 
-  maxHeight = "max-h-48",
-  showHeaders = true
+interface BatchItem {
+  _id: string;
+  companyId: string;
+  locationId: string;
+  productCode: string;
+  productName: string;
+  genericName: string;
+  priority: string;
+  batchNumber: string;
+  tests: Test[];
+  batchStatus: string;
+  typeOfSample: string;
+  mfcNumber: string;
+  pharmacopoeialName: string;
+  generics: Generic[];
+}
+
+interface CalculationBreakdown {
+  injectionCounts: { [key: string]: number };
+  runtimes: { [key: string]: number };
+  totalCountedInjections: number;
+  washCycles: number;
+  runtimeMinutes: number;
+  washMinutes: number;
+  totalMinutes: number;
+  hasUniqueRuntimes: boolean;
+  washInterval: number;
+  formula: string;
+  steps: string[];
+  bracketingInjections?: number;
+}
+
+interface ScheduledTest {
+  id: string;
+  batchId: string;
+  batchNumber: string;
+  productCode: string;
+  productName: string;
+  testName: string;
+  columnCode: string;
+  detectorTypeId: string;
+  mobilePhaseCodes: string[];
+  priority: string;
+  executionTime: number;
+  originalExecutionTime: number;
+  washTime: number;
+  bracketingFrequency: number;
+  groupId?: string;
+  groupReason?: string;
+  isGrouped: boolean;
+  timeSaved?: number;
+  originalTest?: Test;
+  calculationBreakdown?: CalculationBreakdown;
+  sortOrder?: number; // Add this for drag-and-drop ordering
+  apiId?: string;
+  apiLabel?: string;
+}
+
+interface GroupInfo {
+  id: string;
+  reason: string;
+  detectorId: string;
+  columnCode: string;
+  mobilePhaseKey: string;
+  tests: ScheduledTest[];
+  totalTime: number;
+  originalTotalTime: number;
+  timeSaved: number;
+}
+
+interface HPLCMaster {
+  _id: string;
+  hplcName: string;
+  hplcModel: string;
+  status: string;
+  internalCode?: string;
+  isActive?: boolean;
+  detector: { _id: string; detectorType: string }[];
+}
+interface HPLCSchedule {
+  hplcId: string;
+  hplcName: string;
+  tests: ScheduledTest[];
+  groups: GroupInfo[];
+  totalTime: number;
+  isDraggedOver?: boolean; // Add this for drag visual feedback
+}
+
+// Your existing utility components (unchanged)
+const MathFormula: React.FC<{ formula: string; inline?: boolean }> = ({
+  formula,
+  inline = false,
 }) => {
   return (
-    <div className={`${maxHeight} overflow-y-auto space-y-2`}>
-      {/* Table Headers (optional) */}
-      {showHeaders && tests.length > 0 && (
-        <div className="grid grid-cols-6 gap-3 px-3 py-2 bg-gray-100 rounded-lg text-xs font-semibold text-gray-700 sticky top-0 z-10">
-          <div>Test Details</div>
-          <div>Column</div>
-          <div>Detector</div>
-          <div>Mobile Phases</div>
-          <div>Wash Phases</div>
-          <div>Injections & Runtime</div>
-        </div>
-      )}
-      
-      {tests.map((test) => (
-        <TestDetailsCard 
-          key={test.testTypeId} 
-          test={test} 
-          mfcNumber={mfcNumber}
-          showMfcNumber={showMfcNumber}
-        />
-      ))}
-      
-      {tests.length === 0 && (
-        <div className="text-center text-gray-500 py-4">
-          No tests available
-        </div>
-      )}
+    <div
+      className={`${
+        inline ? "inline-block" : "block"
+      } font-mono text-xs bg-gray-50 p-1 rounded border`}
+    >
+      {formula}
     </div>
   );
 };
 
-// Compact Test Table Component for popup display
-interface CompactTestTableProps {
-  tests: TestType[];
-  maxDisplay?: number;
+const formatTime = (minutes: number): string => {
+  const roundedMinutes = parseFloat(minutes.toFixed(1));
+  if (roundedMinutes >= 60) {
+    const hours = Math.floor(roundedMinutes / 60);
+    const remainingMinutes = (roundedMinutes % 60).toFixed(1);
+    return remainingMinutes === "0.0"
+      ? `${roundedMinutes} min (${hours} hour${hours > 1 ? "s" : ""})`
+      : `${roundedMinutes} min (${hours}h ${remainingMinutes}m)`;
+  }
+  return `${roundedMinutes} min`;
+};
+
+type ApiResolverResult = { apiId: string | null; apiLabel: string };
+
+function normalizePhases(arr?: string[]): string {
+  if (!Array.isArray(arr)) return "";
+  const seen = new Set<string>();
+  return arr
+    .map((s) => s.trim().toUpperCase())
+    .filter((s) => s.length > 0)
+    .filter((s) => (seen.has(s) ? false : (seen.add(s), true)))
+    .sort()
+    .join("-");
 }
 
-const CompactTestTable: React.FC<CompactTestTableProps> = ({ tests, maxDisplay = 3 }) => {
-  const displayTests = maxDisplay ? tests.slice(0, maxDisplay) : tests;
-  const remainingCount = tests.length - displayTests.length;
-
-  return (
-    <div className="max-h-32 overflow-y-auto border border-gray-200 rounded p-2 bg-gray-50">
-      {/* Compact Table Header */}
-      <div className="grid grid-cols-5 gap-2 text-xs font-medium text-gray-600 mb-2 pb-1 border-b border-gray-300">
-        <div>Test</div>
-        <div>Column</div>
-        <div>Detector</div>
-        <div>Runtime</div>
-        <div>Injections</div>
-      </div>
-      
-      {/* Compact Test Rows */}
-      {displayTests.map((test) => (
-        <div key={test.testTypeId} className="grid grid-cols-5 gap-2 text-xs py-1 border-b border-gray-100 last:border-b-0">
-          <div className="truncate font-medium" title={test.testName}>
-            {test.testName}
-          </div>
-          <div className="truncate" title={test.columnCode}>
-            {test.columnCode}
-          </div>
-          <div className="truncate" title={test.detectorType || 'N/A'}>
-            {test.detectorType || 'N/A'}
-          </div>
-          <div>{test.runTime}m</div>
-          <div>{test.sampleInjection}s/{test.standardInjection}st/{test.blankInjection}b</div>
-        </div>
-      ))}
-      
-      {remainingCount > 0 && (
-        <div className="text-center text-xs text-blue-600 py-1 font-medium">
-          +{remainingCount} more tests
-        </div>
-      )}
-    </div>
-  );
-};
-
-const HPLCBatchScheduler: React.FC = () => {
-  // State management
-  const [mfcData, setMfcData] = useState<MFCData[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [scheduledBatches, setScheduledBatches] = useState<ScheduledBatch[]>([]);
-
-  // Batch creation state
-  const [batchName, setBatchName] = useState<string>("");
-  const [batchNumber, setBatchNumber] = useState<string>("");
-  const [batchMFCs, setBatchMFCs] = useState<BatchMFC[]>([]);
-
-  // Popup state
-  const [showMFCSelectionPopup, setShowMFCSelectionPopup] = useState<boolean>(false);
-  const [showOptimizationPreview, setShowOptimizationPreview] = useState<boolean>(false);
-
-  // Fetch MFC data
-  useEffect(() => {
-    const fetchMfcData = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch("/mfc.json");
-        if (!response.ok) {
-          throw new Error(`Failed to fetch MFC data: ${response.statusText}`);
-        }
-        const data = await response.json();
-        if (!data.success || !Array.isArray(data.data)) {
-          throw new Error("Invalid data format received from mfc.json");
-        }
-        setMfcData(data.data);
-        setLoading(false);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "An unknown error occurred");
-        setLoading(false);
-      }
-    };
-
-    fetchMfcData();
-  }, []);
-
-  // Utility functions
-  const extractPhases = useCallback((mobilePhaseCodes: string[]): ExtractedPhases => {
-    const masterPhases = mobilePhaseCodes
-      .slice(0, 4)
-      .filter((phase): phase is string => phase !== "");
-    const washPhases = mobilePhaseCodes
-      .slice(4, 6)
-      .filter((phase): phase is string => phase !== "");
-    return { masterPhases, washPhases };
-  }, []);
-
-  const getPriorityInfo = useCallback((priority: "urgent" | "high" | "normal"): PriorityInfo => {
-    const priorityMap: Record<"urgent" | "high" | "normal", PriorityInfo> = {
-      urgent: {
-        label: "Urgent",
-        color: "text-red-600 bg-red-100",
-        order: 1,
-        icon: "🚨",
-      },
-      high: {
-        label: "High",
-        color: "text-orange-600 bg-orange-100",
-        order: 2,
-        icon: "⚡",
-      },
-      normal: {
-        label: "Normal",
-        color: "text-green-600 bg-green-100",
-        order: 3,
-        icon: "📋",
-      },
-    };
-    return priorityMap[priority];
-  }, []);
-
-  // Add multiple MFCs to batch with their respective priorities
-  const addMFCsToBatch = useCallback((selectedMFCs: Map<string, 'urgent' | 'high' | 'normal'>) => {
-    const newBatchMFCs: BatchMFC[] = [];
-    
-    selectedMFCs.forEach((priority, mfcId) => {
-      const mfc = mfcData.find(m => m._id === mfcId);
-      if (mfc) {
-        // Get all test types for this MFC
-        const allTestTypes = mfc.generics.flatMap(generic =>
-          generic.apis.flatMap(api => api.testTypes)
-        );
-
-        const batchMFC: BatchMFC = {
-          mfcId: mfc._id,
-          mfcNumber: mfc.mfcNumber,
-          genericName: mfc.generics[0].genericName,
-          priority,
-          testTypes: allTestTypes,
-        };
-
-        newBatchMFCs.push(batchMFC);
-      }
-    });
-
-    setBatchMFCs(prev => {
-      // Remove existing MFCs that are being re-added with new priorities
-      const filtered = prev.filter(existing => !selectedMFCs.has(existing.mfcId));
-      return [...filtered, ...newBatchMFCs];
-    });
-  }, [mfcData]);
-
-  // Remove MFC from batch
-  const removeMFCFromBatch = useCallback((mfcId: string) => {
-    setBatchMFCs(prev => prev.filter(item => item.mfcId !== mfcId));
-  }, []);
-
-  // Optimization calculation
-  const calculateOptimization = useCallback((mfcs: BatchMFC[]): OptimizationResult => {
-    if (mfcs.length === 0) {
-      return {
-        originalTime: 0,
-        optimizedTime: 0,
-        timeSaved: 0,
-        groups: [],
-        totalWashTime: 0,
-      };
-    }
-
-    const allTests = mfcs.flatMap(mfc =>
-      mfc.testTypes.map(test => ({
-        ...test,
-        mfcNumber: mfc.mfcNumber,
-        priority: mfc.priority,
-        priorityOrder: getPriorityInfo(mfc.priority).order,
-      }))
-    );
-
-    const originalTime = allTests.reduce((sum, test) => sum + test.runTime, 0);
-
-    const sortedTests = [...allTests].sort((a, b) => {
-      if (a.priorityOrder !== b.priorityOrder) {
-        return a.priorityOrder - b.priorityOrder;
-      }
-      if (a.columnCode !== b.columnCode) {
-        return a.columnCode.localeCompare(b.columnCode);
-      }
-      const aMasterPhases = extractPhases(a.mobilePhaseCodes).masterPhases.join(",");
-      const bMasterPhases = extractPhases(b.mobilePhaseCodes).masterPhases.join(",");
-      if (aMasterPhases !== bMasterPhases) {
-        return aMasterPhases.localeCompare(bMasterPhases);
-      }
-      return 0;
-    });
-
-    const groups: OptimizedGroup[] = [];
-    const processedTests = new Set<string>();
-    let executionOrder = 1;
-
-    sortedTests.forEach(baseTest => {
-      if (processedTests.has(baseTest.testTypeId)) return;
-
-      const phases = extractPhases(baseTest.mobilePhaseCodes);
-      
-      const groupedTests = sortedTests.filter(test => 
-        !processedTests.has(test.testTypeId) &&
-        test.priorityOrder === baseTest.priorityOrder &&
-        test.columnCode === baseTest.columnCode &&
-        extractPhases(test.mobilePhaseCodes).masterPhases.join(",") === phases.masterPhases.join(",") &&
-        test.runTime === baseTest.runTime
-      );
-
-      groupedTests.forEach(test => processedTests.add(test.testTypeId));
-
-      const group: OptimizedGroup = {
-        priority: baseTest.priority,
-        column: baseTest.columnCode,
-        masterPhases: phases.masterPhases,
-        washPhases: phases.washPhases,
-        tests: groupedTests.map(test => ({
-          mfcNumber: test.mfcNumber,
-          testName: test.testName,
-          runTime: test.runTime,
-          testTypeId: test.testTypeId,
-          columnCode: test.columnCode,
-          detectorType: test.detectorType,
-          detectorTypeId: test.detectorTypeId,
-          sampleInjection: test.sampleInjection,
-          standardInjection: test.standardInjection,
-          blankInjection: test.blankInjection,
-          mobilePhaseCodes: test.mobilePhaseCodes,
-        })),
-        groupedRuntime: baseTest.runTime,
-        washTime: 15,
-        executionOrder: executionOrder++,
-      };
-
-      groups.push(group);
-    });
-
-    const washGroups: Record<string, OptimizedGroup[]> = {};
-    let totalWashTime = 0;
-
-    groups.forEach(group => {
-      const washKey = group.washPhases.join(",");
-      if (!washGroups[washKey]) {
-        washGroups[washKey] = [];
-        totalWashTime += group.washTime;
-      }
-      washGroups[washKey].push(group);
-    });
-
-    const optimizedTime = groups.reduce((sum, group) => sum + group.groupedRuntime, 0) + totalWashTime;
-
-    return {
-      originalTime,
-      optimizedTime,
-      timeSaved: originalTime - optimizedTime,
-      groups,
-      totalWashTime,
-    };
-  }, [extractPhases, getPriorityInfo]);
-
-  // Create batch
-  const createBatch = useCallback(() => {
-    if (!batchName || !batchNumber || batchMFCs.length === 0) {
-      alert("Please fill in batch name, number, and add at least one MFC.");
-      return;
-    }
-
-    const optimization = calculateOptimization(batchMFCs);
-    
-    const planningData: PlanningData = {
-      batchNumber,
-      batchName,
-      mfcs: batchMFCs,
-      optimization,
-      createdAt: new Date().toISOString(),
-    };
-
-    const batch: ScheduledBatch = {
-      id: `batch_${Date.now()}`,
-      name: batchName,
-      number: batchNumber,
-      planningData,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    };
-
-    setScheduledBatches(prev => [...prev, batch]);
-    setBatchName("");
-    setBatchNumber("");
-    setBatchMFCs([]);
-    setShowOptimizationPreview(false);
-  }, [batchName, batchNumber, batchMFCs, calculateOptimization]);
-
-  // Render loading or error states
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
-        <div className="text-center">
-          <FlaskConical className="text-blue-600 animate-spin mx-auto mb-4" size={48} />
-          <p className="text-gray-600 text-lg">Loading MFC data...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="text-red-600 mx-auto mb-4" size={48} />
-          <p className="text-gray-600 text-lg">Error: {error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-            <FlaskConical className="text-blue-600" />
-            HPLC Batch Planning System
-          </h1>
-          <p className="text-gray-600 text-lg">
-            Advanced MFC-based batch planning with priority optimization
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Batch Creation Panel */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
-                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                  <Settings className="text-blue-100" />
-                  Batch Planning
-                </h2>
-              </div>
-
-              <div className="p-6">
-                {/* Batch Information */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Batch Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={batchName}
-                      onChange={(e) => setBatchName(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                      placeholder="e.g., Morning-HPLC-Batch-1"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Batch Number *
-                    </label>
-                    <input
-                      type="text"
-                      value={batchNumber}
-                      onChange={(e) => setBatchNumber(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                      placeholder="e.g., BATCH-2025-001"
-                    />
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-4 mb-6">
-                  <button
-                    onClick={() => setShowMFCSelectionPopup(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    <Plus size={18} />
-                    Add MFCs to Batch
-                  </button>
-                  
-                  {batchMFCs.length > 0 && (
-                    <button
-                      onClick={() => setShowOptimizationPreview(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                    >
-                      <CheckCircle size={18} />
-                      Preview Optimization
-                    </button>
-                  )}
-                </div>
-
-                {/* Selected MFCs - Updated to show columnar test details */}
-                {batchMFCs.length > 0 && (
-                  <div className="mb-6">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-3">Selected MFCs</h3>
-                    <div className="space-y-4 max-h-96 overflow-y-auto">
-                      {batchMFCs.map((mfc) => {
-                        const priorityInfo = getPriorityInfo(mfc.priority);
-                        
-                        return (
-                          <div key={mfc.mfcId} className="bg-gray-50 rounded-lg p-4 border">
-                            <div className="flex justify-between items-start mb-4">
-                              <div>
-                                <div className="flex items-center gap-3 mb-2">
-                                  <span className="font-semibold text-gray-800">{mfc.mfcNumber}</span>
-                                  <span className={`px-2 py-1 text-xs rounded-full font-medium ${priorityInfo.color}`}>
-                                    {priorityInfo.icon} {priorityInfo.label}
-                                  </span>
-                                </div>
-                                <p className="text-sm text-gray-600">{mfc.genericName}</p>
-                                <p className="text-xs text-gray-500 mt-1">{mfc.testTypes.length} tests included</p>
-                              </div>
-                              <button
-                                onClick={() => removeMFCFromBatch(mfc.mfcId)}
-                                className="text-red-600 hover:text-red-800 p-1 rounded-md hover:bg-red-50 flex-shrink-0"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                            
-                            {/* Detailed Test Information with Columns */}
-                            <div className="border-t border-gray-200 pt-4">
-                              <h4 className="text-sm font-medium text-gray-700 mb-2">Test Details:</h4>
-                              <TestList 
-                                tests={mfc.testTypes} 
-                                mfcNumber={mfc.mfcNumber}
-                                maxHeight="max-h-64"
-                                showHeaders={true}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Scheduled Batches Panel */}
-          <div>
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4">
-                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                  <Clock className="text-purple-100" />
-                  Scheduled Batches ({scheduledBatches.length})
-                </h2>
-              </div>
-
-              <div className="p-6">
-                <div className="space-y-4 max-h-96 overflow-y-auto">
-                  {scheduledBatches.map((batch) => (
-                    <div key={batch.id} className="border border-gray-200 rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-800">{batch.name}</h3>
-                      <p className="text-sm text-gray-600">#{batch.number}</p>
-                      <div className="mt-2 grid grid-cols-3 gap-2 text-center text-sm">
-                        <div className="bg-gray-50 rounded p-2">
-                          <div className="font-medium">{batch.planningData.mfcs.length}</div>
-                          <div className="text-xs text-gray-600">MFCs</div>
-                        </div>
-                        <div className="bg-green-50 rounded p-2">
-                          <div className="font-medium text-green-600">{batch.planningData.optimization.timeSaved}</div>
-                          <div className="text-xs text-gray-600">Min Saved</div>
-                        </div>
-                        <div className="bg-blue-50 rounded p-2">
-                          <div className="font-medium text-blue-600">{batch.planningData.optimization.optimizedTime}</div>
-                          <div className="text-xs text-gray-600">Total Min</div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-
-                  {scheduledBatches.length === 0 && (
-                    <div className="text-center text-gray-500 py-12">
-                      <Clock size={48} className="mx-auto mb-3 text-gray-300" />
-                      <p className="text-lg font-medium mb-2">No batches planned yet</p>
-                      <p className="text-sm">Create your first batch to get started</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* MFC Multi-Selection Popup */}
-        {showMFCSelectionPopup && (
-          <MFCMultiSelectionPopup
-            mfcData={mfcData}
-            onClose={() => setShowMFCSelectionPopup(false)}
-            onAddMFCs={addMFCsToBatch}
-            existingMFCIds={batchMFCs.map(mfc => mfc.mfcId)}
-            extractPhases={extractPhases}
-          />
-        )}
-
-        {/* Optimization Preview Popup */}
-        {showOptimizationPreview && (
-          <OptimizationPreviewPopup
-            batchMFCs={batchMFCs}
-            optimization={calculateOptimization(batchMFCs)}
-            onClose={() => setShowOptimizationPreview(false)}
-            onCreateBatch={createBatch}
-            getPriorityInfo={getPriorityInfo}
-          />
-        )}
-      </div>
-    </div>
-  );
-};
-
-// MFC Multi-Selection Popup with IMPROVED columnar test display
-interface MFCMultiSelectionPopupProps {
-  mfcData: MFCData[];
-  onClose: () => void;
-  onAddMFCs: (selectedMFCs: Map<string, 'urgent' | 'high' | 'normal'>) => void;
-  existingMFCIds: string[];
-  extractPhases: (mobilePhaseCodes: string[]) => ExtractedPhases;
+function hasOverlap(a?: string[] | string, b?: string[] | string): boolean {
+  const toArr = (v?: string[] | string) =>
+    Array.isArray(v) ? v : v ? [v] : [];
+  const A = new Set(toArr(a));
+  return toArr(b).some((x) => A.has(x));
 }
 
-const MFCMultiSelectionPopup: React.FC<MFCMultiSelectionPopupProps> = ({
-  mfcData,
-  onClose,
-  onAddMFCs,
-  existingMFCIds,
-  extractPhases,
-}) => {
-  // State: Map of MFC ID to priority
-  const [selectedMFCs, setSelectedMFCs] = useState<Map<string, 'urgent' | 'high' | 'normal'>>(new Map());
+// Try to be resilient to API master shape differences
+function getApiIdAndLabelFromRawApi(
+  rawApi: any,
+  apiMaster: Record<string, string>
+): { id: string | null; label: string } {
+  const id =
+    rawApi?.id ?? rawApi?._id ?? rawApi?.apiId ?? rawApi?.apiName ?? null;
+  const labelCandidate = rawApi?.api ?? rawApi?.apiName ?? rawApi?.name ?? null;
+  const label = (id && apiMaster[id]) || labelCandidate || "NA";
+  return { id, label };
+}
+
+function resolveApiForTest(
+  batch: BatchItem,
+  test: Test,
+  apiMaster: Record<string, string>,
+  testIndex?: number
+): ApiResolverResult {
+  if (!batch?.generics?.length || !test) return { apiId: null, apiLabel: "NA" };
+
+  // For batches with multiple APIs creating identical tests,
+  // we need to map tests to their corresponding APIs
+  const allApiTests: Array<{ apiId: string; test: Test; apiLabel: string }> = [];
   
-  // Search and pagination
-  const [searchTerm, setSearchTerm] = useState<string>("");
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
-
-  // Filter MFCs
-  const filteredMFCs = useMemo(() => {
-    if (!searchTerm) return mfcData;
-    return mfcData.filter(mfc =>
-      mfc.mfcNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      mfc.generics.some(generic => 
-        generic.genericName.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    );
-  }, [mfcData, searchTerm]);
-
-  // Pagination
-  const totalPages = Math.ceil(filteredMFCs.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedMFCs = filteredMFCs.slice(startIndex, startIndex + itemsPerPage);
-
-  // Handle MFC selection toggle
-  const handleMFCToggle = (mfcId: string) => {
-    setSelectedMFCs(prev => {
-      const newMap = new Map(prev);
-      if (newMap.has(mfcId)) {
-        newMap.delete(mfcId);
-      } else {
-        newMap.set(mfcId, 'normal'); // Default priority
+  for (const generic of batch.generics) {
+    for (const rawApi of generic.apis ?? []) {
+      const apiIdentifier = rawApi?.apiName ||  null;
+      if (!apiIdentifier) continue;
+      
+      for (const tt of rawApi.testTypes ?? []) {
+        allApiTests.push({
+          apiId: apiIdentifier,
+          test: tt,
+          apiLabel: apiMaster[apiIdentifier] || apiIdentifier
+        });
       }
-      return newMap;
-    });
-  };
+    }
+  }
 
-  // Handle priority change for specific MFC
-  const handlePriorityChange = (mfcId: string, priority: 'urgent' | 'high' | 'normal') => {
-    setSelectedMFCs(prev => {
-      const newMap = new Map(prev);
-      if (newMap.has(mfcId)) {
-        newMap.set(mfcId, priority);
-      }
-      return newMap;
-    });
-  };
+  // Try to find exact match based on test properties
+  const targetPhase = normalizePhases(test.mobilePhaseCodes);
+  let bestMatch: ApiResolverResult = { apiId: null, apiLabel: "NA" };
+  let bestScore = -Infinity;
 
-  // Select all visible MFCs
-  const handleSelectAllVisible = () => {
-    setSelectedMFCs(prev => {
-      const newMap = new Map(prev);
-      paginatedMFCs.forEach(mfc => {
-        if (!existingMFCIds.includes(mfc._id)) {
-          newMap.set(mfc._id, 'normal');
+  for (const apiTest of allApiTests) {
+    const tt = apiTest.test;
+    
+    // Check if this is an exact match
+    const exactMatch = 
+      tt?.testName === test.testName &&
+      tt?.columnCode === test.columnCode &&
+      tt?.detectorTypeId === test.detectorTypeId &&
+      normalizePhases(tt?.mobilePhaseCodes) === targetPhase &&
+      tt?.runTime === test.runTime &&
+      tt?.sampleInjection === test.sampleInjection &&
+      tt?.standardInjection === test.standardInjection;
+    
+    if (exactMatch) {
+      // If we have a test index and this is a batch with duplicate tests,
+      // use the index to determine which API this test belongs to
+      if (testIndex !== undefined && allApiTests.filter(at => 
+        at.test.testName === test.testName &&
+        at.test.columnCode === test.columnCode
+      ).length > 1) {
+        // Get all matching API tests
+        const matchingApiTests = allApiTests.filter(at => {
+          const t = at.test;
+          return t?.testName === test.testName &&
+                 t?.columnCode === test.columnCode &&
+                 t?.detectorTypeId === test.detectorTypeId;
+        });
+        
+        if (matchingApiTests[testIndex]) {
+          return {
+            apiId: matchingApiTests[testIndex].apiId,
+            apiLabel: matchingApiTests[testIndex].apiLabel
+          };
         }
-      });
-      return newMap;
-    });
-  };
+      }
+      
+      // Calculate score for best match
+      const ttPhase = normalizePhases(tt?.mobilePhaseCodes);
+      const equalPhase = ttPhase === targetPhase;
+      const pharmOverlap = hasOverlap(
+        tt?.pharmacopoeialId as any,
+        test?.pharmacopoeialId as any
+      );
+      const runtimeClose = Math.abs((tt?.runTime ?? 0) - (test?.runTime ?? 0)) <= 1;
 
-  // Deselect all visible MFCs
-  const handleDeselectAllVisible = () => {
-    setSelectedMFCs(prev => {
-      const newMap = new Map(prev);
-      paginatedMFCs.forEach(mfc => {
-        newMap.delete(mfc._id);
-      });
-      return newMap;
-    });
-  };
+      const score = (exactMatch ? 10 : 0) +
+                   (equalPhase ? 5 : 0) +
+                   (pharmOverlap ? 1 : 0) +
+                   (runtimeClose ? 1 : 0);
 
-  const handleSubmit = () => {
-    if (selectedMFCs.size === 0) {
-      alert("Please select at least one MFC");
-      return;
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = {
+          apiId: apiTest.apiId,
+          apiLabel: apiTest.apiLabel
+        };
+      }
     }
+  }
 
-    onAddMFCs(selectedMFCs);
-    onClose();
-  };
+  return bestMatch;
+}
 
-  // Reset page when search changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm]);
+const safeNumber = (value: any, defaultValue: number = 0): number => {
+  if (value === null || value === undefined || value === "")
+    return defaultValue;
+  const num = Number(value);
+  return isNaN(num) ? defaultValue : Math.max(0, num);
+};
 
-  // Reset page when items per page changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [itemsPerPage]);
-
-  // Fix pagination bounds
-  useEffect(() => {
-    if (currentPage > totalPages && totalPages > 0) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
-
-  const getPriorityButtonClass = (priority: 'urgent' | 'high' | 'normal', selectedPriority: 'urgent' | 'high' | 'normal') => {
-    const baseClass = "px-2 py-1 text-xs rounded transition-colors border";
-    if (priority === selectedPriority) {
-      return `${baseClass} ${
-        priority === 'urgent' ? 'bg-red-100 text-red-700 border-red-300' :
-        priority === 'high' ? 'bg-orange-100 text-orange-700 border-orange-300' :
-        'bg-green-100 text-green-700 border-green-300'
-      }`;
-    }
-    return `${baseClass} bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200`;
-  };
-
+// Your existing CalculationModal (unchanged)
+const CalculationModal: React.FC<{
+  test: ScheduledTest;
+  isOpen: boolean;
+  onClose: () => void;
+}> = ({ test, isOpen, onClose }) => {
+  if (!isOpen || !test.calculationBreakdown) return null;
+  const breakdown = test.calculationBreakdown;
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl max-w-7xl w-full mx-4 my-8 max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 flex justify-between items-center rounded-t-xl flex-shrink-0">
-          <h3 className="text-xl font-semibold text-white">
-            Select MFCs with Individual Priorities
-          </h3>
-          <button onClick={onClose} className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-1">
-            <X size={24} />
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">
+              Calculation Details
+            </h2>
+            <p className="text-gray-600 text-sm">
+              {test.testName} - {test.productName}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <X className="w-5 h-5" />
           </button>
         </div>
-
-        {/* Content */}
-        <div className="flex-1 flex flex-col overflow-hidden min-h-0 p-6">
-          {/* Search and Controls */}
-          <div className="mb-4 bg-gray-50 p-4 rounded-lg flex-shrink-0">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Search MFCs
-                </label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Search by MFC number or generic name..."
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Items per page
-                </label>
-                <select
-                  value={itemsPerPage}
-                  onChange={(e) => setItemsPerPage(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value={5}>5</option>
-                  <option value={10}>10</option>
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                </select>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleSelectAllVisible}
-                  className="px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                >
-                  Select All
-                </button>
-                <button
-                  onClick={handleDeselectAllVisible}
-                  className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                >
-                  Deselect All
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 flex justify-between items-center">
-              <div className="text-sm text-gray-600">
-                Showing {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredMFCs.length)} of {filteredMFCs.length} MFCs
-                {searchTerm && ` (filtered from ${mfcData.length} total)`}
-              </div>
-              <div className="text-sm text-green-600 font-medium">
-                {selectedMFCs.size} MFCs selected
-              </div>
+        <div className="p-6 space-y-6">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h3 className="text-lg font-semibold text-blue-900 mb-3 flex items-center">
+              <Calculator className="w-4 h-4 mr-2" /> Mathematical Formula
+            </h3>
+            <div className="space-y-3">
+              <p className="text-sm text-blue-800">
+                <strong>Case {breakdown.hasUniqueRuntimes ? "A" : "B"}:</strong>{" "}
+                {breakdown.hasUniqueRuntimes
+                  ? "Multiple Runtimes"
+                  : "Single Runtime"}
+              </p>
+              <MathFormula formula={breakdown.formula} />
             </div>
           </div>
-
-          {/* IMPROVED MFC Table - Separate columns for Master Phases, Run Times, and Injections */}
-          <div className="flex-1 min-h-0 bg-white border border-gray-300 rounded-lg overflow-hidden flex flex-col">
-            {/* Table Header */}
-            <div className="bg-gray-100 border-b border-gray-300 flex-shrink-0">
-              <div className="grid grid-cols-10 gap-3 px-4 py-3">
-                <div className="text-left text-sm font-medium text-gray-700">Select</div>
-                <div className="text-left text-sm font-medium text-gray-700">S.No</div>
-                <div className="text-left text-sm font-medium text-gray-700">MFC Number</div>
-                <div className="text-left text-sm font-medium text-gray-700">Generic Name</div>
-                <div className="text-left text-sm font-medium text-gray-700">APIs</div>
-                <div className="text-left text-sm font-medium text-gray-700">Master Phases</div>
-                <div className="text-left text-sm font-medium text-gray-700">Run Times</div>
-                <div className="text-left text-sm font-medium text-gray-700">Injections</div>
-                <div className="text-center text-sm font-medium text-gray-700">Priority</div>
-                <div className="text-left text-sm font-medium text-gray-700">Status</div>
-              </div>
-            </div>
-
-            {/* Table Body */}
-            <div className="flex-1 overflow-y-auto">
-              {paginatedMFCs.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 px-4 text-center text-gray-500 h-full">
-                  <Filter className="mb-2 text-gray-300" size={48} />
-                  <p className="text-lg font-medium">No MFCs found</p>
-                  <p className="text-sm">Try adjusting your search criteria</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-200">
-                  {paginatedMFCs.map((mfc, index) => {
-                    // Get all test types for this MFC
-                    const allTestTypes = mfc.generics.flatMap(generic =>
-                      generic.apis.flatMap(api => api.testTypes)
-                    );
-                    
-                    // Extract unique master phases across all tests
-                    const allMasterPhases = Array.from(new Set(
-                      allTestTypes.flatMap(test => 
-                        extractPhases(test.mobilePhaseCodes).masterPhases
-                      )
-                    ));
-                    
-                    // Extract unique run times
-                    const allRunTimes = Array.from(new Set(
-                      allTestTypes.map(test => test.runTime)
-                    )).sort((a, b) => a - b);
-                    
-                    // Get injection information
-                    const injectionSummary = allTestTypes.map(test => 
-                      `${test.sampleInjection}s/${test.standardInjection}st/${test.blankInjection}b`
-                    );
-                    const uniqueInjections = Array.from(new Set(injectionSummary));
-                    
-                    const isSelected = selectedMFCs.has(mfc._id);
-                    const isExisting = existingMFCIds.includes(mfc._id);
-                    const selectedPriority = selectedMFCs.get(mfc._id) || 'normal';
-                    
-                    return (
-                      <div key={mfc._id} className={`grid grid-cols-10 gap-3 px-4 py-3 items-start transition-colors ${
-                        isSelected ? 'bg-blue-50' : isExisting ? 'bg-yellow-50' : 'bg-white hover:bg-gray-50'
-                      }`}>
-                        {/* Select Checkbox */}
-                        <div className="text-center pt-1">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            disabled={isExisting}
-                            onChange={() => handleMFCToggle(mfc._id)}
-                            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 disabled:opacity-50"
-                          />
-                        </div>
-                        
-                        {/* Serial Number */}
-                        <div className="text-sm pt-1">
-                          {startIndex + index + 1}
-                        </div>
-                        
-                        {/* MFC Number */}
-                        <div className="text-sm font-medium pt-1">
-                          {mfc.mfcNumber}
-                        </div>
-                        
-                        {/* Generic Name */}
-                        <div className="text-sm pt-1">
-                          {mfc.generics.map(g => g.genericName).join(", ")}
-                        </div>
-                        
-                        {/* APIs */}
-                        <div className="text-sm pt-1">
-                          <div className="font-medium">{mfc.generics.reduce((sum, g) => sum + g.apis.length, 0)}</div>
-                          <div className="text-xs text-gray-500">{allTestTypes.length} tests</div>
-                        </div>
-                        
-                        {/* Master Phases - NEW SEPARATE COLUMN */}
-                        <div className="text-sm pt-1">
-                          <div className="max-h-16 overflow-y-auto">
-                            {allMasterPhases.length > 0 ? (
-                              <div className="space-y-1">
-                                {allMasterPhases.slice(0, 3).map((phase, idx) => (
-                                  <div key={idx} className="text-xs bg-gray-100 px-2 py-1 rounded">
-                                    {phase}
-                                  </div>
-                                ))}
-                                {allMasterPhases.length > 3 && (
-                                  <div className="text-xs text-blue-600 font-medium">
-                                    +{allMasterPhases.length - 3} more
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-xs text-gray-500">N/A</span>
-                            )}
-                          </div>
-                        </div>
-                        
-                        {/* Run Times - NEW SEPARATE COLUMN */}
-                        <div className="text-sm pt-1">
-                          <div className="max-h-16 overflow-y-auto">
-                            {allRunTimes.length > 0 ? (
-                              <div className="space-y-1">
-                                {allRunTimes.slice(0, 3).map((time, idx) => (
-                                  <div key={idx} className="text-xs bg-green-100 px-2 py-1 rounded">
-                                    {time}min
-                                  </div>
-                                ))}
-                                {allRunTimes.length > 3 && (
-                                  <div className="text-xs text-blue-600 font-medium">
-                                    +{allRunTimes.length - 3} more
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-xs text-gray-500">N/A</span>
-                            )}
-                          </div>
-                        </div>
-                        
-                        {/* Injections - NEW SEPARATE COLUMN */}
-                        <div className="text-sm pt-1">
-                          <div className="max-h-16 overflow-y-auto">
-                            {uniqueInjections.length > 0 ? (
-                              <div className="space-y-1">
-                                {uniqueInjections.slice(0, 2).map((injection, idx) => (
-                                  <div key={idx} className="text-xs bg-purple-100 px-2 py-1 rounded">
-                                    {injection}
-                                  </div>
-                                ))}
-                                {uniqueInjections.length > 2 && (
-                                  <div className="text-xs text-blue-600 font-medium">
-                                    +{uniqueInjections.length - 2} more
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-xs text-gray-500">N/A</span>
-                            )}
-                          </div>
-                        </div>
-                        
-                        {/* Priority Selection */}
-                        <div className="flex gap-1 justify-center pt-1">
-                          {isSelected ? (
-                            <>
-                              <button
-                                onClick={() => handlePriorityChange(mfc._id, 'urgent')}
-                                className={getPriorityButtonClass('urgent', selectedPriority)}
-                                title="Urgent Priority"
-                              >
-                                🚨
-                              </button>
-                              <button
-                                onClick={() => handlePriorityChange(mfc._id, 'high')}
-                                className={getPriorityButtonClass('high', selectedPriority)}
-                                title="High Priority"
-                              >
-                                ⚡
-                              </button>
-                              <button
-                                onClick={() => handlePriorityChange(mfc._id, 'normal')}
-                                className={getPriorityButtonClass('normal', selectedPriority)}
-                                title="Normal Priority"
-                              >
-                                📋
-                              </button>
-                            </>
-                          ) : (
-                            <span className="text-xs text-gray-400">Select MFC first</span>
-                          )}
-                        </div>
-                        
-                        {/* Status */}
-                        <div className="text-sm pt-1">
-                          {isExisting ? (
-                            <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-700 rounded-full">
-                              Already Added
-                            </span>
-                          ) : isSelected ? (
-                            <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
-                              Selected
-                            </span>
-                          ) : (
-                            <span className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-full">
-                              Available
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <h3 className="text-lg font-semibold text-green-900 mb-3 flex items-center">
+              <Beaker className="w-4 h-4 mr-2" /> Injection Counts & Runtimes
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {Object.entries(breakdown.injectionCounts).map(
+                ([type, count]) => (
+                  <div key={type} className="bg-white rounded p-3 border">
+                    <div className="text-xs font-medium text-gray-700 capitalize">
+                      {type.replace(/([A-Z])/g, " $1").trim()}
+                    </div>
+                    <div className="text-lg font-bold text-gray-900">
+                      {count}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Runtime:{" "}
+                      {breakdown.runtimes[type] ||
+                        breakdown.runtimes.default ||
+                        0}{" "}
+                      min
+                    </div>
+                  </div>
+                )
               )}
             </div>
           </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="mt-4 flex justify-between items-center flex-shrink-0">
-              <div className="text-sm text-gray-600">
-                Page {currentPage} of {totalPages}
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  disabled={currentPage === 1}
-                  className="flex items-center gap-1 px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronLeft size={16} />
-                  Previous
-                </button>
-                
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Go to:</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max={totalPages}
-                    value={currentPage}
-                    onChange={(e) => {
-                      const page = parseInt(e.target.value);
-                      if (page >= 1 && page <= totalPages) {
-                        setCurrentPage(page);
-                      }
-                    }}
-                    className="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-center"
-                  />
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <h3 className="text-lg font-semibold text-yellow-900 mb-3 flex items-center">
+              <Clock className="w-4 h-4 mr-2" /> Step-by-Step Calculation
+            </h3>
+            <div className="space-y-2">
+              {breakdown.steps.map((step, index) => (
+                <div key={index} className="flex items-start space-x-2">
+                  <span className="bg-yellow-200 text-yellow-800 text-xs font-bold px-2 py-1 rounded">
+                    {index + 1}
+                  </span>
+                  <span className="text-xs text-gray-700">{step}</span>
                 </div>
-                
-                <button
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                  disabled={currentPage === totalPages}
-                  className="flex items-center gap-1 px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Next
-                  <ChevronRight size={16} />
-                </button>
+              ))}
+            </div>
+          </div>
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">
+              Calculation Summary
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-xs text-gray-600">Total Injections</div>
+                <div className="text-xl font-bold text-gray-900">
+                  {breakdown.totalCountedInjections}
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs text-gray-600">Wash Cycles</div>
+                <div className="text-xl font-bold text-gray-900">
+                  {breakdown.washCycles}
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs text-gray-600">Runtime</div>
+                <div className="text-xl font-bold text-blue-700">
+                  {breakdown.runtimeMinutes.toFixed(1)} min
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs text-gray-600">Total Time</div>
+                <div className="text-xl font-bold text-green-700">
+                  {breakdown.totalMinutes.toFixed(1)} min
+                </div>
+              </div>
+            </div>
+          </div>
+          {test.isGrouped && test.timeSaved && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-purple-900 mb-3">
+                Optimization Analysis
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-xs text-purple-700">Original Time</div>
+                  <div className="text-lg font-bold text-purple-900">
+                    {test.originalExecutionTime.toFixed(1)} min
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-purple-700">Time Saved</div>
+                  <div className="text-lg font-bold text-green-700">
+                    {test.timeSaved.toFixed(1)} min
+                  </div>
+                </div>
+              </div>
+              <div className="mt-2 text-xs text-purple-700">
+                Grouping Reason: {test.groupReason}
               </div>
             </div>
           )}
         </div>
-
-        {/* Footer */}
-        <div className="border-t border-gray-200 px-6 py-4 flex justify-between items-center bg-gray-50 rounded-b-xl flex-shrink-0">
-          <div className="text-sm text-gray-600">
-            {selectedMFCs.size > 0 && (
-              <div className="space-y-1">
-                <div>{selectedMFCs.size} MFC{selectedMFCs.size > 1 ? 's' : ''} selected</div>
-                <div className="flex gap-2 text-xs">
-                  {Array.from(selectedMFCs.values()).reduce((acc, priority) => {
-                    acc[priority] = (acc[priority] || 0) + 1;
-                    return acc;
-                  }, {} as Record<string, number>).urgent && (
-                    <span className="px-2 py-1 bg-red-100 text-red-700 rounded">
-                      🚨 {Array.from(selectedMFCs.values()).filter(p => p === 'urgent').length} Urgent
-                    </span>
-                  )}
-                  {Array.from(selectedMFCs.values()).reduce((acc, priority) => {
-                    acc[priority] = (acc[priority] || 0) + 1;
-                    return acc;
-                  }, {} as Record<string, number>).high && (
-                    <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded">
-                      ⚡ {Array.from(selectedMFCs.values()).filter(p => p === 'high').length} High
-                    </span>
-                  )}
-                  {Array.from(selectedMFCs.values()).reduce((acc, priority) => {
-                    acc[priority] = (acc[priority] || 0) + 1;
-                    return acc;
-                  }, {} as Record<string, number>).normal && (
-                    <span className="px-2 py-1 bg-green-100 text-green-700 rounded">
-                      📋 {Array.from(selectedMFCs.values()).filter(p => p === 'normal').length} Normal
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-          
-          <div className="flex gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            
-            <button
-              onClick={handleSubmit}
-              disabled={selectedMFCs.size === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Plus size={16} />
-              Add {selectedMFCs.size} MFC{selectedMFCs.size > 1 ? 's' : ''} to Batch
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
 };
 
-// Optimization Preview Popup with columnar test display
-interface OptimizationPreviewPopupProps {
-  batchMFCs: BatchMFC[];
-  optimization: OptimizationResult;
-  onClose: () => void;
-  onCreateBatch: () => void;
-  getPriorityInfo: (priority: 'urgent' | 'high' | 'normal') => PriorityInfo;
-}
-
-const OptimizationPreviewPopup: React.FC<OptimizationPreviewPopupProps> = ({
-  batchMFCs,
-  optimization,
-  onClose,
-  onCreateBatch,
-  getPriorityInfo,
+// NEW: Draggable Test Row Component - This keeps your exact table structure
+const DraggableTestRow: React.FC<{
+  test: ScheduledTest;
+  index: number;
+  batchData: BatchItem[];
+  apiMaster: { [key: string]: string };
+  columnMaster: { [key: string]: string };
+  setSelectedTestForCalculation: (test: ScheduledTest) => void;
+  getDetectorName: (value?: string) => string;
+}> = ({
+  test,
+  index,
+  batchData,
+  apiMaster,
+  columnMaster,
+  setSelectedTestForCalculation,
+  getDetectorName,
 }) => {
-  // Calculate detailed statistics for explanation
-  const totalTests = batchMFCs.reduce((sum, mfc) => sum + mfc.testTypes.length, 0);
-  
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: test.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.7 : 1,
+    zIndex: isDragging ? 999 : 1,
+  };
+
+  const batch = batchData.find((b) => b._id === test.batchId);
+ let apiName = "N/A";
+
+  // ✅ FIXED: Always use apiId as the primary key for lookup, with no fallbacks that could cause collisions
+  if (test.apiId) {
+    // Direct lookup from apiMaster using the ID
+    apiName = apiMaster[test.apiId] || "Unknown API";
+  } 
+  // Only if apiId is not available, try to resolve from batch data
+  else if (batch?.generics && test.originalTest) {
+  // Pass the test index to help with resolution
+  const testIndexInBatch = batch.tests.findIndex(t => 
+    t.testName === test.originalTest?.testName &&
+    t.columnCode === test.originalTest?.columnCode
+  );
+  const { apiId, apiLabel } = resolveApiForTest(
+    batch, 
+    test.originalTest, 
+    apiMaster,
+    testIndexInBatch >= 0 ? testIndexInBatch : undefined
+  );
+    // If we get an apiId from resolution, use it to look up the name
+    if (apiId && apiMaster[apiId]) {
+      apiName = apiMaster[apiId];
+    } else {
+      // Final fallback to the resolved label
+      apiName = apiLabel || "N/A";
+    }
+  }
+
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl max-w-7xl w-full mx-4 my-8 h-[95vh] flex flex-col">
-        <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4 flex justify-between items-center rounded-t-xl">
-          <div>
-            <h3 className="text-xl font-semibold text-white">Optimization Preview & Detailed Test Analysis</h3>
-            <p className="text-green-100 text-sm">Comprehensive breakdown including all test parameters</p>
-          </div>
-          <button onClick={onClose} className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-1">
-            <X size={24} />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto p-6">
-            {/* Summary Statistics */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              <div className="bg-gray-50 rounded-lg p-4 text-center border">
-                <div className="text-2xl font-bold text-gray-800">{optimization.originalTime}</div>
-                <div className="text-sm text-gray-600">Original Time (min)</div>
-                <div className="text-xs text-gray-500 mt-1">{totalTests} individual tests</div>
-              </div>
-              <div className="bg-blue-50 rounded-lg p-4 text-center border border-blue-200">
-                <div className="text-2xl font-bold text-blue-600">{optimization.optimizedTime}</div>
-                <div className="text-sm text-gray-600">Optimized Time (min)</div>
-                <div className="text-xs text-gray-500 mt-1">{optimization.groups.length} grouped runs</div>
-              </div>
-              <div className="bg-green-50 rounded-lg p-4 text-center border border-green-200">
-                <div className="text-2xl font-bold text-green-600">{optimization.timeSaved}</div>
-                <div className="text-sm text-gray-600">Time Saved (min)</div>
-                <div className="text-xs text-gray-500 mt-1">{optimization.totalWashTime}min wash optimization</div>
-              </div>
-              <div className="bg-purple-50 rounded-lg p-4 text-center border border-purple-200">
-                <div className="text-2xl font-bold text-purple-600">
-                  {optimization.originalTime > 0 ? ((optimization.timeSaved / optimization.originalTime) * 100).toFixed(1) : 0}%
-                </div>
-                <div className="text-sm text-gray-600">Efficiency Gain</div>
-                <div className="text-xs text-gray-500 mt-1">From grouping & wash optimization</div>
-              </div>
-            </div>
-
-            {/* All Tests Detailed View with Columns */}
-            <div className="mb-8">
-              <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <Beaker className="text-blue-600" size={20} />
-                Complete Test Details ({totalTests} Tests)
-              </h4>
-              
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <TestList 
-                  tests={batchMFCs.flatMap(mfc => mfc.testTypes)} 
-                  showMfcNumber={true}
-                  maxHeight="max-h-96"
-                  showHeaders={true}
-                />
-              </div>
-            </div>
-
-            {/* MFC Summary */}
-            <div className="mb-8">
-              <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <FlaskConical className="text-blue-600" size={20} />
-                Selected MFCs with Individual Priorities
-              </h4>
-              
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <h5 className="font-semibold text-blue-800 mb-3">MFC List ({batchMFCs.length})</h5>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {batchMFCs.map((mfc) => {
-                      const priorityInfo = getPriorityInfo(mfc.priority);
-                      return (
-                        <div key={mfc.mfcId} className="flex items-center justify-between text-sm">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{mfc.mfcNumber}</span>
-                            <span className={`px-2 py-1 text-xs rounded-full font-medium ${priorityInfo.color}`}>
-                              {priorityInfo.icon} {priorityInfo.label}
-                            </span>
-                          </div>
-                          <span className="text-gray-600">{mfc.testTypes.length} tests</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <h5 className="font-semibold text-green-800 mb-3">Priority Distribution</h5>
-                  <div className="space-y-2 text-sm">
-                    {(['urgent', 'high', 'normal'] as const).map((priorityLevel) => {
-                      const count = batchMFCs.filter(mfc => mfc.priority === priorityLevel).length;
-                      const tests = batchMFCs.filter(mfc => mfc.priority === priorityLevel)
-                        .reduce((sum, mfc) => sum + mfc.testTypes.length, 0);
-                      const priorityInfo = getPriorityInfo(priorityLevel);
-                      
-                      return (
-                        <div key={priorityLevel} className="flex justify-between">
-                          <div className="flex items-center gap-2">
-                            <span>{priorityInfo.icon}</span>
-                            <span className="capitalize">{priorityLevel}:</span>
-                          </div>
-                          <span className="font-medium">{count} MFCs ({tests} tests)</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Execution Summary */}
-            <div className="mb-6">
-              <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <CheckCircle className="text-green-600" size={20} />
-                Execution Summary
-              </h4>
-              
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="text-sm text-gray-700">
-                  The system will execute <strong>{optimization.groups.length} optimized groups</strong> instead of {totalTests} individual tests, 
-                  saving <strong>{optimization.timeSaved} minutes</strong> ({((optimization.timeSaved / optimization.originalTime) * 100).toFixed(1)}% efficiency gain) 
-                  through intelligent grouping by priority, column, mobile phase compatibility, detector requirements, and injection parameters.
-                </div>
-              </div>
+    <tr
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      className={`${
+        test.isGrouped ? "bg-green-50" : ""
+      } hover:bg-gray-50 transition-colors ${
+        isDragging ? "shadow-lg ring-2 ring-blue-400 bg-blue-50" : ""
+      }`}
+    >
+      {/* Sr No. column with drag handle */}
+      <td className="px-1 py-1 text-gray-700 border-r border-gray-200 w-12">
+        <div className="flex items-center gap-1">
+          <div
+            {...listeners}
+            className="cursor-grab hover:cursor-grabbing p-1 hover:bg-gray-200 rounded transition-colors"
+            title="Drag to reorder"
+          >
+            <div className="flex flex-col items-center">
+              <div className="w-1 h-1 bg-gray-400 rounded-full mb-0.5"></div>
+              <div className="w-1 h-1 bg-gray-400 rounded-full mb-0.5"></div>
+              <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
             </div>
           </div>
+          <span className="text-xs">{index + 1}</span>
         </div>
+      </td>
 
-        {/* Footer */}
-        <div className="border-t border-gray-200 px-6 py-4 flex justify-end gap-3 bg-gray-50 rounded-b-xl">
-          <button
-            onClick={onClose}
-            className="px-6 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Back to Edit
-          </button>
-          <button
-            onClick={onCreateBatch}
-            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-          >
-            <Save size={18} />
-            Create Optimized Batch
-          </button>
+      {/* ALL YOUR EXISTING COLUMNS EXACTLY AS THEY WERE */}
+      <td className="px-1 py-1 text-gray-700 border-r border-gray-200">
+        <div className="font-medium truncate w-20" title={test.productName}>
+          {test.productName}
         </div>
-      </div>
-    </div>
+      </td>
+      <td
+        className="px-1 py-1 text-gray-700 truncate w-16 border-r border-gray-200"
+        title={test.productCode}
+      >
+        {test.productCode}
+      </td>
+      <td
+        className="px-1 py-1 text-gray-700 truncate w-20 border-r border-gray-200"
+        title={batch?.mfcNumber}
+      >
+        {batch?.mfcNumber || "N/A"}
+      </td>
+      <td
+        className="px-1 py-1 text-gray-700 truncate w-20 border-r border-gray-200"
+        title={apiName}
+      >
+        {apiName}
+      </td>
+      <td
+        className="px-1 py-1 text-gray-700 truncate w-16 border-r border-gray-200"
+        title={batch?.pharmacopoeialName}
+      >
+        {batch?.pharmacopoeialName || "N/A"}
+      </td>
+      <td
+        className="px-1 py-1 text-gray-700 truncate w-16 border-r border-gray-200"
+        title={batch?.typeOfSample}
+      >
+        {batch?.typeOfSample || "N/A"}
+      </td>
+      <td className="px-1 py-1 text-gray-700 truncate w-20 border-r border-gray-200">
+        {(() => {
+          const mobilePhases = test.mobilePhaseCodes
+            .slice(0, 4)
+            .filter((code) => code !== "")
+            .join(", ");
+          return <span title={mobilePhases}>{mobilePhases || "N/A"}</span>;
+        })()}
+      </td>
+      <td className="px-1 py-1 text-gray-700 truncate w-20 border-r border-gray-200">
+        {(() => {
+          const washes = test.mobilePhaseCodes
+            .slice(4)
+            .filter((code) => code !== "")
+            .join(", ");
+          return <span title={washes}>{washes || "N/A"}</span>;
+        })()}
+      </td>
+      <td
+        className="px-1 py-1 text-gray-700 truncate w-16 border-r border-gray-200"
+        title={test.batchNumber}
+      >
+        {test.batchNumber}
+      </td>
+      <td className="px-1 py-1 text-gray-700 border-r border-gray-200">
+        <div className="font-medium truncate w-20" title={test.testName}>
+          {test.testName}
+        </div>
+        {test.isGrouped && (
+          <div
+            className="text-[10px] text-green-600 truncate"
+            title={test.groupReason}
+          >
+            Grouped
+          </div>
+        )}
+      </td>
+      <td className="px-1 py-1 text-center border-r border-gray-200">
+        <span
+          className={`inline-block px-1 text-[10px] font-medium rounded ${
+            test.priority.toLowerCase() === "urgent"
+              ? "bg-red-100 text-red-600"
+              : test.priority.toLowerCase() === "high"
+              ? "bg-orange-100 text-orange-600"
+              : test.priority.toLowerCase() === "normal"
+              ? "bg-green-100 text-green-600"
+              : "bg-gray-100 text-gray-600"
+          }`}
+        >
+          {test.priority.charAt(0)}
+        </span>
+      </td>
+
+      {/* All your injection columns */}
+      <td className="px-1 py-1 text-center text-gray-700 text-[10px] border-r border-gray-200">
+        {test.originalTest?.sampleInjection || 0}
+      </td>
+      <td className="px-1 py-1 text-center text-gray-700 text-[10px] border-r border-gray-200">
+        {test.originalTest?.standardInjection || 0}
+      </td>
+      <td className="px-1 py-1 text-center text-gray-700 text-[10px] border-r border-gray-200">
+        {test.originalTest?.blankInjection || 0}
+      </td>
+      <td className="px-1 py-1 text-center text-gray-700 text-[10px] border-r border-gray-200">
+        {test.originalTest?.systemSuitability || 0}
+      </td>
+      <td className="px-1 py-1 text-center text-gray-700 text-[10px] border-r border-gray-200">
+        {test.originalTest?.sensitivity || 0}
+      </td>
+      <td className="px-1 py-1 text-center text-gray-700 text-[10px] border-r border-gray-200">
+        {test.originalTest?.placebo || 0}
+      </td>
+      <td className="px-1 py-1 text-center text-gray-700 text-[10px] border-r border-gray-200">
+        {test.originalTest?.reference1 || 0}
+      </td>
+      <td className="px-1 py-1 text-center text-gray-700 text-[10px] border-r border-gray-200">
+        {test.originalTest?.reference2 || 0}
+      </td>
+      <td className="px-1 py-1 text-center text-gray-700 text-[10px] border-r border-gray-200">
+        {test.bracketingFrequency || 0}
+      </td>
+
+      {/* All your runtime columns */}
+      <td className="px-1 py-1 text-center text-gray-700 text-[10px] border-r border-gray-200">
+        {test.originalTest?.runTime || 0}m
+      </td>
+      <td className="px-1 py-1 text-center text-gray-700 text-[10px] border-r border-gray-200">
+        {test.originalTest?.blankRunTime || 0}m
+      </td>
+      <td className="px-1 py-1 text-center text-gray-700 text-[10px] border-r border-gray-200">
+        {test.originalTest?.standardRunTime || 0}m
+      </td>
+      <td className="px-1 py-1 text-center text-gray-700 text-[10px] border-r border-gray-200">
+        {test.originalTest?.sampleRunTime || 0}m
+      </td>
+      <td className="px-1 py-1 text-center text-gray-700 text-[10px] border-r border-gray-200">
+        {test.originalTest?.systemSuitabilityRunTime || 0}m
+      </td>
+      <td className="px-1 py-1 text-center text-gray-700 text-[10px] border-r border-gray-200">
+        {test.originalTest?.sensitivityRunTime || 0}m
+      </td>
+      <td className="px-1 py-1 text-center text-gray-700 text-[10px] border-r border-gray-200">
+        {test.originalTest?.placeboRunTime || 0}m
+      </td>
+      <td className="px-1 py-1 text-center text-gray-700 text-[10px] border-r border-gray-200">
+        {test.originalTest?.reference1RunTime || 0}m
+      </td>
+      <td className="px-1 py-1 text-center text-gray-700 text-[10px] border-r border-gray-200">
+        {test.originalTest?.reference2RunTime || 0}m
+      </td>
+      <td className="px-1 py-1 text-center text-gray-700 text-[10px] border-r border-gray-200">
+        {test.washTime || 0}m
+      </td>
+
+      {/* Time column */}
+      <td className="px-1 py-1 text-center text-gray-700 border-r border-gray-200">
+        <div className="text-[10px]">{test.executionTime.toFixed(0)}m</div>
+        {test.isGrouped && test.timeSaved && (
+          <div className="text-[10px] text-green-600">
+            -{test.timeSaved.toFixed(0)}m
+          </div>
+        )}
+      </td>
+
+      {/* Action column */}
+      <td className="px-1 py-1 text-center border-r border-gray-200">
+        <button
+          onClick={() => setSelectedTestForCalculation(test)}
+          className="text-blue-500 hover:text-blue-600 text-[10px] p-1"
+          title="View details"
+        >
+          <Calculator className="w-2 h-2" />
+        </button>
+      </td>
+    </tr>
   );
 };
 
-export default HPLCBatchScheduler;
+// Main component
+export default function EnhancedSchedulingAlgorithm() {
+  // All your existing state variables (unchanged)
+  const [batchData, setBatchData] = useState<BatchItem[]>([]);
+  const [hplcMaster, setHplcMaster] = useState<HPLCMaster[]>([]);
+  const [hplcSchedules, setHplcSchedules] = useState<HPLCSchedule[]>([]);
+  const [unscheduledTests, setUnscheduledTests] = useState<ScheduledTest[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [scheduling, setScheduling] = useState(false);
+  const [selectedTestForCalculation, setSelectedTestForCalculation] =
+    useState<ScheduledTest | null>(null);
+  const [apiMaster, setApiMaster] = useState<{ [key: string]: string }>({});
+  const [columnMaster, setColumnMaster] = useState<{ [key: string]: string }>(
+    {}
+  );
+  const [detectorMaster, setDetectorMaster] = useState<Record<string, string>>(
+    {}
+  );
+
+  // NEW: Drag and drop state
+  const [activeTest, setActiveTest] = useState<ScheduledTest | null>(null);
+  const [draggedOverHPLC, setDraggedOverHPLC] = useState<string | null>(null);
+
+  // Sensors for drag detection
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
+  // All your existing calculation functions (unchanged)
+  const computeOptimizedCounts = (
+    test: Test,
+    washInterval: number = 6
+  ): CalculationBreakdown => {
+    const injectionCounts: { [key: string]: number } = {
+      sample: safeNumber(test.sampleInjection),
+      standard: safeNumber(test.standardInjection),
+      blank: safeNumber(test.blankInjection),
+      sensitivity: safeNumber(test.sensitivity),
+      systemSuitability: safeNumber(test.systemSuitability),
+      placebo: safeNumber(test.placebo),
+      reference1: safeNumber(test.reference1),
+      reference2: safeNumber(test.reference2),
+    };
+
+    const defaultRuntime = safeNumber(test.runTime, 1);
+    const hasUniqueRuntimes =
+      test.uniqueRuntimes ||
+      [
+        test.blankRunTime,
+        test.standardRunTime,
+        test.sampleRunTime,
+        test.systemSuitabilityRunTime,
+        test.sensitivityRunTime,
+        test.placeboRunTime,
+        test.reference1RunTime,
+        test.reference2RunTime,
+      ].some((rt) => safeNumber(rt) > 0);
+
+    const runtimes: { [key: string]: number } = hasUniqueRuntimes
+      ? {
+          sample: safeNumber(test.sampleRunTime, defaultRuntime),
+          standard: safeNumber(test.standardRunTime, defaultRuntime),
+          blank: safeNumber(test.blankRunTime, defaultRuntime),
+          sensitivity: safeNumber(test.sensitivityRunTime, defaultRuntime),
+          systemSuitability: safeNumber(
+            test.systemSuitabilityRunTime,
+            defaultRuntime
+          ),
+          placebo: safeNumber(test.placeboRunTime, defaultRuntime),
+          reference1: safeNumber(test.reference1RunTime, defaultRuntime),
+          reference2: safeNumber(test.reference2RunTime, defaultRuntime),
+          bracketing: defaultRuntime,
+        }
+      : { default: defaultRuntime };
+
+    const baseInjections = Object.values(injectionCounts).reduce(
+      (sum, count) => sum + count,
+      0
+    );
+    const bracketingInjections = Math.ceil(baseInjections / washInterval);
+    injectionCounts.bracketing = bracketingInjections;
+
+    const totalCountedInjections = baseInjections + bracketingInjections;
+    const washCycles = Math.ceil(totalCountedInjections / washInterval);
+
+    let runtimeMinutes: number;
+    const steps: string[] = [];
+
+    if (hasUniqueRuntimes) {
+      runtimeMinutes = Object.entries(injectionCounts).reduce(
+        (sum, [type, count]) => {
+          const runtime = runtimes[type] || defaultRuntime;
+          const contribution = count * runtime;
+          if (count > 0)
+            steps.push(
+              `${type}: ${count} × ${runtime} min = ${contribution} min`
+            );
+          return sum + contribution;
+        },
+        0
+      );
+    } else {
+      runtimeMinutes = totalCountedInjections * defaultRuntime;
+      steps.push(`Base injections: ${baseInjections}`);
+      steps.push(
+        `Bracketing injections: ${bracketingInjections} (every ${washInterval} + compulsory)`
+      );
+      steps.push(
+        `Total injections: ${baseInjections} + ${bracketingInjections} = ${totalCountedInjections}`
+      );
+      steps.push(`Runtime per injection: ${defaultRuntime} min`);
+      steps.push(
+        `Runtime total: ${totalCountedInjections} × ${defaultRuntime} = ${runtimeMinutes} min`
+      );
+    }
+
+    const washTime = safeNumber(test.washTime);
+    const washMinutes = washCycles * washTime;
+    const totalMinutes = runtimeMinutes + washMinutes;
+
+    steps.push(
+      `Wash cycles: ceil(${totalCountedInjections} / ${washInterval}) = ${washCycles}`
+    );
+    steps.push(`Wash time: ${washCycles} × ${washTime} = ${washMinutes} min`);
+    steps.push(
+      `Total time: ${runtimeMinutes} + ${washMinutes} = ${totalMinutes} min`
+    );
+
+    const formula = hasUniqueRuntimes
+      ? `Time = ∑(Ni × RTi) + WashCycles × WT = ${runtimeMinutes.toFixed(
+          1
+        )} + ${washMinutes.toFixed(1)} = ${totalMinutes.toFixed(1)} min`
+      : `Time = (∑Ni + Bracketing) × RT + WashCycles × WT = ${totalCountedInjections} × ${defaultRuntime} + ${washCycles} × ${washTime} = ${totalMinutes.toFixed(
+          1
+        )} min`;
+
+    return {
+      injectionCounts,
+      runtimes,
+      totalCountedInjections,
+      washCycles,
+      runtimeMinutes,
+      washMinutes,
+      totalMinutes,
+      hasUniqueRuntimes,
+      washInterval,
+      formula,
+      steps,
+      bracketingInjections,
+    };
+  };
+
+  const calculateGroupedCounts = (
+    tests: ScheduledTest[],
+    washInterval: number = 6
+  ) => {
+    if (tests.length === 0)
+      return {
+        counts: {},
+        totalTime: 0,
+        timeSaved: 0,
+        originalTime: 0,
+        washCycles: 0,
+        totalInjections: 0,
+      };
+
+    let originalTotalTime = 0;
+    tests.forEach((test) => {
+      if (test.originalTest) {
+        const breakdown = computeOptimizedCounts(
+          test.originalTest,
+          washInterval
+        );
+        originalTotalTime += breakdown.totalMinutes;
+      }
+    });
+
+    const groupedCounts: { [key: string]: number } = {};
+    const injectionTypes = [
+      "sample",
+      "standard",
+      "blank",
+      "sensitivity",
+      "systemSuitability",
+      "placebo",
+      "reference1",
+      "reference2",
+    ];
+    injectionTypes.forEach((type) => (groupedCounts[type] = 0));
+
+    if (tests.length > 0 && tests[0]?.originalTest) {
+      const firstTest = tests[0].originalTest;
+      groupedCounts.sample += safeNumber(firstTest.sampleInjection);
+      groupedCounts.standard += safeNumber(firstTest.standardInjection);
+      groupedCounts.blank += safeNumber(firstTest.blankInjection);
+      groupedCounts.sensitivity += safeNumber(firstTest.sensitivity);
+      groupedCounts.systemSuitability += safeNumber(
+        firstTest.systemSuitability
+      );
+      groupedCounts.placebo += safeNumber(firstTest.placebo);
+      groupedCounts.reference1 += safeNumber(firstTest.reference1);
+      groupedCounts.reference2 += safeNumber(firstTest.reference2);
+
+      for (let i = 1; i < tests.length; i++) {
+        const currentTest = tests[i];
+        if (currentTest && currentTest.originalTest) {
+          groupedCounts.sample += safeNumber(
+            currentTest.originalTest.sampleInjection
+          );
+        }
+      }
+    }
+
+    const baseGroupedInjections = Object.values(groupedCounts).reduce(
+      (sum, count) => sum + count,
+      0
+    );
+    const bracketingInjections = Math.ceil(
+      baseGroupedInjections / washInterval
+    );
+    groupedCounts.bracketing = bracketingInjections;
+
+    const totalGroupedInjections = baseGroupedInjections + bracketingInjections;
+    const firstTestRuntime = tests[0]?.originalTest
+      ? safeNumber(tests[0].originalTest.runTime, 1)
+      : 1;
+    const firstTestWashTime = tests[0]?.originalTest
+      ? safeNumber(tests[0].originalTest.washTime)
+      : 0;
+
+    const washCycles = Math.ceil(totalGroupedInjections / washInterval);
+    const runtimeMinutes = totalGroupedInjections * firstTestRuntime;
+    const washMinutes = washCycles * firstTestWashTime;
+    const optimizedTotalTime = runtimeMinutes + washMinutes;
+
+    return {
+      counts: groupedCounts,
+      totalTime: optimizedTotalTime,
+      timeSaved: originalTotalTime - optimizedTotalTime,
+      originalTime: originalTotalTime,
+      washCycles,
+      totalInjections: totalGroupedInjections,
+    };
+  };
+
+  
+
+  // ALL YOUR EXISTING FETCH FUNCTIONS (unchanged)
+  const fetchAPIMaster = async () => {
+    try {
+      const companyId =
+        localStorage.getItem("companyId") 
+      const locationId =
+        localStorage.getItem("locationId")
+      const response = await fetch(
+        `/api/admin/api?companyId=${companyId}&locationId=${locationId}`
+      );
+
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json();
+
+      const apiMapping: { [key: string]: string } = {};
+      if (data?.data) {
+        data.data.forEach((api: any) => {
+          apiMapping[api._id] = api.api;
+        });
+      }
+
+      setApiMaster(apiMapping);
+      console.log("Fetched API master:", apiMapping);
+    } catch (error) {
+      console.error("Error fetching API master data:", error);
+      setApiMaster({});
+    }
+  };
+
+  const fetchColumnMaster = async () => {
+    try {
+      const companyId =
+        localStorage.getItem("companyId")
+      const locationId =
+        localStorage.getItem("locationId") 
+
+      const response = await fetch(
+        `/api/admin/column/getAll?companyId=${companyId}&locationId=${locationId}`
+      );
+      if (!response.ok)
+        throw new Error(`HTTP error! status ${response.status}`);
+      const data = await response.json();
+
+      const mergedMap: Record<string, string> = {};
+      if (data?.data) {
+        data.data.forEach((column: any) => {
+          const firstDesc = column?.descriptions?.[0];
+          const makeName =
+            firstDesc?.make?.make || firstDesc?.makeId?.make || "Unknown Make";
+          const carbonType = firstDesc?.carbonType || "Unknown Type";
+          const length = firstDesc?.length || 0;
+          const particleSize = firstDesc?.particleSize || 0;
+          const innerDiameter = firstDesc?.innerDiameter || 0;
+
+          const display =
+            `${column.columnCode} - ${makeName} ${carbonType} ` +
+            `${length}x${innerDiameter}mm, ${particleSize}μm`;
+
+          if (column._id) mergedMap[column._id] = display;
+          if (column.id) mergedMap[column.id] = display;
+          if (column.columnCode) mergedMap[column.columnCode] = display;
+        });
+      }
+
+      setColumnMaster(mergedMap);
+    } catch (error) {
+      console.error("Error fetching column master data:", error);
+      setColumnMaster({});
+    }
+  };
+
+  const fetchDetectorMaster = async () => {
+    try {
+      const companyId =
+        localStorage.getItem("companyId") ||
+        "220E43EA-E525-4DDD-9155-631AAAD6A880";
+      const locationId =
+        localStorage.getItem("locationId") ||
+        "0ae9d80c-add2-423e-9d28-b5b44b097867";
+
+      const res = await fetch(
+        `/api/admin/detector-type?companyId=${companyId}&locationId=${locationId}`
+      );
+      if (!res.ok) throw new Error(`HTTP error! status ${res.status}`);
+
+      const json = await res.json();
+
+      const map: Record<string, string> = {};
+      if (json?.data) {
+        json.data.forEach((d: any) => {
+          const name =
+            d?.name ||
+            d?.detectorType ||
+            d?.type ||
+            d?.code ||
+            "Unknown detector";
+
+          if (d?._id) map[d._id] = name;
+          if (d?.id) map[d.id] = name;
+          if (d?.code) map[d.code] = name;
+        });
+      }
+
+      setDetectorMaster(map);
+      console.log("Fetched detector master", map);
+    } catch (e) {
+      console.error("Error fetching detector master data:", e);
+      setDetectorMaster({});
+    }
+  };
+
+  const getDetectorName = (value?: string) => {
+    if (!value) return "NA";
+    return detectorMaster[value] || value;
+  };
+
+
+  
+  const calculateExecutionTime = (
+    test: Test
+  ): { time: number; breakdown: CalculationBreakdown } => {
+    try {
+      const breakdown = computeOptimizedCounts(test);
+      return { time: breakdown.totalMinutes, breakdown };
+    } catch (error) {
+      console.error("Error calculating execution time:", error, test);
+      return {
+        time: 0,
+        breakdown: {
+          injectionCounts: {},
+          runtimes: { default: 0 },
+          totalCountedInjections: 0,
+          washCycles: 0,
+          runtimeMinutes: 0,
+          washMinutes: 0,
+          totalMinutes: 0,
+          hasUniqueRuntimes: false,
+          washInterval: 6,
+          formula: "Error in calculation",
+          steps: ["Calculation failed"],
+        },
+      };
+    }
+  };
+
+  const fetchBatchData = async () => {
+    try {
+      const companyId = "220E43EA-E525-4DDD-9155-631AAAD6A880";
+      const locationId = "0ae9d80c-add2-423e-9d28-b5b44b097867";
+      const response = await fetch(
+        `http://localhost:3000/api/batch-input?companyId=${companyId}&locationId=${locationId}`
+      );
+
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json();
+      let processedData: BatchItem[] = data?.data || [];
+
+      const validatedData = processedData
+        .map((batch) => ({
+          ...batch,
+          tests:
+            batch.tests
+              ?.filter(
+                (test) => test.testStatus.toLowerCase() === "not started"
+              )
+              .map((test) => ({
+                ...test,
+                sampleInjection: safeNumber(test.sampleInjection),
+                standardInjection: safeNumber(test.standardInjection),
+                blankInjection: safeNumber(test.blankInjection),
+                sensitivity: safeNumber(test.sensitivity),
+                systemSuitability: safeNumber(test.systemSuitability),
+                placebo: safeNumber(test.placebo),
+                reference1: safeNumber(test.reference1),
+                reference2: safeNumber(test.reference2),
+                runTime: safeNumber(test.runTime, 1),
+                washTime: safeNumber(test.washTime),
+                bracketingFrequency: safeNumber(test.bracketingFrequency, 6),
+              })) || [],
+        }))
+        .filter((batch) => batch.tests.length > 0);
+
+      setBatchData(validatedData);
+      console.log("Fetched batch data:", validatedData);
+    } catch (error) {
+      console.error("Error fetching batch data:", error);
+      setBatchData([]);
+    }
+  };
+
+  const fetchHPLCMaster = async () => {
+    try {
+      const companyId = localStorage.getItem("companyId");
+      const locationId = localStorage.getItem("locationId");
+      const response = await fetch(
+        `/api/admin/hplc?companyId=${companyId}&locationId=${locationId}`
+      );
+
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json();
+      let hplcData: any[] = data?.data || [];
+      const processedHPLCs: HPLCMaster[] = hplcData.map((hplc) => ({
+        _id: hplc._id,
+        hplcName: hplc.internalCode || `HPLC-${hplc._id.slice(-4)}`,
+        hplcModel: "Generic Model",
+        status: hplc.isActive ? "available" : "unavailable",
+        internalCode: hplc.internalCode,
+        isActive: hplc.isActive,
+        detector: hplc.detector || [], // Ensure detector is always an array
+      }));
+
+      setHplcMaster(processedHPLCs);
+      console.log("Fetched HPLC master:", processedHPLCs);
+
+      if (batchData.length > 0) {
+        await autoStartScheduling(batchData, processedHPLCs);
+      }
+    } catch (error) {
+      console.error("Error fetching HPLC master data:", error);
+      const defaultHPLCs: HPLCMaster[] = Array.from(
+        { length: 4 },
+        (_, index) => ({
+          _id: `hplc-default-${index + 1}`,
+          hplcName: `HPLC ${index + 1}`,
+          hplcModel: "Default Model",
+          status: "available",
+          internalCode: `HPLC-DEF-${index + 1}`,
+          isActive: true,
+          detector: [], // Default to empty detector array
+        })
+      );
+      setHplcMaster(defaultHPLCs);
+
+      if (batchData.length > 0) {
+        await autoStartScheduling(batchData, defaultHPLCs);
+      }
+    }
+  };
+
+  // All your other existing functions (unchanged)
+  const autoStartScheduling = async (
+    batches: BatchItem[],
+    hplcs?: HPLCMaster[]
+  ) => {
+    setScheduling(true);
+    console.log("Starting scheduling with batches:", batches.length);
+
+    try {
+      const availableHPLCs =
+        hplcs || hplcMaster.filter((hplc) => hplc.status === "available");
+      console.log("Available HPLCs:", availableHPLCs);
+
+      if (availableHPLCs.length === 0) {
+        console.log("No available HPLCs found");
+        setScheduling(false);
+        return;
+      }
+
+      const allTests: ScheduledTest[] = [];
+batches.forEach((batch) => {
+  batch.tests.forEach((test, testIndex) => {
+    const { time: executionTime, breakdown } = calculateExecutionTime(test);
+    if (
+      !isNaN(executionTime) &&
+      executionTime > 0 &&
+      test.testStatus.toLowerCase() === "not started"
+    ) {
+      // Pass testIndex to help resolve the correct API for duplicate tests
+      const { apiId, apiLabel } = resolveApiForTest(batch, test, apiMaster, testIndex);
+      
+      // Create a unique ID that includes both test index AND api information
+      // This ensures tests with same parameters but different APIs get unique IDs
+      const uniqueTestId = apiId 
+        ? `${batch._id}-${testIndex}-${apiId}`
+        : `${batch._id}-${testIndex}-${uuidv4()}`;
+
+      allTests.push({
+        id: uniqueTestId,
+        batchId: batch._id,
+        batchNumber: batch.batchNumber,
+        productCode: batch.productCode,
+        productName: batch.productName,
+        testName: test.testName,
+        columnCode: test.columnCode,
+        detectorTypeId: test.detectorTypeId,
+        mobilePhaseCodes: test.mobilePhaseCodes,
+        priority: batch.priority,
+        executionTime,
+        originalExecutionTime: executionTime,
+        washTime: safeNumber(test.washTime),
+        bracketingFrequency: safeNumber(test.bracketingFrequency, 6),
+        isGrouped: false,
+        originalTest: test,
+        calculationBreakdown: breakdown,
+        apiId: apiId ?? undefined,
+        apiLabel: apiLabel ?? undefined,
+      });
+    }
+  });
+});
+
+      console.log("All valid tests found:", allTests.length);
+
+      console.log("All valid tests found:", allTests.length);
+
+      if (allTests.length === 0) {
+        console.log("No valid tests to schedule");
+        setHplcSchedules([]);
+        setUnscheduledTests([]);
+        setScheduling(false);
+        return;
+      }
+
+      const sortedTests = allTests.sort(
+        (a, b) => getPriorityValue(b.priority) - getPriorityValue(a.priority)
+      );
+      console.log(
+        "Tests sorted by priority:",
+        sortedTests.map((t) => `${t.testName} (${t.priority})`)
+      );
+
+      const schedules: HPLCSchedule[] = availableHPLCs.map((hplc) => ({
+        hplcId: hplc._id,
+        hplcName: hplc.hplcName,
+        tests: [],
+        groups: [],
+        totalTime: 0,
+      }));
+
+      const assignedTestIds = new Set<string>();
+      const unscheduled: ScheduledTest[] = [];
+
+      let hplcIndex = 0;
+
+      // Replace the existing sortedTests.forEach loop with:
+sortedTests.forEach((test) => {
+  let assigned = false;
+  
+  // Try to assign to existing HPLC with matching column AND detector
+  for (const schedule of schedules) {
+    if (schedule.tests.length > 0) {
+      // Check if this HPLC already has tests
+      const firstTest = schedule.tests[0];
+      const columnMatches = firstTest.columnCode === test.columnCode;
+      const detectorMatches = firstTest.detectorTypeId === test.detectorTypeId;
+      const withinTimeLimit = (schedule.totalTime + test.executionTime) <= 4320; // 72 hours = 4320 minutes
+      
+      if (columnMatches && detectorMatches && withinTimeLimit) {
+        schedule.tests.push(test);
+        schedule.totalTime += test.executionTime;
+        assignedTestIds.add(test.id);
+        assigned = true;
+        console.log(`Assigned test ${test.testName} to existing ${schedule.hplcName} (Column: ${test.columnCode}, Detector: ${getDetectorName(test.detectorTypeId)})`);
+        break;
+      }
+    }
+  }
+  
+  // If not assigned, try to assign to empty HPLC with compatible detector
+  if (!assigned) {
+    const availableSchedule = schedules.find(schedule => {
+      if (schedule.tests.length > 0) return false; // Skip HPLCs that already have tests
+      
+      // Check if HPLC has compatible detector
+      const hplc = hplcMaster.find(h => h._id === schedule.hplcId);
+      const hasCompatibleDetector = hplc?.detector.some(d => 
+        d._id === test.detectorTypeId || d.detectorType === test.detectorTypeId
+      );
+      
+      return hasCompatibleDetector && test.executionTime <= 4320;
+    });
+    
+    if (availableSchedule) {
+      availableSchedule.tests.push(test);
+      availableSchedule.totalTime += test.executionTime;
+      assignedTestIds.add(test.id);
+      assigned = true;
+      console.log(`Assigned test ${test.testName} to new ${availableSchedule.hplcName} (Column: ${test.columnCode}, Detector: ${getDetectorName(test.detectorTypeId)})`);
+    }
+  }
+  
+  // If still not assigned, add to unscheduled
+  if (!assigned) {
+    const reason = test.executionTime > 4320 
+      ? `Exceeds 72-hour limit (${(test.executionTime/60).toFixed(1)} hours)`
+      : `No HPLC available with compatible detector (${getDetectorName(test.detectorTypeId)}) and matching column`;
+      
+    unscheduled.push({
+      ...test,
+      groupReason: reason,
+    });
+    console.log(`Unscheduled: ${test.testName} - ${reason}`);
+  }
+});
+
+
+      schedules.forEach((schedule) => {
+        if (schedule.tests.length > 1) {
+          const groupingResult = groupTests(schedule.tests);
+          schedule.tests = groupingResult.tests;
+          schedule.groups = groupingResult.groups;
+          schedule.totalTime = schedule.tests.reduce(
+            (sum, test) => sum + test.executionTime,
+            0
+          );
+        }
+      });
+
+      const nonEmptySchedules = schedules.filter(
+        (schedule) => schedule.tests.length > 0
+      );
+
+      console.log(
+        "Final schedules:",
+        nonEmptySchedules.map((s) => `${s.hplcName}: ${s.tests.length} tests`)
+      );
+      console.log("Unscheduled tests:", unscheduled.length);
+
+      setHplcSchedules(nonEmptySchedules);
+      setUnscheduledTests(unscheduled);
+    } catch (error) {
+      console.error("Error in scheduling:", error);
+    } finally {
+      setScheduling(false);
+    }
+  };
+
+  const getPriorityValue = (priority: string): number => {
+    switch (priority.toLowerCase()) {
+      case "urgent":
+        return 3;
+      case "high":
+        return 2;
+      case "normal":
+        return 1;
+      case "low":
+        return 0;
+      default:
+        return 1;
+    }
+  };
+
+  const getMobilePhaseKey = (mobilePhaseCodes: string[]): string => {
+    return mobilePhaseCodes
+      .filter((code) => code.trim() !== "")
+      .sort()
+      .join("-");
+  };
+
+  const groupTests = (
+    tests: ScheduledTest[],
+    existingTests: ScheduledTest[] = []
+  ): { tests: ScheduledTest[]; groups: GroupInfo[] } => {
+    const groups: GroupInfo[] = [];
+    const processedTests: ScheduledTest[] = [];
+    const usedTestIds = new Set<string>();
+    const apiTestMap = new Map<string, ScheduledTest[]>();
+
+    if (tests.length <= 1 && existingTests.length === 0) {
+      return tests.length === 0
+        ? { tests: [], groups: [] }
+        : { tests: tests, groups: [] };
+    }
+
+    const allTests = [...existingTests, ...tests];
+    const columnMobilePhaseGroups = new Map<string, ScheduledTest[]>();
+
+    allTests.forEach((test, index) => {
+      // Prefer unique apiNameId if available, fallback to label
+const apiKey = test.apiId 
+  ? `${test.apiId}-${index}` 
+  : `${test.apiLabel}-${index}` || "NA";
+
+      if (!apiTestMap.has(apiKey)) {
+        apiTestMap.set(apiKey, []);
+      }
+      apiTestMap.get(apiKey)!.push(test);
+    });
+
+    // Log API distribution
+    console.log(
+      "API distribution in grouping:",
+      Array.from(apiTestMap.entries()).map(
+        ([api, tests]) => `${api}: ${tests.length} tests`
+      )
+    );
+
+    allTests.forEach((test, index) => {
+      const mobilePhaseKey = getMobilePhaseKey(test.mobilePhaseCodes);
+    const key = `${test.columnCode}-${mobilePhaseKey}-${test.detectorTypeId}-${index}`;
+;
+
+      if (!columnMobilePhaseGroups.has(key)) {
+        columnMobilePhaseGroups.set(key, []);
+      }
+      columnMobilePhaseGroups.get(key)!.push(test);
+    });
+
+    columnMobilePhaseGroups.forEach((columnTests, columnKey) => {
+      if (columnTests.length > 1) {
+        const groupId = `group-${groups.length + 1}`;
+        const groupAnalysis = calculateGroupedCounts(columnTests);
+        const originalGroupTime =
+          groupAnalysis.originalTime > 0 ? groupAnalysis.originalTime : 0;
+        const optimizedGroupTime =
+          groupAnalysis.totalTime > 0 ? groupAnalysis.totalTime : 0;
+        const totalTimeSaved =
+          groupAnalysis.timeSaved > 0 ? groupAnalysis.timeSaved : 0;
+
+        const [columnCode, mobilePhaseKey, detectorId] = columnKey.split("-");
+
+        const group: GroupInfo = {
+          id: groupId,
+          detectorId,
+          columnCode,
+          mobilePhaseKey,
+          reason: `Saved ${totalTimeSaved.toFixed(1)} min (${
+            originalGroupTime > 0
+              ? ((totalTimeSaved / originalGroupTime) * 100).toFixed(1)
+              : "0"
+          }%) by grouping ${columnTests.length} tests`,
+          tests: columnTests.map((test, index) => {
+            const isFirstTest = index === 0;
+            let individualTimeSaved = 0;
+
+            if (!isFirstTest && test.originalTest) {
+              const testBreakdown = computeOptimizedCounts(test.originalTest);
+              const skippedInjections =
+                testBreakdown.totalCountedInjections -
+                safeNumber(test.originalTest.sampleInjection);
+              const runtime = safeNumber(test.originalTest.runTime, 1);
+              individualTimeSaved = skippedInjections * runtime;
+            }
+
+            return {
+              ...test,
+              groupId,
+              groupReason: isFirstTest
+                ? `Lead test in group of ${columnTests.length} (full injections)`
+                : `Grouped test (only samples repeated, saved ${individualTimeSaved.toFixed(
+                    1
+                  )} min)`,
+              isGrouped: true,
+              executionTime: isFirstTest
+                ? test.originalExecutionTime
+                : test.originalTest
+                ? safeNumber(test.originalTest.sampleInjection, 0) *
+                  safeNumber(test.originalTest.runTime, 1)
+                : 0,
+              timeSaved: individualTimeSaved,
+            };
+          }),
+          totalTime: optimizedGroupTime,
+          originalTotalTime: originalGroupTime,
+          timeSaved: totalTimeSaved,
+        };
+
+        groups.push(group);
+        group.tests.forEach((test) => {
+          processedTests.push(test);
+          usedTestIds.add(test.id);
+        });
+      }
+    });
+
+    tests.forEach((test) => {
+      if (!usedTestIds.has(test.id)) {
+        processedTests.push(test);
+      }
+    });
+
+    return { tests: processedTests, groups };
+  };
+
+  // NEW: Function to recalculate all values after reordering
+  const recalculateSchedules = (updatedSchedules: HPLCSchedule[]) => {
+    const recalculatedSchedules = updatedSchedules.map((schedule) => {
+      if (schedule.tests.length > 1) {
+        // Re-apply grouping optimization
+        const groupingResult = groupTests(schedule.tests, []);
+        schedule.tests = groupingResult.tests;
+        schedule.groups = groupingResult.groups;
+      }
+
+      // Recalculate total time
+      schedule.totalTime = schedule.tests.reduce(
+        (sum, test) => sum + test.executionTime,
+        0
+      );
+
+      return schedule;
+    });
+
+    setHplcSchedules(recalculatedSchedules);
+  };
+
+  // NEW: Handle drag start
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const testId = active.id as string;
+
+    // Find the test being dragged
+    const draggedTest = hplcSchedules
+      .flatMap((schedule) => schedule.tests)
+      .find((test) => test.id === testId);
+
+    setActiveTest(draggedTest || null);
+  };
+
+  // NEW: Handle drag over (for visual feedback)
+  const handleDragOver = (event: DragOverEvent) => {
+    const { over } = event;
+
+    if (over) {
+      const overId = over.id as string;
+      // Check if dragging over an HPLC container
+      const overHPLC = hplcSchedules.find(
+        (schedule) =>
+          schedule.hplcId === overId ||
+          schedule.tests.some((test) => test.id === overId)
+      );
+
+      if (overHPLC) {
+        setDraggedOverHPLC(overHPLC.hplcId);
+      }
+    } else {
+      setDraggedOverHPLC(null);
+    }
+  };
+
+  // NEW: Handle drag end - this is where the magic happens
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || !activeTest) {
+      setActiveTest(null);
+      setDraggedOverHPLC(null);
+      return;
+    }
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    // Find source and destination
+    const sourceScheduleIndex = hplcSchedules.findIndex((schedule) =>
+      schedule.tests.some((test) => test.id === activeId)
+    );
+    const sourceTestIndex = hplcSchedules[sourceScheduleIndex]?.tests.findIndex(
+      (test) => test.id === activeId
+    );
+
+    let destinationScheduleIndex = -1;
+    let destinationTestIndex = -1;
+
+    // Check if dropping on another test (for reordering within HPLC)
+    const overTest = hplcSchedules
+      .flatMap((schedule, scheduleIndex) =>
+        schedule.tests.map((test, testIndex) => ({
+          test,
+          scheduleIndex,
+          testIndex,
+        }))
+      )
+      .find((item) => item.test.id === overId);
+
+    if (overTest) {
+      destinationScheduleIndex = overTest.scheduleIndex;
+      destinationTestIndex = overTest.testIndex;
+    } else {
+      // Check if dropping on HPLC container (for cross-HPLC movement)
+      destinationScheduleIndex = hplcSchedules.findIndex(
+        (schedule) => schedule.hplcId === overId
+      );
+      if (destinationScheduleIndex >= 0) {
+        destinationTestIndex =
+          hplcSchedules[destinationScheduleIndex].tests.length;
+      }
+    }
+
+    if (sourceScheduleIndex === -1 || destinationScheduleIndex === -1) {
+      setActiveTest(null);
+      setDraggedOverHPLC(null);
+      return;
+    }
+
+    const updatedSchedules = [...hplcSchedules];
+    const [movedTest] = updatedSchedules[sourceScheduleIndex].tests.splice(
+      sourceTestIndex,
+      1
+    );
+
+    if (sourceScheduleIndex === destinationScheduleIndex) {
+      // Reordering within same HPLC
+      const adjustedDestIndex =
+        destinationTestIndex > sourceTestIndex
+          ? destinationTestIndex - 1
+          : destinationTestIndex;
+      updatedSchedules[destinationScheduleIndex].tests.splice(
+        adjustedDestIndex,
+        0,
+        movedTest
+      );
+    } else {
+      // Moving between HPLCs
+      updatedSchedules[destinationScheduleIndex].tests.splice(
+        destinationTestIndex,
+        0,
+        movedTest
+      );
+    }
+
+    // Update sort orders
+    updatedSchedules.forEach((schedule) => {
+      schedule.tests.forEach((test, index) => {
+        test.sortOrder = index + 1;
+      });
+    });
+
+    // Recalculate all algorithmic values
+    recalculateSchedules(updatedSchedules);
+
+    setActiveTest(null);
+    setDraggedOverHPLC(null);
+  };
+
+  // Your existing initialization
+  useEffect(() => {
+    fetchInitialData();
+  }, []);
+
+  
+
+  const fetchInitialData = async () => {
+    setLoading(true);
+    try {
+      await Promise.all([
+        fetchBatchData(),
+        fetchHPLCMaster(),
+        fetchAPIMaster(),
+        fetchColumnMaster(),
+        fetchDetectorMaster(),
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (
+      batchData.length > 0 &&
+      hplcMaster.length > 0 &&
+      Object.keys(apiMaster).length > 0 &&
+      Object.keys(columnMaster).length > 0
+    ) {
+      autoStartScheduling(batchData, hplcMaster);
+    }
+  }, [batchData, hplcMaster, apiMaster, columnMaster]);
+
+  // Loading states
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading scheduling data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (scheduling) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Processing scheduling...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#ddebfc] p-2">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-4 flex justify-between items-center">
+          <h1 className="text-lg font-bold text-gray-800">
+            HPLC Test Scheduling Algorithm with Drag & Drop
+          </h1>
+          <div className="flex space-x-3 text-xs text-gray-600">
+            <span>Total Batches: {batchData.length}</span>
+            <span>
+              Available HPLCs:{" "}
+              {hplcMaster.filter((h) => h.status === "available").length}
+            </span>
+          </div>
+        </div>
+
+        {hplcSchedules.length === 0 && unscheduledTests.length === 0 ? (
+          <div className="bg-white rounded-lg shadow-sm p-4 text-center">
+            <p className="text-gray-500 text-sm">
+              No tests found for scheduling. Please ensure there are batches
+              with tests in 'not started' status.
+            </p>
+          </div>
+        ) : (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="grid grid-cols-2 gap-3 h-[calc(100vh-120px)] overflow-auto">
+              {hplcSchedules.map((schedule) => (
+                <div
+                  key={schedule.hplcId}
+                  className={`bg-white border border-gray-200 rounded-lg shadow-sm flex flex-col ${
+                    draggedOverHPLC === schedule.hplcId
+                      ? "ring-2 ring-blue-400 bg-blue-50"
+                      : ""
+                  }`}
+                >
+                  {/* HPLC Header */}
+                  <div className="p-2 border-b border-gray-200">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <div className="text-gray-800 text-xs font-medium">
+                          {schedule.hplcName}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {schedule.tests.length} tests •{" "}
+                          {formatTime(schedule.totalTime)}
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="text-xs text-gray-500">Column</div>
+                        {schedule.tests.length > 0 &&
+                          columnMaster[schedule.tests[0]?.columnCode] && (
+                            <div
+                              className="text-[10px] text-gray-600 truncate max-w-[200px]"
+                              title={
+                                columnMaster[schedule.tests[0]?.columnCode]
+                              }
+                            >
+                              {columnMaster[schedule.tests[0]?.columnCode]}
+                            </div>
+                          )}
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center mt-1">
+                      <div className="text-xs text-gray-500">
+                        Detector:{" "}
+                        <span className="text-gray-800">
+                          {schedule.tests.length > 0
+                            ? getDetectorName(schedule.tests[0].detectorTypeId)
+                            : "NA"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tests Table */}
+                  {schedule.tests.length > 0 ? (
+                    <div className="flex-1 overflow-auto">
+                      <SortableContext
+                        items={schedule.tests.map((test) => test.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <table className="w-full text-xs border-collapse">
+                          <thead className="sticky top-0 bg-gray-50">
+                            <tr>
+                              <th className="px-1 py-1 text-left text-gray-600 font-medium border-r border-gray-200 w-12">
+                                Sr No.
+                              </th>
+                              <th className="px-1 py-1 text-left text-gray-600 font-medium border-r border-gray-200">
+                                Product Name
+                              </th>
+                              <th className="px-1 py-1 text-left text-gray-600 font-medium border-r border-gray-200">
+                                Product Code
+                              </th>
+                              <th className="px-1 py-1 text-left text-gray-600 font-medium border-r border-gray-200">
+                                MFC Number
+                              </th>
+                              <th className="px-1 py-1 text-left text-gray-600 font-medium border-r border-gray-200">
+                                API Name
+                              </th>
+                              <th className="px-1 py-1 text-left text-gray-600 font-medium border-r border-gray-200">
+                                Pharmacopoeial
+                              </th>
+                              <th className="px-1 py-1 text-left text-gray-600 font-medium border-r border-gray-200">
+                                Type of Sample
+                              </th>
+                              <th className="px-1 py-1 text-left text-gray-600 font-medium border-r border-gray-200">
+                                Mobile Phases
+                              </th>
+                              <th className="px-1 py-1 text-left text-gray-600 font-medium border-r border-gray-200">
+                                Washes
+                              </th>
+                              <th className="px-1 py-1 text-left text-gray-600 font-medium border-r border-gray-200">
+                                Batch
+                              </th>
+                              <th className="px-1 py-1 text-left text-gray-600 font-medium border-r border-gray-200">
+                                Test
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Pri
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Sample Inj
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Std Inj
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Blank Inj
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Sys Suit
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Sens
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Placebo
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Ref1
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Ref2
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Bracket Freq
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Run Time
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Blank RT
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Std RT
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Sample RT
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Sys Suit RT
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Sens RT
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Placebo RT
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Ref1 RT
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Ref2 RT
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Wash Time
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Time
+                              </th>
+                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                                Act
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {schedule.tests.map((test, index) => (
+                              <DraggableTestRow
+                                key={test.id}
+                                test={test}
+                                index={index}
+                                batchData={batchData}
+                                apiMaster={apiMaster}
+                                columnMaster={columnMaster}
+                                setSelectedTestForCalculation={
+                                  setSelectedTestForCalculation
+                                }
+                                getDetectorName={getDetectorName}
+                              />
+                            ))}
+                          </tbody>
+                        </table>
+                      </SortableContext>
+                    </div>
+                  ) : (
+                    <div
+                      className="p-3 text-center text-gray-500 text-xs min-h-[100px] flex items-center justify-center border-2 border-dashed border-gray-300 m-2 rounded"
+                      data-hplc-id={schedule.hplcId}
+                    >
+                      Drop tests here or no tests assigned
+                    </div>
+                  )}
+
+                  {/* Groups Summary */}
+                  {schedule.groups.length > 0 && (
+                    <div className="border-t border-gray-200 bg-green-50 p-2">
+                      <div className="text-[10px] text-green-600">
+                        {schedule.groups.length} optimization group
+                        {schedule.groups.length !== 1 ? "s" : ""} • Saved{" "}
+                        {schedule.groups
+                          .reduce((sum, group) => sum + group.timeSaved, 0)
+                          .toFixed(1)}{" "}
+                        min total
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Drag Overlay */}
+            <DragOverlay>
+              {activeTest ? (
+                <div className="bg-white shadow-lg rounded p-2 border-2 border-blue-400">
+                  <div className="text-xs font-medium">
+                    {activeTest.testName}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {activeTest.productName}
+                  </div>
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        )}
+
+        {/* Calculation Modal */}
+        {selectedTestForCalculation && (
+          <CalculationModal
+            test={selectedTestForCalculation}
+            isOpen={selectedTestForCalculation !== null}
+            onClose={() => setSelectedTestForCalculation(null)}
+          />
+        )}
+      </div>
+    </div>
+  );
+}

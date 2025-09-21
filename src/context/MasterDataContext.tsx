@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
@@ -15,6 +15,25 @@ interface MasterDataItem {
   locationId?: string;
 }
 
+interface MobilePhaseItem {
+  _id: string;
+  mobilePhaseId: string;
+  mobilePhaseCode: string;
+  isSolvent: boolean;
+  isBuffer: boolean;
+  bufferName?: string;
+  solventName?: string;
+  chemicals: string[];
+  pHValue?: number;
+  description: string;
+  companyId: string;
+  locationId: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
 interface OptionType {
   value: string;
   label: string;
@@ -27,9 +46,12 @@ interface MasterDataState {
   detectorTypes: MasterDataItem[];
   pharmacopoeials: MasterDataItem[];
   columns: MasterDataItem[];
+  mobilePhases: MobilePhaseItem[];
   isLoading: boolean;
+  isMobilePhasesLoading: boolean; // Separate loading state for mobile phases
   error: string | null;
   lastUpdated: string | null;
+  mobilePhasesLastUpdated: string | null; // Separate last updated for mobile phases
 }
 
 interface MasterDataContextType extends MasterDataState {
@@ -39,14 +61,19 @@ interface MasterDataContextType extends MasterDataState {
   getDetectorTypeOptions: () => OptionType[];
   getPharmacopoeialOptions: () => OptionType[];
   getColumnOptions: () => OptionType[];
+  getMobilePhaseOptions: () => OptionType[];
   refreshData: () => Promise<void>;
+  refreshMobilePhases: () => Promise<void>; // New method for refreshing only mobile phases
+  clearMobilePhaseCache: () => void; // Method to clear mobile phase cache
 }
 
 const MasterDataContext = createContext<MasterDataContextType | undefined>(undefined);
 
 const STORAGE_KEYS = {
   MASTER_DATA: 'masterData',
+  MOBILE_PHASES: 'mobilePhases',
   LAST_UPDATED: 'masterDataLastUpdated',
+  MOBILE_PHASES_LAST_UPDATED: 'mobilePhasesLastUpdated',
 };
 
 const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
@@ -63,9 +90,12 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
     detectorTypes: [],
     pharmacopoeials: [],
     columns: [],
+    mobilePhases: [],
     isLoading: true,
+    isMobilePhasesLoading: false,
     error: null,
     lastUpdated: null,
+    mobilePhasesLastUpdated: null,
   });
 
   // Get company and location IDs from localStorage (client-side only)
@@ -82,32 +112,28 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
     }
   };
 
-  // Load data from localStorage
-  const loadFromCache = (): boolean => {
+  // Load master data from localStorage
+  const loadMasterDataFromCache = (): boolean => {
     if (typeof window === "undefined") return false;
     
     try {
       const cachedData = localStorage.getItem(STORAGE_KEYS.MASTER_DATA);
       const lastUpdated = localStorage.getItem(STORAGE_KEYS.LAST_UPDATED);
       
-      
       if (!cachedData || !lastUpdated) return false;
       
       const cacheAge = Date.now() - parseInt(lastUpdated);
       if (cacheAge > CACHE_DURATION) {
-        console.log('Cache is stale, removing...'); // Debug log
         localStorage.removeItem(STORAGE_KEYS.MASTER_DATA);
         localStorage.removeItem(STORAGE_KEYS.LAST_UPDATED);
         return false;
       }
 
       const parsedData = JSON.parse(cachedData);
-      console.log('Loaded from cache:', parsedData); // Debug log
       
       setState(prev => ({
         ...prev,
         ...parsedData,
-        isLoading: false,
         lastUpdated: new Date(parseInt(lastUpdated)).toISOString(),
       }));
       
@@ -118,8 +144,42 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
     }
   };
 
-  // Save data to localStorage
-  const saveToCache = (data: Partial<MasterDataState>) => {
+  // Load mobile phases from localStorage
+  const loadMobilePhasesFromCache = (): boolean => {
+    if (typeof window === "undefined") return false;
+    
+    try {
+      const cachedData = localStorage.getItem(STORAGE_KEYS.MOBILE_PHASES);
+      const lastUpdated = localStorage.getItem(STORAGE_KEYS.MOBILE_PHASES_LAST_UPDATED);
+      
+      if (!cachedData || !lastUpdated) return false;
+      
+      const cacheAge = Date.now() - parseInt(lastUpdated);
+      if (cacheAge > CACHE_DURATION) {
+        localStorage.removeItem(STORAGE_KEYS.MOBILE_PHASES);
+        localStorage.removeItem(STORAGE_KEYS.MOBILE_PHASES_LAST_UPDATED);
+        return false;
+      }
+
+      const mobilePhases = JSON.parse(cachedData);
+      const mobilePhasesLastUpdated = new Date(parseInt(lastUpdated)).toISOString();
+      
+      setState(prev => ({
+        ...prev,
+        mobilePhases,
+        mobilePhasesLastUpdated,
+        isMobilePhasesLoading: false,
+      }));
+      
+      return true;
+    } catch (error) {
+      console.error('Error loading mobile phases from cache:', error);
+      return false;
+    }
+  };
+
+  // Save master data to localStorage
+  const saveMasterDataToCache = (data: Partial<MasterDataState>) => {
     if (typeof window === "undefined") return;
     
     try {
@@ -139,16 +199,96 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
     }
   };
 
+  // Save mobile phases to localStorage
+  const saveMobilePhasesToCache = (mobilePhases: MobilePhaseItem[]) => {
+    if (typeof window === "undefined") return;
+    
+    try {
+      localStorage.setItem(STORAGE_KEYS.MOBILE_PHASES, JSON.stringify(mobilePhases));
+      localStorage.setItem(STORAGE_KEYS.MOBILE_PHASES_LAST_UPDATED, Date.now().toString());
+    } catch (error) {
+      console.error('Error saving mobile phases to cache:', error);
+    }
+  };
+
+  // Clear mobile phase cache
+  const clearMobilePhaseCache = () => {
+    if (typeof window === "undefined") return;
+    
+    try {
+      localStorage.removeItem(STORAGE_KEYS.MOBILE_PHASES);
+      localStorage.removeItem(STORAGE_KEYS.MOBILE_PHASES_LAST_UPDATED);
+      console.log('Mobile phase cache cleared');
+    } catch (error) {
+      console.error('Error clearing mobile phase cache:', error);
+    }
+  };
+
+  // Fetch mobile phases from API
+  const fetchMobilePhases = async (forceRefresh: boolean = false): Promise<void> => {
+    try {
+      if (forceRefresh) {
+        setState(prev => ({ ...prev, isMobilePhasesLoading: true }));
+      }
+
+      const { companyId, locationId } = getStorageIds();
+      
+      if (!companyId || !locationId) {
+        console.warn('Missing companyId or locationId for mobile phases');
+        setState(prev => ({ ...prev, isMobilePhasesLoading: false }));
+        return;
+      }
+
+      const response = await fetch(
+        `/api/admin/mobile-phase?companyId=${companyId}&locationId=${locationId}&_t=${Date.now()}` // Add timestamp to prevent caching
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch mobile phases: ${response.status}`);
+      }
+
+      const apiResponse = await response.json();
+      
+      if (apiResponse.success && apiResponse.data) {
+        const mobilePhases = apiResponse.data;
+        const mobilePhasesLastUpdated = new Date().toISOString();
+        
+        setState(prev => ({
+          ...prev,
+          mobilePhases,
+          mobilePhasesLastUpdated,
+          isMobilePhasesLoading: false,
+        }));
+        
+        saveMobilePhasesToCache(mobilePhases);
+        
+        if (forceRefresh) {
+          console.log(`Refreshed ${mobilePhases.length} mobile phases`);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching mobile phases:', error);
+      setState(prev => ({ ...prev, isMobilePhasesLoading: false }));
+      // Don't set error state for mobile phases, just log it
+    }
+  };
+
+  // New method to refresh only mobile phases
+  const refreshMobilePhases = async (): Promise<void> => {
+    console.log('Refreshing mobile phases...');
+    clearMobilePhaseCache(); // Clear cache first to ensure fresh data
+    await fetchMobilePhases(true); // Force refresh
+  };
+
   // Fetch master data from bulk API
   const fetchMasterData = async (): Promise<void> => {
     try {
-      setState(prev => ({ ...prev, isLoading: true, error: null }));
+      setState(prev => ({ ...prev, error: null }));
 
       const { companyId, locationId } = getStorageIds();
       
       if (!companyId || !locationId) {
         const errorMsg = 'Company ID and Location ID are required. Please ensure you are logged in.';
-        console.error(errorMsg, { companyId, locationId }); // Debug log
         setState(prev => ({
           ...prev,
           isLoading: false,
@@ -164,13 +304,10 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('API Error:', errorText); // Debug log
         throw new Error(`Failed to fetch master data: ${response.status} - ${errorText}`);
       }
 
       const apiResponse = await response.json();
-      
-      // ✅ FIXED: Correct data access pattern
       const responseData = apiResponse.data || apiResponse;
       
       const newState = {
@@ -179,14 +316,17 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
         testTypes: responseData.testTypes || [],
         detectorTypes: responseData.detectorTypes || [],
         pharmacopoeials: responseData.pharmacopoeials || [],
-        columns: responseData.columns || [], // This might be empty if not included in API
+        columns: responseData.columns || [],
         isLoading: false,
         error: null,
         lastUpdated: new Date().toISOString(),
       };
 
       setState(prev => ({ ...prev, ...newState }));
-      saveToCache(newState);
+      saveMasterDataToCache(newState);
+      
+      // Fetch mobile phases in background
+      fetchMobilePhases();
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch master data';
@@ -201,74 +341,88 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
 
   // Helper functions to get options for dropdowns
   const getApiOptions = (): OptionType[] => {
-    const options = state.apis.map(item => ({
+    return state.apis.map(item => ({
       value: item._id,
       label: item.api || item.name || 'Unknown API'
     }));
-    return options;
   };
 
   const getDepartmentOptions = (): OptionType[] => {
-    const options = state.departments.map(item => ({
+    return state.departments.map(item => ({
       value: item._id,
       label: item.department || item.name || 'Unknown Department'
     }));
-    return options;
   };
 
   const getTestTypeOptions = (): OptionType[] => {
-    const options = state.testTypes.map(item => ({
+    return state.testTypes.map(item => ({
       value: item._id,
       label: item.testType || item.name || 'Unknown Test Type'
     }));
-    return options;
   };
 
   const getDetectorTypeOptions = (): OptionType[] => {
-    const options = state.detectorTypes.map(item => ({
+    return state.detectorTypes.map(item => ({
       value: item._id,
       label: item.detectorType || item.name || 'Unknown Detector Type'
     }));
-    return options;
   };
 
   const getPharmacopoeialOptions = (): OptionType[] => {
-    const options = state.pharmacopoeials.map(item => ({
+    return state.pharmacopoeials.map(item => ({
       value: item._id,
-      label: item.pharmacopeial || item.name || 'Unknown Pharmacopoeial'
+      label: item.pharmacopeial || item.name || 'Unknown Pharmacopeial'
     }));
-    return options;
   };
 
   const getColumnOptions = (): OptionType[] => {
-    const options = state.columns.map(item => ({
+    return state.columns.map(item => ({
       value: item._id,
       label: item.columnCode || item.name || 'Unknown Column'
     }));
-    return options;
   };
 
-  // Initialize data loading
+  const getMobilePhaseOptions = (): OptionType[] => {
+    return state.mobilePhases.map(item => ({
+      value: item.mobilePhaseCode,
+      label: `${item.mobilePhaseCode} - ${item.isBuffer ? item.bufferName : item.solventName}`
+    }));
+  };
+
+  // Initialize data loading with instant cache loading
   useEffect(() => {
     const initializeData = async () => {
-      
-      // Only proceed if we're on the client side
       if (typeof window === "undefined") return;
       
-      // Wait a bit for the component to mount and localStorage to be available
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 50));
       
-      // First, try to load from cache for instant display
-      const cacheLoaded = loadFromCache();
+      // Load master data from cache first for instant display
+      const masterDataLoaded = loadMasterDataFromCache();
       
-      if (!cacheLoaded) {
-        // No cache, fetch from API
+      // Load mobile phases from cache instantly
+      const mobilePhasesLoaded = loadMobilePhasesFromCache();
+      
+      if (!masterDataLoaded) {
+        // No master data cache, fetch from API
         await fetchMasterData();
       } else {
-        // Cache loaded, fetch in background to refresh
+        // Cache loaded, set loading to false immediately
+        setState(prev => ({ ...prev, isLoading: false }));
+        
+        // Fetch in background to refresh data
         setTimeout(() => {
           fetchMasterData();
         }, 1000);
+      }
+      
+      // If mobile phases weren't in cache, fetch them
+      if (!mobilePhasesLoaded) {
+        fetchMobilePhases();
+      } else {
+        // Refresh mobile phases in background
+        setTimeout(() => {
+          fetchMobilePhases();
+        }, 2000);
       }
     };
 
@@ -283,7 +437,10 @@ export const MasterDataProvider: React.FC<MasterDataProviderProps> = ({ children
     getDetectorTypeOptions,
     getPharmacopoeialOptions,
     getColumnOptions,
+    getMobilePhaseOptions,
     refreshData: fetchMasterData,
+    refreshMobilePhases, // New method
+    clearMobilePhaseCache, // New method
   };
 
   return (

@@ -89,6 +89,9 @@ function MobilePhaseMaster() {
   const [locationId, setLocationId] = useState<string | null>(null);
   const [filterSolvent, setFilterSolvent] = useState(false);
   const [filterBuffer, setFilterBuffer] = useState(false);
+  const [sortBy, setSortBy] = useState<'name' | 'mobilePhaseCode'>('name'); // Default to name
+const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
 
   const inputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -118,6 +121,9 @@ function MobilePhaseMaster() {
       }
     }
   }, [status, router]);
+
+ 
+
 
   const fetchChemicals = async () => {
     try {
@@ -174,9 +180,7 @@ function MobilePhaseMaster() {
               mp.companyId === companyId &&
               mp.locationId === locationId
           )
-          .sort((a: MobilePhase, b: MobilePhase) =>
-            a.mobilePhaseCode.localeCompare(b.mobilePhaseCode)
-          );
+          ;
         setMobilePhases(validMobilePhases);
         if (validMobilePhases.length < data.data.length) {
           setError(
@@ -290,6 +294,24 @@ function MobilePhaseMaster() {
     if (filterBuffer) return mp.isBuffer;
     return false;
   });
+
+   const sortedMobilePhases = displayedMobilePhases.sort((a, b) => {
+  let aValue: string;
+  let bValue: string;
+  
+  if (sortBy === 'name') {
+    // Sort by buffer name or solvent name
+    aValue = (a.bufferName || a.solventName || '').toLowerCase();
+    bValue = (b.bufferName || b.solventName || '').toLowerCase();
+  } else {
+    // Sort by mobile phase code
+    aValue = a.mobilePhaseCode.toLowerCase();
+    bValue = b.mobilePhaseCode.toLowerCase();
+  }
+  
+  const comparison = aValue.localeCompare(bValue);
+  return sortOrder === 'asc' ? comparison : -comparison;
+});
 
   const handleAddNew = async () => {
     const newMobilePhaseId = await generateMobilePhaseId();
@@ -929,42 +951,61 @@ function MobilePhaseMaster() {
               backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
             }}
           >
-            <div
-              className="p-4 border-b border-[#a6c8ff]"
-              style={{
-                backgroundImage: "linear-gradient(to bottom, #f0f0f0, #ffffff)",
-              }}
-            >
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-800">
-                  Mobile Phases ({displayedMobilePhases.length})
-                </h2>
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={filterSolvent}
-                      onChange={(e) => setFilterSolvent(e.target.checked)}
-                      className="h-5 w-5 text-[#0055a4] border-[#a6c8ff] rounded focus:ring-[#66a3ff]"
-                    />
-                    <label className="text-sm font-medium text-gray-700">
-                      Show Solvents
-                    </label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={filterBuffer}
-                      onChange={(e) => setFilterBuffer(e.target.checked)}
-                      className="h-5 w-5 text-[#0055a4] border-[#a6c8ff] rounded focus:ring-[#66a3ff]"
-                    />
-                    <label className="text-sm font-medium text-gray-700">
-                      Show Buffers
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <div className="p-4 border-b border-[#a6c8ff]" style={{
+  backgroundImage: "linear-gradient(to bottom, #f0f0f0, #ffffff)",
+}}>
+  <div className="flex items-center justify-between">
+    <h2 className="text-lg font-semibold text-gray-800">
+      Mobile Phases ({sortedMobilePhases.length})
+    </h2>
+    <div className="flex items-center space-x-4">
+      {/* Sort Controls */}
+      <div className="flex items-center space-x-2">
+        <label className="text-sm font-medium text-gray-700">Sort by:</label>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as 'name' | 'mobilePhaseCode')}
+          className="px-2 py-1 border border-[#a6c8ff] rounded text-sm focus:ring-2 focus:ring-[#66a3ff] focus:outline-none bg-white"
+        >
+          <option value="name">Name</option>
+          <option value="mobilePhaseCode">Mobile Phase Code</option>
+        </select>
+        <button
+          onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+          className="px-2 py-1 bg-white border border-[#a6c8ff] rounded hover:bg-[#e6f0fa] text-sm focus:ring-2 focus:ring-[#66a3ff] focus:outline-none"
+          title={`Sort ${sortOrder === 'asc' ? 'Descending' : 'Ascending'}`}
+        >
+          {sortOrder === 'asc' ? '↑' : '↓'}
+        </button>
+      </div>
+      
+      {/* Existing Filter Controls */}
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          checked={filterSolvent}
+          onChange={(e) => setFilterSolvent(e.target.checked)}
+          className="h-5 w-5 text-[#0055a4] border-[#a6c8ff] rounded focus:ring-[#66a3ff]"
+        />
+        <label className="text-sm font-medium text-gray-700">
+          Show Solvents
+        </label>
+      </div>
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          checked={filterBuffer}
+          onChange={(e) => setFilterBuffer(e.target.checked)}
+          className="h-5 w-5 text-[#0055a4] border-[#a6c8ff] rounded focus:ring-[#66a3ff]"
+        />
+        <label className="text-sm font-medium text-gray-700">
+          Show Buffers
+        </label>
+      </div>
+    </div>
+  </div>
+</div>
+
 
             {loading ? (
               <div className="p-8 text-center">

@@ -9,6 +9,19 @@ interface Mfc {
   genericName?: string;
   companyId?: string;
   locationId?: string;
+  generics?: Array<{
+    genericName: string;
+    apis?: Array<{
+      apiName: string;
+      testTypes?: Array<{
+        testTypeId: string;
+        columnCode: string;
+        detectorTypeId: string;
+        pharmacopoeialId: string | string[];
+      }>;
+    }>;
+  }>;
+  departmentId?: string;
 }
 
 interface MFCSelectorProps {
@@ -17,6 +30,30 @@ interface MFCSelectorProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+}
+
+// Lookup interfaces
+interface LookupItem {
+  id: string;
+  value: string;
+  label?: string;
+  name?: string;
+  api?: string;
+  apiName?: string;
+  testType?: string;
+  detectorType?: string;
+  department?: string;
+  pharmacopeial?: string;
+  columnCode?: string;
+}
+
+interface LookupData {
+  testTypes: LookupItem[];
+  detectorTypes: LookupItem[];
+  departments: LookupItem[];
+  apis: LookupItem[];
+  columns: LookupItem[];
+  pharmacopoeials: LookupItem[];
 }
 
 const getStorageIds = () => {
@@ -40,10 +77,208 @@ const MFCSelector: React.FC<MFCSelectorProps> = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredMfcs, setFilteredMfcs] = useState<Mfc[]>([]);
   
+  // Lookup data states
+  const [lookupData, setLookupData] = useState<LookupData>({
+    testTypes: [] as LookupItem[],
+    detectorTypes: [] as LookupItem[],
+    departments: [] as LookupItem[],
+    apis: [] as LookupItem[],
+    columns: [] as LookupItem[],
+    pharmacopoeials: [] as LookupItem[],
+  });
+  
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const { companyId, locationId } = getStorageIds();
+
+  // Normalize API response to value, label format
+  const normalizeToMasterFormat = (data: any[]): LookupItem[] => {
+    if (!Array.isArray(data)) return [];
+    
+    return data.map(item => ({
+      id: item.id || item.value || item._id || "",
+      value: item.id || item.value || item._id || "",
+      label: item.detectorType || item.testType || item.api || item.apiName || item.department || 
+             item.columnCode || item.pharmacopeial || item.name || item.label || item.code || 
+             item.description || item.value || "",
+      name: item.name || item.label || "",
+      api: item.api || "",
+      apiName: item.api || item.apiName || item.name || item.label || "",
+      testType: item.testType || "",
+      detectorType: item.detectorType || "",
+      department: item.department || "",
+      pharmacopeial: item.pharmacopeial || "",
+      columnCode: item.columnCode || "",
+    }));
+  };
+
+  // Fetch lookup data
+  const fetchLookupData = async () => {
+    if (!companyId || !locationId) return;
+
+    try {
+      const params = new URLSearchParams({ companyId, locationId });
+      
+      const [
+        testTypesRes,
+        detectorTypesRes,
+        departmentsRes,
+        apisRes,
+        columnsRes,
+        pharmacopoeialsRes,
+      ] = await Promise.all([
+        fetch(`/api/admin/test-type?${params}`).catch(() => null),
+        fetch(`/api/admin/detector-type?${params}`).catch(() => null),
+        fetch(`/api/admin/department?${params}`).catch(() => null),
+        fetch(`/api/admin/api?${params}`).catch(() => null),
+        fetch(`/api/admin/column/getAll?${params}`).catch(() => null),
+        fetch(`/api/admin/pharmacopeial?${params}`).catch(() => null),
+      ]);
+
+      const lookups: LookupData = {
+        testTypes: [],
+        detectorTypes: [],
+        departments: [],
+        apis: [],
+        columns: [],
+        pharmacopoeials: [],
+      };
+
+      if (testTypesRes && testTypesRes.ok) {
+        const testTypesData = await testTypesRes.json();
+        lookups.testTypes = normalizeToMasterFormat(testTypesData.data || []);
+      }
+
+      if (detectorTypesRes && detectorTypesRes.ok) {
+        const detectorTypesData = await detectorTypesRes.json();
+        lookups.detectorTypes = normalizeToMasterFormat(detectorTypesData.data || []);
+      }
+
+      if (departmentsRes && departmentsRes.ok) {
+        const departmentsData = await departmentsRes.json();
+        lookups.departments = normalizeToMasterFormat(departmentsData.data || []);
+      }
+
+      if (apisRes && apisRes.ok) {
+        const apisData = await apisRes.json();
+        lookups.apis = normalizeToMasterFormat(apisData.data || []);
+      }
+
+      if (columnsRes && columnsRes.ok) {
+        const columnsData = await columnsRes.json();
+        lookups.columns = normalizeToMasterFormat(columnsData.data || []);
+      }
+
+      if (pharmacopoeialsRes && pharmacopoeialsRes.ok) {
+        const pharmacopoeialsData = await pharmacopoeialsRes.json();
+        lookups.pharmacopoeials = normalizeToMasterFormat(pharmacopoeialsData.data || []);
+      }
+
+      setLookupData(lookups);
+    } catch (error) {
+      console.error("Error fetching lookup data:", error);
+    }
+  };
+
+  // Helper functions to get names from lookup data
+  const getLabel = (id: string, master: LookupItem[]): string => {
+    if (!id || !Array.isArray(master)) return "";
+    const found = master.find(item => item.value === id || item.id === id);
+    return found ? (found.label || "") : id;
+  };
+
+  const getDepartmentName = (id: string) => getLabel(id, lookupData.departments);
+  const getTestTypeName = (id: string) => getLabel(id, lookupData.testTypes);
+  const getDetectorTypeName = (id: string) => getLabel(id, lookupData.detectorTypes);
+  
+  const getApiName = (id: string) => {
+    if (!id || !Array.isArray(lookupData.apis)) return "";
+    const found = lookupData.apis.find(item => item.value === id || item.id === id);
+    if (found) {
+      return found.api || found.apiName || found.label || found.name || id;
+    }
+    return id;
+  };
+
+  const getColumnName = (columnId: string) => {
+    if (!columnId || !Array.isArray(lookupData.columns)) return "";
+    const found = lookupData.columns.find(item => item.value === columnId || item.id === columnId);
+    return found ? (found.columnCode || found.label || columnId) : columnId;
+  };
+
+  const getPharmacopoeialsName = (ids: string | string[]): string => {
+    if (!ids || !Array.isArray(lookupData.pharmacopoeials)) return "";
+    const idArray = Array.isArray(ids) ? ids : [ids];
+    const names = idArray.map(id => {
+      const found = lookupData.pharmacopoeials.find(item => item.value === id || item.id === id);
+      return found ? (found.label || "") : "";
+    }).filter(Boolean);
+    return names.join(", ");
+  };
+
+  // Get MFC details for display including test types
+  const getMfcDisplayDetails = (mfc: Mfc): string[] => {
+    const details: string[] = [];
+
+    // Department
+    if (mfc.departmentId) {
+      const deptName = getDepartmentName(mfc.departmentId);
+      if (deptName && deptName !== mfc.departmentId) {
+        details.push(`Dept: ${deptName}`);
+      }
+    }
+
+    // Generics info
+    if (mfc.generics && mfc.generics.length > 0) {
+      const genericCount = mfc.generics.length;
+      details.push(`${genericCount} Generic${genericCount > 1 ? 's' : ''}`);
+      
+      // API count
+      const totalApis = mfc.generics.reduce((total, generic) => {
+        return total + (generic.apis ? generic.apis.length : 0);
+      }, 0);
+      if (totalApis > 0) {
+        details.push(`${totalApis} API${totalApis > 1 ? 's' : ''}`);
+      }
+
+      // Test type count
+      const totalTestTypes = mfc.generics.reduce((total, generic) => {
+        return total + (generic.apis ? generic.apis.reduce((apiTotal, api) => {
+          return apiTotal + (api.testTypes ? api.testTypes.length : 0);
+        }, 0) : 0);
+      }, 0);
+      if (totalTestTypes > 0) {
+        details.push(`${totalTestTypes} Test Type${totalTestTypes > 1 ? 's' : ''}`);
+      }
+    }
+
+    return details;
+  };
+
+  // Get test types for display
+  const getMfcTestTypes = (mfc: Mfc): string[] => {
+    const testTypes: string[] = [];
+    
+    if (mfc.generics && mfc.generics.length > 0) {
+      mfc.generics.forEach(generic => {
+        if (generic.apis && generic.apis.length > 0) {
+          generic.apis.forEach(api => {
+            if (api.testTypes && api.testTypes.length > 0) {
+              api.testTypes.forEach(testType => {
+                const testTypeName = getTestTypeName(testType.testTypeId);
+                if (testTypeName && testTypeName !== testType.testTypeId && !testTypes.includes(testTypeName)) {
+                  testTypes.push(testTypeName);
+                }
+              });
+            }
+          });
+        }
+      });
+    }
+    
+    return testTypes;
+  };
 
   // Fetch MFCs from API
   const fetchMfcs = async () => {
@@ -57,7 +292,7 @@ const MFCSelector: React.FC<MFCSelectorProps> = ({
 
     try {
       const response = await fetch(
-        `/api/admin/mfc?companyId=${companyId}&locationId=${locationId}`,
+        `/api/admin/mfc?companyId=${companyId}&locationId=${locationId}&populate=true&limit=1000`,
         {
           method: "GET",
           headers: {
@@ -74,8 +309,9 @@ const MFCSelector: React.FC<MFCSelectorProps> = ({
       const data = await response.json();
 
       if (data.success && data.data) {
-        setMfcs(data.data || []);
-        setFilteredMfcs(data.data || []);
+        const mfcData = Array.isArray(data.data) ? data.data : [];
+        setMfcs(mfcData);
+        setFilteredMfcs(mfcData);
       } else {
         throw new Error("No MFC data found in response");
       }
@@ -90,20 +326,40 @@ const MFCSelector: React.FC<MFCSelectorProps> = ({
   // Load MFCs on mount
   useEffect(() => {
     fetchMfcs();
+    fetchLookupData();
   }, [companyId, locationId]);
 
-  // Filter MFCs based on search term
+  // Filter MFCs based on search term (including test types)
   useEffect(() => {
     if (!searchTerm.trim()) {
       setFilteredMfcs(mfcs);
     } else {
-      const filtered = mfcs.filter(mfc =>
-        mfc.mfcNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (mfc.genericName && mfc.genericName.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
+      const filtered = mfcs.filter(mfc => {
+        const searchLower = searchTerm.toLowerCase();
+        
+        // Search in MFC number
+        if (mfc.mfcNumber && mfc.mfcNumber.toLowerCase().includes(searchLower)) return true;
+        
+        // Search in generic names
+        if (mfc.generics && mfc.generics.some(generic => 
+          generic.genericName && generic.genericName.toLowerCase().includes(searchLower)
+        )) return true;
+
+        // Search in department
+        if (mfc.departmentId) {
+          const deptName = getDepartmentName(mfc.departmentId);
+          if (deptName && deptName.toLowerCase().includes(searchLower)) return true;
+        }
+
+        // Search in test types
+        const testTypes = getMfcTestTypes(mfc);
+        if (testTypes.some(testType => testType.toLowerCase().includes(searchLower))) return true;
+
+        return false;
+      });
       setFilteredMfcs(filtered);
     }
-  }, [searchTerm, mfcs]);
+  }, [searchTerm, mfcs, lookupData]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -135,6 +391,7 @@ const MFCSelector: React.FC<MFCSelectorProps> = ({
       if (e.key === 'mfc-product-sync') {
         // MFC was updated, refresh our MFC list
         fetchMfcs();
+        fetchLookupData();
       }
     };
 
@@ -161,9 +418,9 @@ const MFCSelector: React.FC<MFCSelectorProps> = ({
     onChange(null);
   };
 
-  const getSelectedMFCDetails = () => {
+  const getSelectedMFCDetails = (): Mfc | null => {
     if (!selectedMFC) return null;
-    return mfcs.find(mfc => mfc._id === selectedMFC);
+    return mfcs.find(mfc => mfc._id === selectedMFC) || null;
   };
 
   const selectedMFCDetails = getSelectedMFCDetails();
@@ -192,10 +449,20 @@ const MFCSelector: React.FC<MFCSelectorProps> = ({
                 <span className="font-medium text-gray-900 truncate">
                   {selectedMFCDetails.mfcNumber}
                 </span>
-                {selectedMFCDetails.genericName && (
-                  <span className="text-sm text-gray-500 truncate">
-                    {selectedMFCDetails.genericName}
-                  </span>
+                <div className="text-xs text-gray-500 mt-1">
+                  {getMfcDisplayDetails(selectedMFCDetails).map((detail, index) => (
+                    <span key={index} className="mr-2 bg-gray-100 px-1 rounded">
+                      {detail}
+                    </span>
+                  ))}
+                </div>
+                {/* Show test types for selected MFC */}
+                {getMfcTestTypes(selectedMFCDetails).length > 0 && (
+                  <div className="text-xs text-purple-600 mt-1">
+                    <strong>Test Types:</strong> {getMfcTestTypes(selectedMFCDetails).slice(0, 3).join(", ")}
+                    {getMfcTestTypes(selectedMFCDetails).length > 3 && 
+                      ` +${getMfcTestTypes(selectedMFCDetails).length - 3} more`}
+                  </div>
                 )}
               </div>
             ) : (
@@ -234,7 +501,7 @@ const MFCSelector: React.FC<MFCSelectorProps> = ({
       {/* Dropdown menu */}
       {isOpen && !disabled && (
         <div
-          className="absolute z-50 w-full mt-1 bg-white border border-[#a6c8ff] rounded-md shadow-lg max-h-80 overflow-hidden"
+          className="absolute z-50 w-full mt-1 bg-white border border-[#a6c8ff] rounded-md shadow-lg max-h-96 overflow-hidden"
           style={{
             backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
           }}
@@ -247,7 +514,7 @@ const MFCSelector: React.FC<MFCSelectorProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full px-3 py-2 border border-[#a6c8ff] rounded focus:ring-2 focus:ring-[#66a3ff] focus:outline-none bg-white"
-              placeholder="Search MFC records..."
+              placeholder="Search MFC records, generics, test types..."
               style={{
                 borderStyle: "inset",
                 boxShadow: "inset 1px 1px 2px rgba(0,0,0,0.1)",
@@ -256,7 +523,7 @@ const MFCSelector: React.FC<MFCSelectorProps> = ({
           </div>
 
           {/* MFC list */}
-          <div className="max-h-60 overflow-y-auto">
+          <div className="max-h-80 overflow-y-auto">
             {loading ? (
               <div className="p-4 text-center text-gray-500">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#0055a4] mx-auto mb-2"></div>
@@ -277,37 +544,80 @@ const MFCSelector: React.FC<MFCSelectorProps> = ({
                 {searchTerm ? "No MFC records found matching your search" : "No MFC records available"}
               </div>
             ) : (
-              filteredMfcs.map((mfc) => (
-                <div
-                  key={mfc._id}
-                  className={`px-3 py-3 cursor-pointer hover:bg-[#e6f0fa] ${
-                    selectedMFC === mfc._id ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]" : ""
-                  }`}
-                  onClick={() => handleSelectMFC(mfc)}
-                >
-                  <div className="flex flex-col">
-                    <div className="font-medium text-gray-900">
-                      {mfc.mfcNumber}
+              filteredMfcs.map((mfc) => {
+                const details = getMfcDisplayDetails(mfc);
+                const testTypes = getMfcTestTypes(mfc);
+                
+                return (
+                  <div
+                    key={mfc._id}
+                    className={`px-3 py-3 cursor-pointer hover:bg-[#e6f0fa] ${
+                      selectedMFC === mfc._id ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]" : ""
+                    }`}
+                    onClick={() => handleSelectMFC(mfc)}
+                  >
+                    <div className="flex flex-col">
+                      <div className="font-medium text-gray-900 mb-1">
+                        {mfc.mfcNumber}
+                      </div>
+                      
+                      {/* MFC Details */}
+                      {details.length > 0 && (
+                        <div className="text-xs text-gray-600 space-y-1 mb-2">
+                          {details.map((detail, index) => (
+                            <span key={index} className="inline-block bg-gray-100 px-2 py-1 rounded mr-1 mb-1">
+                              {detail}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Generic Names */}
+                      {mfc.generics && mfc.generics.length > 0 && (
+                        <div className="text-xs text-blue-600 mt-1">
+                          <strong>Generics:</strong> {mfc.generics.map(g => g.genericName).join(", ")}
+                        </div>
+                      )}
+
+                      {/* API names */}
+                      {mfc.generics && mfc.generics.some(g => g.apis && g.apis.length > 0) && (
+                        <div className="text-xs text-green-600 mt-1">
+                          <strong>APIs:</strong> {
+                            (() => {
+                              const allApis = mfc.generics.flatMap(g => g.apis || []);
+                              const apiNames = allApis.slice(0, 3).map(api => getApiName(api.apiName) || api.apiName).filter(Boolean);
+                              const displayText = apiNames.join(", ");
+                              const remainingCount = allApis.length - 3;
+                              return displayText + (remainingCount > 0 ? ` +${remainingCount} more` : "");
+                            })()
+                          }
+                        </div>
+                      )}
+
+                      {/* Test Types */}
+                      {testTypes.length > 0 && (
+                        <div className="text-xs text-purple-600 mt-1">
+                          <strong>Test Types:</strong> {
+                            testTypes.slice(0, 3).join(", ")
+                          }
+                          {testTypes.length > 3 && ` +${testTypes.length - 3} more`}
+                        </div>
+                      )}
                     </div>
-                    {mfc.genericName && (
-                      <div className="text-sm text-gray-600 mt-1">
-                        {mfc.genericName}
+                    
+                    {selectedMFC === mfc._id && (
+                      <div className="flex justify-end mt-2">
+                        <div className="flex items-center text-xs text-blue-600">
+                          <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                          Selected
+                        </div>
                       </div>
                     )}
                   </div>
-                  
-                  {selectedMFC === mfc._id && (
-                    <div className="flex justify-end mt-1">
-                      <div className="flex items-center text-xs text-blue-600">
-                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                        Selected
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 
@@ -315,6 +625,7 @@ const MFCSelector: React.FC<MFCSelectorProps> = ({
           {!loading && !error && (
             <div className="p-2 border-t border-[#a6c8ff] bg-gray-50 text-xs text-gray-600 text-center">
               {filteredMfcs.length} of {mfcs.length} MFC records
+              {searchTerm && ` (filtered by "${searchTerm}")`}
             </div>
           )}
         </div>

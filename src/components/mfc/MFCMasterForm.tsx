@@ -342,11 +342,7 @@ const fetchColumnDisplayText = async (columnId: string): Promise<string> => {
     console.log("🔍 Response status:", response.status);
 
     if (!response.ok) {
-      console.error(
-        "❌ API response not ok:",
-        response.status,
-        response.statusText
-      );
+      
       return columnId;
     }
 
@@ -917,7 +913,6 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
             const displayText = await fetchColumnDisplayText(tt.columnCode);
             return { index, displayText };
           } catch (error) {
-            console.error("Error loading column display text:", error);
             return { index, displayText: tt.columnCode };
           }
         }
@@ -1017,7 +1012,6 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
   };
 
   const onSubmitError = (errors: any) => {
-    console.error("Form validation errors:", errors);
 
     let errorMessages: string[] = [];
 
@@ -1045,7 +1039,7 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
     }
 
     if (errorMessages.length > 0) {
-      const alertMessage = `❌ Please fix the following errors:\n\n${errorMessages.join(
+      const alertMessage = `❌ Invalid input:\n\n${errorMessages.join(
         "\n"
       )}`;
       alert(alertMessage);
@@ -1132,7 +1126,7 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
               type="button"
               onClick={onClose}
               onMouseDown={(e) => e.stopPropagation()}
-              className="text-white hover:text-gray-200 text-xl font-bold w-6 h-6 flex items-center justify-center rounded hover:bg-white hover:bg-opacity-20 transition-colors"
+              className="text-white hover:text-red-400 text-xl font-bold w-6 h-6 flex items-center justify-center rounded hover:bg-white hover:bg-opacity-20 transition-colors"
             >
               ×
             </button>
@@ -2352,16 +2346,38 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
     }, [JSON.stringify(watchedApis)]);
 
     // Enhanced form submission with better error handling
-    const handleFormSubmit = (data: MFCFormData) => {
-      setSubmitError(""); // Clear any previous errors
-      console.log("=== MFC FORM SUBMISSION ===");
-      console.log("Form data:", data);
-      onSubmit(data);
-    };
+    const handleFormSubmit = async (data: MFCFormData) => {
+  setSubmitError(''); // Clear any previous errors
+  
+  try {
+    console.log("MFC FORM SUBMISSION");
+    console.log("Form data:", data);
+    
+    await onSubmit(data);
+  } catch (error: any) {
+    // Handle server validation errors
+    if (error.response?.data?.errors) {
+      const serverErrors = error.response.data.errors;
+      
+      // Check for MFC number uniqueness error
+      if (serverErrors.mfcNumber) {
+        setSubmitError(serverErrors.mfcNumber);
+        return;
+      }
+      
+      // Handle other server errors
+      const errorMessages = Object.entries(serverErrors).map(([field, message]) => 
+        `${field}: ${message}`
+      );
+      setSubmitError(errorMessages.join(', '));
+    } else {
+      setSubmitError(error.message || 'An error occurred while saving the MFC record.');
+    }
+  }
+};
 
     // Enhanced error handler for form validation errors
     const handleFormError = (errors: any) => {
-      console.error("MFC Form validation errors:", errors);
 
       let errorMessages: string[] = [];
 
@@ -2578,7 +2594,7 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
                 <button
                   type="button"
                   onClick={onCancel}
-                  className="text-white hover:text-gray-200 text-xl font-bold w-6 h-6 flex items-center justify-center rounded hover:bg-white hover:bg-opacity-20 transition-colors"
+                  className="text-white hover:text-red-400 text-xl font-bold w-6 h-6 flex items-center justify-center rounded hover:bg-white hover:bg-opacity-20 transition-colors"
                 >
                   ×
                 </button>
@@ -2591,27 +2607,16 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
             >
               {/* Global Form Error */}
               {submitError && (
-                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <div className="flex items-center">
-                    <svg
-                      className="w-5 h-5 text-red-600 mr-2"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    <p className="text-sm font-medium text-red-800">
-                      {submitError}
-                    </p>
-                  </div>
-                </div>
-              )}
+  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+    <div className="flex items-center">
+      <svg className="w-5 h-5 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <p className="text-sm font-medium text-red-800">{submitError}</p>
+    </div>
+  </div>
+)}
+
 
               <div className="grid grid-cols-3 gap-6 mb-8">
                 <div>
@@ -2736,16 +2741,7 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
                     </span>
                   </label>
 
-                  <label className="flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      {...register("isRawMaterial")}
-                      className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <span className="ml-2 text-sm font-medium text-gray-700">
-                      Raw Material
-                    </span>
-                  </label>
+                  
 
                  
                 </div>

@@ -122,7 +122,6 @@ const TestTypeSchema = new Schema<ITestType>({
   placeboRunTime: { type: Number, default: 0 },
   reference1RunTime: { type: Number, default: 0 },
   reference2RunTime: { type: Number, default: 0 },
-
   washTime: { type: Number, default: 0 },
   testApplicability: { type: Boolean, default: false },
   numberOfInjections: { type: Number, default: 0 },

@@ -7,6 +7,7 @@ import WindowsToolbar from "@/components/layout/ToolBox";
 import MFCMasterForm from "@/components/mfc/MFCMasterForm";
 import { IMFCMaster } from "@/models/MFCMaster";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
+import * as XLSX from "xlsx";
 
 // Interface to match the updated nested structure
 interface PaginationInfo {
@@ -963,6 +964,443 @@ const MFCMasterPage: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+const exportToExcel = async () => {
+  try {
+    setIsLoading(true);
+
+    // Fetch all records (not just the current page)
+    const { companyId, locationId } = getStorageIds();
+
+    if (!companyId || !locationId) {
+      setErrorMessage(
+        "Company ID and Location ID not found. Please login again."
+      );
+      return;
+    }
+
+    const params = new URLSearchParams({
+      companyId,
+      locationId,
+      page: "1",
+      limit: "9999", // Get all records
+      populate: "true",
+    });
+
+    // Filter based on active tab
+    if (activeTab === "obsolete") {
+      params.append("isObsolete", "true");
+    } else if (activeTab === "rawMaterial") {
+      params.append("isRawMaterial", "true");
+    } else {
+      params.append("isObsolete", "false");
+      params.append("isRawMaterial", "false");
+    }
+
+    if (searchTerm.trim()) {
+      params.append("search", searchTerm.trim());
+    }
+
+    const response = await fetch(`/api/admin/mfc?${params}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      setErrorMessage(data.error || "Failed to fetch MFC records for export");
+      return;
+    }
+
+    const allRecords: IMFCMaster[] = data.data || [];
+
+    if (allRecords.length === 0) {
+      alert("No records to export");
+      return;
+    }
+
+    // Transform data for Excel export with proper structure for merging
+    const excelData: any[] = [];
+    const mergeRanges: any[] = [];
+    let currentRow = 1; // Starting from row 1 (0 is header)
+
+    allRecords.forEach((record: IMFCMaster) => {
+      const recordStartRow = currentRow;
+      let recordRowCount = 0;
+
+      record.generics?.forEach((generic: any, genericIndex: number) => {
+        const genericStartRow = currentRow;
+        let genericRowCount = 0;
+
+        generic.apis?.forEach((api: any, apiIndex: number) => {
+          const apiStartRow = currentRow;
+          let apiRowCount = 0;
+          
+          const testTypes = api.testTypes || [];
+          const productData = getProductCodesForMFC(record);
+
+          testTypes.forEach((testType: any, testTypeIndex: number) => {
+            // Create one row per test type
+            const row: Record<string, any> = {
+              // Basic Info (will be merged)
+              "MFC Number": record.mfcNumber,
+              "Status": [
+                (record as any).isObsolete ? "Obsolete" : "",
+                (record as any).isRawMaterial ? "Raw Material" : ""
+              ].filter(Boolean).join(", ") || "Active",
+              
+              "Product Codes": productData.map((p: any) => p.code).join(", "),
+              "Product Names": productData.map((p: any) => p.name).join(", "),
+              "Department": getDepartmentName(record.departmentId),
+              
+              // Generic Level (will be merged)
+              "Generic Name": generic.genericName,
+              
+              // API Level (will be merged)
+              "API Name": getApiName(api.apiName),
+              "API Linked": api.testTypes?.some((tt: any) => tt.isLinked) ? "Yes" : "No",
+              
+              // Test Type Level (unique per row)
+              "Test Type": getTestTypeName(testType.testTypeId),
+              "Column": getColumnDisplayText(testType.columnCode) || getColumnName(testType.columnCode),
+              "Detector": getDetectorTypeName(testType.detectorTypeId),
+              "Pharmacopeial": getPharmacopoeialsName(testType.pharmacopoeialId),
+              
+              // Mobile Phases
+              "MP1": testType.mobilePhaseCodes?.[0] ? getMobilePhaseName(testType.mobilePhaseCodes[0]) : "-",
+              "MP2": testType.mobilePhaseCodes?.[1] ? getMobilePhaseName(testType.mobilePhaseCodes[1]) : "-",
+              "MP3": testType.mobilePhaseCodes?.[2] ? getMobilePhaseName(testType.mobilePhaseCodes[2]) : "-",
+              "MP4": testType.mobilePhaseCodes?.[3] ? getMobilePhaseName(testType.mobilePhaseCodes[3]) : "-",
+              "Wash1": testType.mobilePhaseCodes?.[4] ? getMobilePhaseName(testType.mobilePhaseCodes[4]) : "-",
+              "Wash2": testType.mobilePhaseCodes?.[5] ? getMobilePhaseName(testType.mobilePhaseCodes[5]) : "-",
+              
+              // Injection Fields
+              "Blank Inj": testType.blankInjection || "-",
+              "System Suit": testType.systemSuitability || "-",
+              "Sensitivity": testType.sensitivity || "-",
+              "Placebo": testType.placebo || "-",
+              "Std Inj": testType.standardInjection || "-",
+              "Ref 1": testType.reference1 || "-",
+              "Ref 2": testType.reference2 || "-",
+              "Sample Inj": testType.sampleInjection || "-",
+              "Bracket Freq": testType.bracketingFrequency || "-",
+              
+              // Runtime Fields
+              "Wash Time": testType.washTime || "-",
+              "Blank Run": testType.blankRunTime || "-",
+              "Std Run": testType.standardRunTime || "-",
+              "Sample Run": testType.sampleRunTime || "-",
+              "Sys Suit Run": testType.systemSuitabilityRunTime || "-",
+              "Sensitivity Run": testType.sensitivityRunTime || "-",
+              "Placebo Run": testType.placeboRunTime || "-",
+              "Ref1 Run": testType.reference1RunTime || "-",
+              "Ref2 Run": testType.reference2RunTime || "-",
+              
+              // Injection Counts
+              "AMV Inj": testType.amv ? testType.numberOfInjectionsAMV || 0 : "-",
+              "PV Inj": testType.pv ? testType.numberOfInjectionsPV || 0 : "-",
+              "CV Inj": testType.cv ? testType.numberOfInjectionsCV || 0 : "-",
+              
+              // Other fields
+              "Outsourced": testType.isOutsourcedTest ? "Yes" : "No",
+              "Stage": getTestTypeFlags(testType),
+              
+              // Metadata
+              "Created By": record.createdBy || "",
+              "Created At": record.createdAt ? new Date(record.createdAt).toLocaleString() : "",
+              "Updated At": record.updatedAt ? new Date(record.updatedAt).toLocaleString() : "",
+            };
+
+            excelData.push(row);
+            currentRow++;
+            recordRowCount++;
+            genericRowCount++;
+            apiRowCount++;
+          });
+
+          // Add merge ranges for API-level fields (if more than 1 test type)
+          if (apiRowCount > 1) {
+            const apiEndRow = apiStartRow + apiRowCount - 1;
+            
+            // Get column indices for API fields
+            const headers = Object.keys(excelData[0]);
+            const apiNameCol = headers.indexOf("API Name");
+            const apiLinkedCol = headers.indexOf("API Linked");
+            
+            if (apiNameCol >= 0) {
+              mergeRanges.push({
+                s: { r: apiStartRow, c: apiNameCol },
+                e: { r: apiEndRow, c: apiNameCol }
+              });
+            }
+            
+            if (apiLinkedCol >= 0) {
+              mergeRanges.push({
+                s: { r: apiStartRow, c: apiLinkedCol },
+                e: { r: apiEndRow, c: apiLinkedCol }
+              });
+            }
+          }
+        });
+
+        // Add merge ranges for Generic-level fields (if more than 1 row)
+        if (genericRowCount > 1) {
+          const genericEndRow = genericStartRow + genericRowCount - 1;
+          
+          const headers = Object.keys(excelData[0]);
+          const genericNameCol = headers.indexOf("Generic Name");
+          
+          if (genericNameCol >= 0) {
+            mergeRanges.push({
+              s: { r: genericStartRow, c: genericNameCol },
+              e: { r: genericEndRow, c: genericNameCol }
+            });
+          }
+        }
+      });
+
+      // Add merge ranges for Record-level fields (if more than 1 row)
+      if (recordRowCount > 1) {
+        const recordEndRow = recordStartRow + recordRowCount - 1;
+        
+        const headers = Object.keys(excelData[0]);
+        const mfcNumberCol = headers.indexOf("MFC Number");
+        const statusCol = headers.indexOf("Status");
+        const productCodesCol = headers.indexOf("Product Codes");
+        const productNamesCol = headers.indexOf("Product Names");
+        const departmentCol = headers.indexOf("Department");
+        const createdByCol = headers.indexOf("Created By");
+        const createdAtCol = headers.indexOf("Created At");
+        const updatedAtCol = headers.indexOf("Updated At");
+        
+        const fieldsToMerge = [
+          { col: mfcNumberCol, name: "MFC Number" },
+          { col: statusCol, name: "Status" },
+          { col: productCodesCol, name: "Product Codes" },
+          { col: productNamesCol, name: "Product Names" },
+          { col: departmentCol, name: "Department" },
+          { col: createdByCol, name: "Created By" },
+          { col: createdAtCol, name: "Created At" },
+          { col: updatedAtCol, name: "Updated At" }
+        ];
+        
+        fieldsToMerge.forEach(field => {
+          if (field.col >= 0) {
+            mergeRanges.push({
+              s: { r: recordStartRow, c: field.col },
+              e: { r: recordEndRow, c: field.col }
+            });
+          }
+        });
+      }
+    });
+
+    if (excelData.length === 0) {
+      alert("No data available to export");
+      return;
+    }
+
+    // Create workbook and worksheet
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+
+    // Apply merge ranges
+    if (mergeRanges.length > 0) {
+      worksheet["!merges"] = mergeRanges;
+    }
+
+    // Auto-size columns
+    const columnWidths: Array<{ width: number }> = [];
+    const headers = Object.keys(excelData[0]);
+
+    headers.forEach((header: string, index: number) => {
+      let maxWidth = header.length;
+      excelData.forEach((row: any) => {
+        const cellValue = String(row[header] || "");
+        maxWidth = Math.max(maxWidth, cellValue.length);
+      });
+      columnWidths[index] = { width: Math.min(maxWidth + 3, 80) };
+    });
+
+    worksheet["!cols"] = columnWidths;
+
+    // Add the main worksheet with merged cells
+    const sheetName = `MFC_${activeTab}_Merged`;
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+
+    // Create a second consolidated sheet (your original logic)
+    const consolidatedData: any[] = [];
+    allRecords.forEach((record: IMFCMaster) => {
+      record.generics?.forEach((generic: any, genericIndex: number) => {
+        generic.apis?.forEach((api: any, apiIndex: number) => {
+          const productData = getProductCodesForMFC(record);
+          const testTypes = api.testTypes || [];
+          
+          // Create consolidated test type information
+          const testTypesList = testTypes.map((testType: any, index: number) => 
+            `${index + 1}. ${getTestTypeName(testType.testTypeId)}`
+          ).join('; ');
+
+          const columnsList = testTypes.map((testType: any, index: number) => 
+            `${index + 1}. ${getColumnDisplayText(testType.columnCode) || getColumnName(testType.columnCode)}`
+          ).join('; ');
+
+          const detectorsList = testTypes.map((testType: any, index: number) => 
+            `${index + 1}. ${getDetectorTypeName(testType.detectorTypeId)}`
+          ).join('; ');
+
+          const pharmacopoeialsListMain = testTypes.map((testType: any, index: number) => 
+            `${index + 1}. ${getPharmacopoeialsName(testType.pharmacopoeialId) || '-'}`
+          ).join('; ');
+
+          // Create one row per MFC-Generic-API combination
+          const row: Record<string, any> = {
+            // Basic Info (no repetition)
+            "MFC Number": record.mfcNumber,
+            "Status": [
+              (record as any).isObsolete ? "Obsolete" : "",
+              (record as any).isRawMaterial ? "Raw Material" : ""
+            ].filter(Boolean).join(", ") || "Active",
+            
+            "Product Codes": productData.map((p: any) => p.code).join(", "),
+            "Product Names": productData.map((p: any) => p.name).join(", "),
+            "Department": getDepartmentName(record.departmentId),
+            
+            // Generic Level
+            "Generic Name": generic.genericName,
+            
+            // API Level
+            "API Name": getApiName(api.apiName),
+            "API Linked": api.testTypes?.some((tt: any) => tt.isLinked) ? "Yes" : "No",
+            
+            // Test Types Summary
+            "Test Types Count": testTypes.length,
+            "Test Types": testTypesList,
+            "Columns": columnsList,
+            "Detectors": detectorsList,
+            "Pharmacopoeials": pharmacopoeialsListMain,
+
+            // Consolidated Mobile Phases (from all test types)
+            "Mobile Phases": (() => {
+              const allMobilePhases = new Set<string>();
+              testTypes.forEach((testType: any) => {
+                testType.mobilePhaseCodes?.forEach((mpCode: string, idx: number) => {
+                  if (mpCode) {
+                    const mpName = getMobilePhaseName(mpCode);
+                    const position = idx < 4 ? `MP${idx + 1}` : `Wash${idx - 3}`;
+                    allMobilePhases.add(`${position}: ${mpName}`);
+                  }
+                });
+              });
+              return Array.from(allMobilePhases).join('; ');
+            })(),
+
+            // Consolidated Injection Fields
+            "Injection Summary": (() => {
+              const injectionData: string[] = [];
+              testTypes.forEach((testType: any, index: number) => {
+                const injections = [
+                  testType.blankInjection && `Blank: ${testType.blankInjection}`,
+                  testType.systemSuitability && `Sys Suit: ${testType.systemSuitability}`,
+                  testType.sensitivity && `Sensitivity: ${testType.sensitivity}`,
+                  testType.standardInjection && `Standard: ${testType.standardInjection}`,
+                  testType.sampleInjection && `Sample: ${testType.sampleInjection}`,
+                ].filter(Boolean);
+                
+                if (injections.length > 0) {
+                  injectionData.push(`TT${index + 1}: ${injections.join(', ')}`);
+                }
+              });
+              return injectionData.join('; ');
+            })(),
+
+            // Consolidated Runtime Fields
+            "Runtime Summary": (() => {
+              const runtimeData: string[] = [];
+              testTypes.forEach((testType: any, index: number) => {
+                const runtimes = [
+                  testType.washTime && `Wash: ${testType.washTime}`,
+                  testType.blankRunTime && `Blank: ${testType.blankRunTime}`,
+                  testType.standardRunTime && `Standard: ${testType.standardRunTime}`,
+                  testType.sampleRunTime && `Sample: ${testType.sampleRunTime}`,
+                ].filter(Boolean);
+                
+                if (runtimes.length > 0) {
+                  runtimeData.push(`TT${index + 1}: ${runtimes.join(', ')}`);
+                }
+              });
+              return runtimeData.join('; ');
+            })(),
+
+            // Consolidated Stage Flags
+            "Stage Flags": (() => {
+              const stageFlags: string[] = [];
+              testTypes.forEach((testType: any, index: number) => {
+                const flags = getTestTypeFlags(testType);
+                if (flags !== '-') {
+                  stageFlags.push(`TT${index + 1}: ${flags}`);
+                }
+              });
+              return stageFlags.join('; ');
+            })(),
+
+            // Consolidated Injection Counts
+            "Injection Counts": (() => {
+              const injCounts: string[] = [];
+              testTypes.forEach((testType: any, index: number) => {
+                const counts = [
+                  testType.amv && testType.numberOfInjectionsAMV && `AMV: ${testType.numberOfInjectionsAMV}`,
+                  testType.pv && testType.numberOfInjectionsPV && `PV: ${testType.numberOfInjectionsPV}`,
+                  testType.cv && testType.numberOfInjectionsCV && `CV: ${testType.numberOfInjectionsCV}`,
+                ].filter(Boolean);
+                
+                if (counts.length > 0) {
+                  injCounts.push(`TT${index + 1}: ${counts.join(', ')}`);
+                }
+              });
+              return injCounts.join('; ');
+            })(),
+
+            // Outsourced Tests
+            "Outsourced Tests": testTypes.map((testType: any, index: number) => 
+              testType.isOutsourcedTest ? `TT${index + 1}: Yes` : ''
+            ).filter(Boolean).join('; ') || 'None',
+
+            // Metadata
+            "Created By": record.createdBy || "",
+            "Created At": record.createdAt
+              ? new Date(record.createdAt).toLocaleString()
+              : "",
+            "Updated At": record.updatedAt
+              ? new Date(record.updatedAt).toLocaleString()
+              : "",
+          };
+
+          consolidatedData.push(row);
+        });
+      });
+    });
+
+    const consolidatedWorksheet = XLSX.utils.json_to_sheet(consolidatedData);
+    XLSX.utils.book_append_sheet(workbook, consolidatedWorksheet, "Summary_View");
+
+    // Generate file name
+    const fileName = `MFC_Master_${activeTab}_with_Merged_Cells_${
+      new Date().toISOString().replace(/[:.]/g, "-").split("T")[0]
+    }.xlsx`;
+
+    // Save file
+    XLSX.writeFile(workbook, fileName);
+
+    alert(
+      `Excel file exported successfully: ${fileName}\n\nMerged cells sheet: ${excelData.length} rows\nSummary sheet: ${consolidatedData.length} rows\n\n2 sheets created:\n- ${sheetName} (with merged cells for repeated data)\n- Summary_View (consolidated view)`
+    );
+  } catch (error) {
+    console.error("Error exporting to Excel:", error);
+    setErrorMessage("Failed to export data to Excel. Please try again.");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+
   // Handle delete
   const handleDelete = async (record: IMFCMaster) => {
     if (
@@ -1409,1082 +1847,945 @@ const MFCMasterPage: React.FC = () => {
       </div>
     );
   }
+  // Add this in a <style> tag at the top of your component
+  const errorNotificationStyles = `
+  .animate-slide-in {
+    animation: slideIn 0.3s ease-out;
+  }
+  
+  @keyframes slideIn {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+`;
 
   // Main list view
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#b9d7ff" }}>
-      <WindowsToolbar
-        modulePath="/admin/mfc-master"
-        onAddNew={handleAddNew}
-        onSave={() => alert("Please open the form to save.")}
-        onClear={handleClear}
-        onExit={handleExit}
-        onUp={() =>
-          selectedRecord ? handleUp() : alert("Please select a record first.")
-        }
-        onDown={() =>
-          selectedRecord ? handleDown() : alert("Please select a record first.")
-        }
-        onSearch={handleSearch}
-        onEdit={() => handleEdit()}
-        onDelete={() =>
-          selectedRecord
-            ? handleDelete(selectedRecord)
-            : alert("Please select a record to delete.")
-        }
-        onAudit={handleAudit}
-        onPrint={() => handlePrint()}
-        onHelp={handleHelp}
-      />
-      <div className="ml-20 p-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="bg-white bg-opacity-95 shadow-lg rounded border border-gray-300 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-300 bg-gray-100">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">
-                    MFC Master
-                  </h1>
-                </div>
-                {selectedRecord && (
-                  <div className="text-sm text-gray-600">
-                    Selected:{" "}
-                    <span className="font-mono font-bold">
-                      {selectedRecord.mfcNumber}
-                    </span>
-                    <div className="text-xs mt-1">
-                      Department:{" "}
-                      <span className="font-medium">
-                        {getDepartmentName(selectedRecord.departmentId)}
-                      </span>
-                    </div>
-                    <div className="text-xs">
-                      Products:{" "}
-                      {formatProductCodes(
-                        getProductCodesForMFC(selectedRecord)
-                      )}
-                    </div>
+    <div>
+      <style jsx>{errorNotificationStyles}</style>
+      <div className="min-h-screen" style={{ backgroundColor: "#b9d7ff" }}>
+        <WindowsToolbar
+          modulePath="/admin/mfc-master"
+          onAddNew={handleAddNew}
+          onSave={() => alert("Please open the form to save.")}
+          onClear={handleClear}
+          onExit={handleExit}
+          onUp={() =>
+            selectedRecord ? handleUp() : alert("Please select a record first.")
+          }
+          onDown={() =>
+            selectedRecord
+              ? handleDown()
+              : alert("Please select a record first.")
+          }
+          onSearch={handleSearch}
+          onEdit={() => handleEdit()}
+          onDelete={() =>
+            selectedRecord
+              ? handleDelete(selectedRecord)
+              : alert("Please select a record to delete.")
+          }
+          onAudit={handleAudit}
+          onPrint={() => handlePrint()}
+          onHelp={handleHelp}
+        />
+        <div className="ml-20 p-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="bg-white bg-opacity-95 shadow-lg rounded border border-gray-300 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-300 bg-gray-100">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h1 className="text-2xl font-bold text-gray-900">
+                      MFC Master
+                    </h1>
                   </div>
-                )}
+                  {selectedRecord && (
+                    <div className="text-sm text-gray-600">
+                      Selected:{" "}
+                      <span className="font-mono font-bold">
+                        {selectedRecord.mfcNumber}
+                      </span>
+                      <div className="text-xs mt-1">
+                        Department:{" "}
+                        <span className="font-medium">
+                          {getDepartmentName(selectedRecord.departmentId)}
+                        </span>
+                      </div>
+                      <div className="text-xs">
+                        Products:{" "}
+                        {formatProductCodes(
+                          getProductCodesForMFC(selectedRecord)
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
 
-            <div className="px-6 py-3 flex gap-2 border-b border-gray-300 bg-gray-50">
-              <button
-                onClick={() => handleTabChange("active")}
-                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
-                  activeTab === "active"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                }`}
-              >
-                Active MFCs
-              </button>
-              <button
-                onClick={() => handleTabChange("obsolete")}
-                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
-                  activeTab === "obsolete"
-                    ? "bg-orange-500 text-white"
-                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                }`}
-              >
-                Obsolete MFCs
-              </button>
-              <button
-                onClick={() => handleTabChange("rawMaterial")}
-                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
-                  activeTab === "rawMaterial"
-                    ? "bg-green-500 text-white"
-                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                }`}
-              >
-                Raw Material MFCs
-              </button>
-            </div>
-
-            {errorMessage && (
-              <div className="mx-6 mt-4 bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded">
-                <div className="flex items-center">
-                  <svg
-                    className="w-5 h-5 mr-2"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+              <div className="px-6 py-3 bg-gray-50 border-b border-gray-300 flex justify-between items-center">
+                <div className="flex gap-3">
+                  {/* Existing tab buttons */}
+                  <button
+                    onClick={() => handleTabChange("active")}
+                    className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                      activeTab === "active"
+                        ? "bg-blue-500 text-white"
+                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    }`}
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  {errorMessage}
+                    Active MFCs
+                  </button>
+                  <button
+                    onClick={() => handleTabChange("obsolete")}
+                    className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                      activeTab === "obsolete"
+                        ? "bg-orange-500 text-white"
+                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    }`}
+                  >
+                    Obsolete MFCs
+                  </button>
+                  <button
+                    onClick={() => handleTabChange("rawMaterial")}
+                    className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                      activeTab === "rawMaterial"
+                        ? "bg-green-500 text-white"
+                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    }`}
+                  >
+                    Raw Material MFCs
+                  </button>
                 </div>
-              </div>
-            )}
 
-            {/* Tab Content Description */}
-            <div
-              className={`p-3 rounded-lg ${getTabInfo().bgColor} ${
-                getTabInfo().borderColor
-              } border`}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-800">
-                    {getTabInfo().title}
-                  </h3>
-                  <p className="text-xs text-gray-600 mt-1">
-                    {getTabInfo().description}
-                  </p>
-                </div>
-                <div className="text-sm text-gray-600">
-                  {searchTerm ? (
-                    <span>
-                      Found {pagination.total} results for "{searchTerm}"
-                    </span>
-                  ) : (
-                    <span>Showing {pagination.total} total records</span>
-                  )}
-                  {lookupLoading && (
-                    <span className="ml-4 text-orange-600">
-                      • Loading lookup data...
+                {/* Export Button */}
+                <div className="flex items-center gap-3">
+                  {searchTerm && (
+                    <span className="text-sm text-gray-600 bg-blue-100 px-3 py-1 rounded-full">
+                      Filtered: "{searchTerm}"
                     </span>
                   )}
+                  <button
+                    onClick={exportToExcel}
+                    disabled={isLoading || mfcRecords.length === 0}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                    title={`Export ${activeTab} MFC records to Excel`}
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                    {isLoading ? "Exporting..." : "Export to Excel"}
+                  </button>
                 </div>
               </div>
-            </div>
-            {(isLoading || lookupLoading) && (
-              <div className="px-6 py-12">
-                <div className="flex justify-center items-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                  <span className="ml-3 text-gray-600">
-                    {lookupLoading
-                      ? "Loading lookup data..."
-                      : "Loading MFC records..."}
-                  </span>
+
+              {errorMessage && (
+                <div
+                  className="fixed top-4 right-4 bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded-lg shadow-lg max-w-md z-50 animate-slide-in"
+                  style={{ zIndex: 1000 }}
+                >
+                  <div className="flex items-start">
+                    <svg
+                      className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Error</p>
+                      <p className="text-sm mt-1">{errorMessage}</p>
+                    </div>
+                    <button
+                      onClick={() => setErrorMessage("")}
+                      className="ml-3 text-red-500 hover:text-red-700"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {!isLoading && !lookupLoading && !errorMessage && (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-300 text-xs">
-                  <thead className="bg-gray-200">
-                    <tr>
-                      <th
-                        rowSpan={2}
-                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
-                      >
-                        MFC Number
-                      </th>
-                      <th
-                        rowSpan={2}
-                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
-                      >
-                        Product Codes
-                      </th>
-                      <th
-                        rowSpan={2}
-                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
-                      >
-                        Generic Name
-                      </th>
-                      <th
-                        rowSpan={2}
-                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
-                      >
-                        API Name
-                      </th>
-                      <th
-                        rowSpan={2}
-                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
-                      >
-                        Test Type
-                      </th>
-                      <th
-                        rowSpan={2}
-                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
-                      >
-                        Column
-                      </th>
-                      <th
-                        colSpan={6}
-                        className="px-2 py-2 text-center font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
-                      >
-                        Mobile Phase
-                      </th>
-                      <th
-                        rowSpan={2}
-                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
-                      >
-                        Detector
-                      </th>
-                      <th
-                        rowSpan={2}
-                        className="px-2 py-2 font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
-                        style={{
-                          minWidth: `${
-                            Math.max(6, Math.min(pharmacopoeials.length, 12)) *
-                            2.5
-                          }rem`,
-                        }}
-                      >
-                        Pharmacopoeial
-                      </th>
-
-                      {/* New Injection & Reference Fields Group */}
-                      <th
-                        colSpan={9}
-                        className="px-2 py-2 text-center font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-blue-100"
-                      >
-                        Injection & Reference Fields
-                      </th>
-                      {/* New Runtime & Wash Fields Group */}
-                      <th
-                        colSpan={9}
-                        className="px-2 py-2 text-center font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-green-100"
-                      >
-                        Runtime & Wash Fields
-                      </th>
-                      <th
-                        rowSpan={2}
-                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
-                      >
-                        AMV Inj
-                      </th>
-                      <th
-                        rowSpan={2}
-                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
-                      >
-                        PV Inj
-                      </th>
-                      <th
-                        rowSpan={2}
-                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
-                      >
-                        CV Inj
-                      </th>
-                      <th
-                        rowSpan={2}
-                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
-                      >
-                        Outsourced
-                      </th>
-                      <th
-                        rowSpan={2}
-                        className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
-                      >
-                        Stage
-                      </th>
-                    </tr>
-                    <tr>
-                      {/* Mobile Phase sub-headers */}
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-gray-50">
-                        MP1
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-gray-50">
-                        MP2
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-gray-50">
-                        MP3
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-gray-50">
-                        MP4
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-gray-50">
-                        Wash1
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-gray-50">
-                        Wash2
-                      </th>
-
-                      {/* Injection & Reference Fields sub-headers */}
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
-                        Blank Inj
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
-                        System Suit
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
-                        Sensitivity
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
-                        Placebo
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
-                        Std Inj
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
-                        Ref 1
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
-                        Ref 2
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
-                        Sample Inj
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
-                        Bracket Freq
-                      </th>
-
-                      {/* Runtime & Wash Fields sub-headers */}
-                      {/* Updated Runtime & Wash Fields sub-headers */}
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
-                        Wash Time
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
-                        Blank Run
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
-                        Std Run
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
-                        Sample Run
-                      </th>
-                      {/* New Runtime Fields */}
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
-                        Sys Suit Run
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
-                        Sensitivity Run
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
-                        Placebo Run
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
-                        Ref1 Run
-                      </th>
-                      <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
-                        Ref2 Run
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {mfcRecords.length > 0 ? (
-                      (() => {
-                        let tableRows: JSX.Element[] = [];
-
-                        mfcRecords.forEach((record, recordIndex) => {
-                          record.generics?.forEach((generic, genericIndex) => {
-                            generic.apis?.forEach((api, apiIndex) => {
-                              api.testTypes?.forEach(
-                                (testType, testTypeIndex) => {
-                                  const isFirstRowForRecord =
-                                    genericIndex === 0 &&
-                                    apiIndex === 0 &&
-                                    testTypeIndex === 0;
-                                  const isFirstRowForGeneric =
-                                    apiIndex === 0 && testTypeIndex === 0;
-                                  const isFirstRowForApi = testTypeIndex === 0;
-
-                                  const totalTestTypesInRecord =
-                                    record.generics?.reduce(
-                                      (total, g) =>
-                                        total +
-                                        (g.apis?.reduce(
-                                          (apiTotal, a) =>
-                                            apiTotal +
-                                            (a.testTypes?.length || 0),
-                                          0
-                                        ) || 0),
-                                      0
-                                    ) || 1;
-
-                                  const totalTestTypesInGeneric =
-                                    generic.apis?.reduce(
-                                      (total, a) =>
-                                        total + (a.testTypes?.length || 0),
-                                      0
-                                    ) || 1;
-
-                                  const testTypesInApi =
-                                    api.testTypes?.length || 1;
-                                  const productData =
-                                    getProductCodesForMFC(record);
-
-                                  tableRows.push(
-                                    <tr
-                                      key={`${recordIndex}-${genericIndex}-${apiIndex}-${testTypeIndex}`}
-                                      onClick={() => handleRowSelect(record)}
-                                      className={`cursor-pointer transition-colors hover:bg-gray-50 ${
-                                        selectedRecord?._id === record._id
-                                          ? "bg-blue-100"
-                                          : ""
-                                      }`}
-                                    >
-                                      {/* MFC Number - spans all rows for this record */}
-                                      {isFirstRowForRecord && (
-                                        <td
-                                          rowSpan={totalTestTypesInRecord}
-                                          className="px-2 py-2 border border-gray-300 font-mono text-xs font-medium bg-blue-50"
-                                        >
-                                          <div className="text-center">
-                                            <div className="font-bold">
-                                              {record.mfcNumber}
-                                            </div>
-                                            <div className="mt-1 flex flex-col items-center gap-1">
-                                              {(record as any).isObsolete && (
-                                                <span className="bg-orange-100 text-orange-800 px-1 py-0.5 rounded text-xs font-normal">
-                                                  Obsolete
-                                                </span>
-                                              )}
-                                              {(record as any)
-                                                .isRawMaterial && (
-                                                <span className="bg-green-100 text-green-800 px-1 py-0.5 rounded text-xs font-normal">
-                                                  Raw Material
-                                                </span>
-                                              )}
-                                            </div>
-                                          </div>
-                                        </td>
-                                      )}
-
-                                      {/* Product Codes - show all products in one cell, spans all rows for this record */}
-                                      {isFirstRowForRecord && (
-                                        <td
-                                          rowSpan={totalTestTypesInRecord}
-                                          className="px-2 py-2 border border-gray-300 text-xs bg-purple-50"
-                                          title={getProductCodeTooltip(
-                                            productData
-                                          )}
-                                        >
-                                          <div className="max-w-32">
-                                            {formatProductCodes(productData)}
-                                          </div>
-                                        </td>
-                                      )}
-
-                                      {/* Generic Name - spans all rows for this generic */}
-                                      {isFirstRowForGeneric && (
-                                        <td
-                                          rowSpan={totalTestTypesInGeneric}
-                                          className="px-2 py-2 border border-gray-300 text-xs font-medium bg-green-50"
-                                        >
-                                          {generic.genericName}
-                                        </td>
-                                      )}
-
-                                      {/* API Name - spans all rows for this api */}
-                                      {isFirstRowForApi && (
-                                        <td
-                                          rowSpan={testTypesInApi}
-                                          className="px-2 py-2 border border-gray-300 text-xs bg-yellow-50"
-                                        >
-                                          {(() => {
-                                            // Check if any test type in this API is linked
-                                            const hasLinkedTestType =
-                                              api.testTypes?.some(
-                                                (testType) => testType.isLinked
-                                              );
-
-                                            return (
-                                              <div
-                                                className={`font-medium ${
-                                                  hasLinkedTestType
-                                                    ? "font-bold"
-                                                    : ""
-                                                }`}
-                                                style={{
-                                                  color: hasLinkedTestType
-                                                    ? "#af261c"
-                                                    : "#1e1e1e",
-                                                  fontWeight: hasLinkedTestType
-                                                    ? "bold"
-                                                    : "medium",
-                                                }}
-                                              >
-                                                {getApiName(api.apiName)}
-                                                {hasLinkedTestType && (
-                                                  <span className="ml-1 text-xs bg-green-100 text-green-800 px-1 rounded">
-                                                    LINKED
-                                                  </span>
-                                                )}
-                                              </div>
-                                            );
-                                          })()}
-                                        </td>
-                                      )}
-
-                                      {/* Test Type - one row per test type */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs">
-                                        <div className="font-medium text-gray-900">
-                                          {getTestTypeName(testType.testTypeId)}
-                                        </div>
-                                      </td>
-
-                                      {/* Column - one row per test type */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs">
-                                        <div className="font-medium text-gray-900">
-                                          {getColumnDisplayText(
-                                            testType.columnCode
-                                          ) || testType.columnCode}
-                                        </div>
-                                      </td>
-
-                                      {/* Mobile Phase columns - one row per test type */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                        {testType.mobilePhaseCodes?.[0] ? (
-                                          <div>
-                                            <div className="font-medium text-gray-900">
-                                              {getMobilePhaseName(
-                                                testType.mobilePhaseCodes[0]
-                                              )}
-                                            </div>
-                                            {getMobilePhaseName(
-                                              testType.mobilePhaseCodes[0]
-                                            ) !==
-                                              testType.mobilePhaseCodes[0] && (
-                                              <div className="text-gray-400 text-xs font-mono">
-                                                {testType.mobilePhaseCodes[0]}
-                                              </div>
-                                            )}
-                                          </div>
-                                        ) : (
-                                          "-"
-                                        )}
-                                      </td>
-
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                        {testType.mobilePhaseCodes?.[1] ? (
-                                          <div>
-                                            <div className="font-medium text-gray-900">
-                                              {getMobilePhaseName(
-                                                testType.mobilePhaseCodes[1]
-                                              )}
-                                            </div>
-                                            {getMobilePhaseName(
-                                              testType.mobilePhaseCodes[1]
-                                            ) !==
-                                              testType.mobilePhaseCodes[1] && (
-                                              <div className="text-gray-400 text-xs font-mono">
-                                                {testType.mobilePhaseCodes[1]}
-                                              </div>
-                                            )}
-                                          </div>
-                                        ) : (
-                                          "-"
-                                        )}
-                                      </td>
-
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                        {testType.mobilePhaseCodes?.[2] ? (
-                                          <div>
-                                            <div className="font-medium text-gray-900">
-                                              {getMobilePhaseName(
-                                                testType.mobilePhaseCodes[2]
-                                              )}
-                                            </div>
-                                            {getMobilePhaseName(
-                                              testType.mobilePhaseCodes[2]
-                                            ) !==
-                                              testType.mobilePhaseCodes[2] && (
-                                              <div className="text-gray-400 text-xs font-mono">
-                                                {testType.mobilePhaseCodes[2]}
-                                              </div>
-                                            )}
-                                          </div>
-                                        ) : (
-                                          "-"
-                                        )}
-                                      </td>
-
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                        {testType.mobilePhaseCodes?.[3] ? (
-                                          <div>
-                                            <div className="font-medium text-gray-900">
-                                              {getMobilePhaseName(
-                                                testType.mobilePhaseCodes[3]
-                                              )}
-                                            </div>
-                                            {getMobilePhaseName(
-                                              testType.mobilePhaseCodes[3]
-                                            ) !==
-                                              testType.mobilePhaseCodes[3] && (
-                                              <div className="text-gray-400 text-xs font-mono">
-                                                {testType.mobilePhaseCodes[3]}
-                                              </div>
-                                            )}
-                                          </div>
-                                        ) : (
-                                          "-"
-                                        )}
-                                      </td>
-
-                                      {/* NEW: Wash 1 column */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                        {testType.mobilePhaseCodes?.[4] ? (
-                                          <div>
-                                            <div className="font-medium text-gray-900">
-                                              {getMobilePhaseName(
-                                                testType.mobilePhaseCodes[4]
-                                              )}
-                                            </div>
-                                            {getMobilePhaseName(
-                                              testType.mobilePhaseCodes[4]
-                                            ) !==
-                                              testType.mobilePhaseCodes[4] && (
-                                              <div className="text-gray-400 text-xs font-mono">
-                                                {testType.mobilePhaseCodes[4]}
-                                              </div>
-                                            )}
-                                          </div>
-                                        ) : (
-                                          "-"
-                                        )}
-                                      </td>
-
-                                      {/* NEW: Wash 2 column */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                        {testType.mobilePhaseCodes?.[5] ? (
-                                          <div>
-                                            <div className="font-medium text-gray-900">
-                                              {getMobilePhaseName(
-                                                testType.mobilePhaseCodes[5]
-                                              )}
-                                            </div>
-                                            {getMobilePhaseName(
-                                              testType.mobilePhaseCodes[5]
-                                            ) !==
-                                              testType.mobilePhaseCodes[5] && (
-                                              <div className="text-gray-400 text-xs font-mono">
-                                                {testType.mobilePhaseCodes[5]}
-                                              </div>
-                                            )}
-                                          </div>
-                                        ) : (
-                                          "-"
-                                        )}
-                                      </td>
-
-                                      {/* Detector - one row per test type */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs">
-                                        <div className="font-medium text-gray-900">
-                                          {getDetectorTypeName(
-                                            testType.detectorTypeId
-                                          )}
-                                        </div>
-                                      </td>
-
-                                      <td
-                                        className="px-2 py-2 border border-gray-300 text-xs"
-                                        style={{
-                                          minWidth: `${
-                                            Math.max(
-                                              6,
-                                              Math.min(
-                                                pharmacopoeials.length,
-                                                12
-                                              )
-                                            ) * 2.5
-                                          }rem`,
-                                        }}
-                                      >
-                                        {record.generics?.[0]?.apis?.[0]
-                                          ?.testTypes?.[0]?.pharmacopoeialId ? (
-                                          <div className="font-mono text-center leading-tight w-full">
-                                            {getPharmacopoeialsTickTableForTestType(
-                                              record.generics[0].apis[0]
-                                                .testTypes[0],
-                                              getApiName(
-                                                record.generics[0].apis[0]
-                                                  .apiName
-                                              )
-                                            )}
-                                          </div>
-                                        ) : (
-                                          <div className="text-center text-gray-400">
-                                            -
-                                          </div>
-                                        )}
-                                      </td>
-
-                                      {/* Blank Injection */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
-                                        {testType.blankInjection || "-"}
-                                      </td>
-
-                                      {/* System Suitability */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
-                                        {testType.systemSuitability || "-"}
-                                      </td>
-
-                                      {/* Sensitivity */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
-                                        {testType.sensitivity || "-"}
-                                      </td>
-
-                                      {/* Placebo */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
-                                        {testType.placebo || "-"}
-                                      </td>
-
-                                      {/* Standard Injection */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
-                                        {testType.standardInjection || "-"}
-                                      </td>
-
-                                      {/* Reference 1 */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
-                                        {testType.reference1 || "-"}
-                                      </td>
-
-                                      {/* Reference 2 */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
-                                        {testType.reference2 || "-"}
-                                      </td>
-
-                                      {/* Sample Injection */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
-                                        {testType.sampleInjection || "-"}
-                                      </td>
-
-                                      {/* Bracketing Frequency */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
-                                        {testType.bracketingFrequency || "-"}
-                                      </td>
-
-                                      {/* Wash Time */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
-                                        {testType.washTime || "-"}
-                                      </td>
-
-                                      {/* Blank Run Time */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
-                                        {testType.blankRunTime || "-"}
-                                      </td>
-
-                                      {/* Standard Run Time */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
-                                        {testType.standardRunTime || "-"}
-                                      </td>
-
-                                      {/* Sample Run Time */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
-                                        {testType.sampleRunTime || "-"}
-                                      </td>
-
-                                      {/* NEW: System Suitability Runtime */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
-                                        {testType.systemSuitabilityRunTime ||
-                                          "-"}
-                                      </td>
-
-                                      {/* NEW: Sensitivity Runtime */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
-                                        {testType.sensitivityRunTime || "-"}
-                                      </td>
-
-                                      {/* NEW: Placebo Runtime */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
-                                        {testType.placeboRunTime || "-"}
-                                      </td>
-
-                                      {/* NEW: Reference1 Runtime */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
-                                        {testType.reference1RunTime || "-"}
-                                      </td>
-
-                                      {/* NEW: Reference2 Runtime */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
-                                        {testType.reference2RunTime || "-"}
-                                      </td>
-
-                                      {/* NEW: AMV Injections */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                        {testType.amv
-                                          ? testType.numberOfInjectionsAMV || 0
-                                          : "-"}
-                                      </td>
-
-                                      {/* NEW: PV Injections */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                        {testType.pv
-                                          ? testType.numberOfInjectionsPV || 0
-                                          : "-"}
-                                      </td>
-
-                                      {/* NEW: CV Injections */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                        {testType.cv
-                                          ? testType.numberOfInjectionsCV || 0
-                                          : "-"}
-                                      </td>
-                                      <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                        <span
-                                          className={`inline-block ${
-                                            testType.isOutsourcedTest
-                                              ? "text-green-600"
-                                              : "text-red-500"
-                                          }`}
-                                        >
-                                          {testType.isOutsourcedTest
-                                            ? "✓"
-                                            : "✗"}
-                                        </span>
-                                      </td>
-
-                                      {/* Flags - one row per test type */}
-                                      <td className="px-2 py-2 border border-gray-300 text-xs">
-                                        {getTestTypeFlags(testType)}
-                                      </td>
-                                    </tr>
-                                  );
-                                }
-                              );
-                            });
-                          });
-                        });
-
-                        return tableRows;
-                      })()
+              {/* Tab Content Description */}
+              <div
+                className={`p-3 rounded-lg ${getTabInfo().bgColor} ${
+                  getTabInfo().borderColor
+                } border`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800">
+                      {getTabInfo().title}
+                    </h3>
+                    <p className="text-xs text-gray-600 mt-1">
+                      {getTabInfo().description}
+                    </p>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {searchTerm ? (
+                      <span>
+                        Found {pagination.total} results for "{searchTerm}"
+                      </span>
                     ) : (
-                      <tr>
-                        <td
-                          colSpan={38}
-                          className="px-6 py-4 text-center text-gray-500 border border-gray-300"
-                        >
-                          No MFC records found
-                        </td>
-                      </tr>
+                      <span>Showing {pagination.total} total records</span>
                     )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {!isLoading && !lookupLoading && pagination.totalPages > 1 && (
-              <div className="px-6 py-4 bg-gray-50 border-t border-gray-300 flex justify-between items-center">
-                <div className="text-sm text-gray-600">
-                  Page {pagination.page} of {pagination.totalPages}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handlePageChange(pagination.page - 1)}
-                    disabled={pagination.page === 1}
-                    className="px-3 py-1 bg-gray-200 text-gray-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    onClick={() => handlePageChange(pagination.page + 1)}
-                    disabled={pagination.page === pagination.totalPages}
-                    className="px-3 py-1 bg-gray-200 text-gray-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Next
-                  </button>
+                    {lookupLoading && (
+                      <span className="ml-4 text-orange-600">
+                        • Loading lookup data...
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Search Modal - Fixed and working */}
-      {showSearchModal && (
-        <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">
-                Search MFC Records
-              </h2>
-            </div>
-            <div className="p-6">
-              <form onSubmit={handleSearchSubmit} className="mb-4">
-                <div className="flex gap-4">
-                  <input
-                    type="text"
-                    placeholder="Search by MFC Number, Generic Name..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    autoFocus
-                  />
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-                  >
-                    {isLoading ? "Searching..." : "Search"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleClearSearch}
-                    disabled={isLoading}
-                    className="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500 disabled:opacity-50"
-                  >
-                    Clear
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowSearchModal(false)}
-                    className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-                  >
-                    Close
-                  </button>
+              {(isLoading || lookupLoading) && (
+                <div className="px-6 py-12">
+                  <div className="flex justify-center items-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                    <span className="ml-3 text-gray-600">
+                      {lookupLoading
+                        ? "Loading lookup data..."
+                        : "Loading MFC records..."}
+                    </span>
+                  </div>
                 </div>
-              </form>
+              )}
 
-              {/* Show current search status */}
-              <div className="mb-4 text-sm text-gray-600">
-                {isLoading ? (
-                  "Searching..."
-                ) : (
-                  <>
-                    {searchTerm
-                      ? `Found ${pagination.total} results for "${searchTerm}"`
-                      : `Showing ${pagination.total} total records`}
-                  </>
-                )}
-              </div>
-
-              {isLoading ? (
-                <div className="flex justify-center items-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                  <span className="ml-3 text-gray-600">Loading...</span>
-                </div>
-              ) : (
+              {!isLoading && !lookupLoading && !errorMessage && (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 text-xs">
-                    <thead className="bg-gray-100">
+                  <table className="min-w-full divide-y divide-gray-300 text-xs">
+                    <thead className="bg-gray-200">
                       <tr>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                        <th
+                          rowSpan={2}
+                          className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                        >
                           MFC Number
                         </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                        <th
+                          rowSpan={2}
+                          className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                        >
                           Product Codes
                         </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                        <th
+                          rowSpan={2}
+                          className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                        >
                           Generic Name
                         </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
-                          API Count
+                        <th
+                          rowSpan={2}
+                          className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                        >
+                          API Name
                         </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
-                          Test Type Count
+                        <th
+                          rowSpan={2}
+                          className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                        >
+                          Test Type
                         </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
-                          Department
+                        <th
+                          rowSpan={2}
+                          className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                        >
+                          Column
                         </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
-                          Actions
+                        <th
+                          colSpan={6}
+                          className="px-2 py-2 text-center font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                        >
+                          Mobile Phase
+                        </th>
+                        <th
+                          rowSpan={2}
+                          className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                        >
+                          Detector
+                        </th>
+                        <th
+                          rowSpan={2}
+                          className="px-2 py-2 font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                          style={{
+                            minWidth: `${
+                              Math.max(
+                                6,
+                                Math.min(pharmacopoeials.length, 12)
+                              ) * 2.5
+                            }rem`,
+                          }}
+                        >
+                          Pharmacopoeial
+                        </th>
+
+                        {/* New Injection & Reference Fields Group */}
+                        <th
+                          colSpan={9}
+                          className="px-2 py-2 text-center font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-blue-100"
+                        >
+                          Injection & Reference Fields
+                        </th>
+                        {/* New Runtime & Wash Fields Group */}
+                        <th
+                          colSpan={9}
+                          className="px-2 py-2 text-center font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-green-100"
+                        >
+                          Runtime & Wash Fields
+                        </th>
+                        <th
+                          rowSpan={2}
+                          className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                        >
+                          AMV Inj
+                        </th>
+                        <th
+                          rowSpan={2}
+                          className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                        >
+                          PV Inj
+                        </th>
+                        <th
+                          rowSpan={2}
+                          className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                        >
+                          CV Inj
+                        </th>
+                        <th
+                          rowSpan={2}
+                          className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                        >
+                          Outsourced
+                        </th>
+                        <th
+                          rowSpan={2}
+                          className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-gray-100"
+                        >
+                          Stage
+                        </th>
+                      </tr>
+                      <tr>
+                        {/* Mobile Phase sub-headers */}
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-gray-50">
+                          MP1
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-gray-50">
+                          MP2
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-gray-50">
+                          MP3
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-gray-50">
+                          MP4
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-gray-50">
+                          Wash1
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-gray-50">
+                          Wash2
+                        </th>
+
+                        {/* Injection & Reference Fields sub-headers */}
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
+                          Blank Inj
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
+                          System Suit
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
+                          Sensitivity
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
+                          Placebo
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
+                          Std Inj
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
+                          Ref 1
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
+                          Ref 2
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
+                          Sample Inj
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
+                          Bracket Freq
+                        </th>
+
+                        {/* Runtime & Wash Fields sub-headers */}
+                        {/* Updated Runtime & Wash Fields sub-headers */}
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                          Wash Time
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                          Blank Run
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                          Std Run
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                          Sample Run
+                        </th>
+                        {/* New Runtime Fields */}
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                          Sys Suit Run
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                          Sensitivity Run
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                          Placebo Run
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                          Ref1 Run
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                          Ref2 Run
                         </th>
                       </tr>
                     </thead>
 
                     <tbody className="bg-white divide-y divide-gray-200">
                       {mfcRecords.length > 0 ? (
-                        mfcRecords.map((record, index) => {
-                          const productCodes = getProductCodesForMFC(record);
-                          const apiCount =
-                            record.generics?.reduce((total, generic) => {
-                              return (
-                                total + (generic.apis ? generic.apis.length : 0)
-                              );
-                            }, 0) || 0;
-                          const testTypeCount =
-                            record.generics?.reduce((total, generic) => {
-                              return (
-                                total +
-                                (generic.apis?.reduce((apiTotal, api) => {
-                                  return (
-                                    apiTotal +
-                                    (api.testTypes ? api.testTypes.length : 0)
+                        (() => {
+                          let tableRows: JSX.Element[] = [];
+
+                          mfcRecords.forEach((record, recordIndex) => {
+                            record.generics?.forEach(
+                              (generic, genericIndex) => {
+                                generic.apis?.forEach((api, apiIndex) => {
+                                  api.testTypes?.forEach(
+                                    (testType, testTypeIndex) => {
+                                      const isFirstRowForRecord =
+                                        genericIndex === 0 &&
+                                        apiIndex === 0 &&
+                                        testTypeIndex === 0;
+                                      const isFirstRowForGeneric =
+                                        apiIndex === 0 && testTypeIndex === 0;
+                                      const isFirstRowForApi =
+                                        testTypeIndex === 0;
+
+                                      const totalTestTypesInRecord =
+                                        record.generics?.reduce(
+                                          (total, g) =>
+                                            total +
+                                            (g.apis?.reduce(
+                                              (apiTotal, a) =>
+                                                apiTotal +
+                                                (a.testTypes?.length || 0),
+                                              0
+                                            ) || 0),
+                                          0
+                                        ) || 1;
+
+                                      const totalTestTypesInGeneric =
+                                        generic.apis?.reduce(
+                                          (total, a) =>
+                                            total + (a.testTypes?.length || 0),
+                                          0
+                                        ) || 1;
+
+                                      const testTypesInApi =
+                                        api.testTypes?.length || 1;
+                                      const productData =
+                                        getProductCodesForMFC(record);
+
+                                      tableRows.push(
+                                        <tr
+                                          key={`${recordIndex}-${genericIndex}-${apiIndex}-${testTypeIndex}`}
+                                          onClick={() =>
+                                            handleRowSelect(record)
+                                          }
+                                          className={`cursor-pointer transition-colors hover:bg-gray-50 ${
+                                            selectedRecord?._id === record._id
+                                              ? "bg-blue-100"
+                                              : ""
+                                          }`}
+                                        >
+                                          {/* MFC Number - spans all rows for this record */}
+                                          {isFirstRowForRecord && (
+                                            <td
+                                              rowSpan={totalTestTypesInRecord}
+                                              className="px-2 py-2 border border-gray-300 font-mono text-xs font-medium bg-blue-50"
+                                            >
+                                              <div className="text-center">
+                                                <div className="font-bold">
+                                                  {record.mfcNumber}
+                                                </div>
+                                                <div className="mt-1 flex flex-col items-center gap-1">
+                                                  {(record as any)
+                                                    .isObsolete && (
+                                                    <span className="bg-orange-100 text-orange-800 px-1 py-0.5 rounded text-xs font-normal">
+                                                      Obsolete
+                                                    </span>
+                                                  )}
+                                                  {(record as any)
+                                                    .isRawMaterial && (
+                                                    <span className="bg-green-100 text-green-800 px-1 py-0.5 rounded text-xs font-normal">
+                                                      Raw Material
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </td>
+                                          )}
+
+                                          {/* Product Codes - show all products in one cell, spans all rows for this record */}
+                                          {isFirstRowForRecord && (
+                                            <td
+                                              rowSpan={totalTestTypesInRecord}
+                                              className="px-2 py-2 border border-gray-300 text-xs bg-purple-50"
+                                              title={getProductCodeTooltip(
+                                                productData
+                                              )}
+                                            >
+                                              <div className="max-w-32">
+                                                {formatProductCodes(
+                                                  productData
+                                                )}
+                                              </div>
+                                            </td>
+                                          )}
+
+                                          {/* Generic Name - spans all rows for this generic */}
+                                          {isFirstRowForGeneric && (
+                                            <td
+                                              rowSpan={totalTestTypesInGeneric}
+                                              className="px-2 py-2 border border-gray-300 text-xs font-medium bg-green-50"
+                                            >
+                                              {generic.genericName}
+                                            </td>
+                                          )}
+
+                                          {/* API Name - spans all rows for this api */}
+                                          {isFirstRowForApi && (
+                                            <td
+                                              rowSpan={testTypesInApi}
+                                              className="px-2 py-2 border border-gray-300 text-xs bg-yellow-50"
+                                            >
+                                              {(() => {
+                                                // Check if any test type in this API is linked
+                                                const hasLinkedTestType =
+                                                  api.testTypes?.some(
+                                                    (testType) =>
+                                                      testType.isLinked
+                                                  );
+
+                                                return (
+                                                  <div
+                                                    className={`font-medium ${
+                                                      hasLinkedTestType
+                                                        ? "font-bold"
+                                                        : ""
+                                                    }`}
+                                                    style={{
+                                                      color: hasLinkedTestType
+                                                        ? "#af261c"
+                                                        : "#1e1e1e",
+                                                      fontWeight:
+                                                        hasLinkedTestType
+                                                          ? "bold"
+                                                          : "medium",
+                                                    }}
+                                                  >
+                                                    {getApiName(api.apiName)}
+                                                    {hasLinkedTestType && (
+                                                      <span className="ml-1 text-xs bg-green-100 text-green-800 px-1 rounded">
+                                                        LINKED
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                );
+                                              })()}
+                                            </td>
+                                          )}
+
+                                          {/* Test Type - one row per test type */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs">
+                                            <div className="font-medium text-gray-900">
+                                              {getTestTypeName(
+                                                testType.testTypeId
+                                              )}
+                                            </div>
+                                          </td>
+
+                                          {/* Column - one row per test type */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs">
+                                            <div className="font-medium text-gray-900">
+                                              {getColumnDisplayText(
+                                                testType.columnCode
+                                              ) || testType.columnCode}
+                                            </div>
+                                          </td>
+
+                                          {/* Mobile Phase columns - one row per test type */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                            {testType.mobilePhaseCodes?.[0] ? (
+                                              <div>
+                                                <div className="font-medium text-gray-900">
+                                                  {getMobilePhaseName(
+                                                    testType.mobilePhaseCodes[0]
+                                                  )}
+                                                </div>
+                                                {getMobilePhaseName(
+                                                  testType.mobilePhaseCodes[0]
+                                                ) !==
+                                                  testType
+                                                    .mobilePhaseCodes[0] && (
+                                                  <div className="text-gray-400 text-xs font-mono">
+                                                    {
+                                                      testType
+                                                        .mobilePhaseCodes[0]
+                                                    }
+                                                  </div>
+                                                )}
+                                              </div>
+                                            ) : (
+                                              "-"
+                                            )}
+                                          </td>
+
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                            {testType.mobilePhaseCodes?.[1] ? (
+                                              <div>
+                                                <div className="font-medium text-gray-900">
+                                                  {getMobilePhaseName(
+                                                    testType.mobilePhaseCodes[1]
+                                                  )}
+                                                </div>
+                                                {getMobilePhaseName(
+                                                  testType.mobilePhaseCodes[1]
+                                                ) !==
+                                                  testType
+                                                    .mobilePhaseCodes[1] && (
+                                                  <div className="text-gray-400 text-xs font-mono">
+                                                    {
+                                                      testType
+                                                        .mobilePhaseCodes[1]
+                                                    }
+                                                  </div>
+                                                )}
+                                              </div>
+                                            ) : (
+                                              "-"
+                                            )}
+                                          </td>
+
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                            {testType.mobilePhaseCodes?.[2] ? (
+                                              <div>
+                                                <div className="font-medium text-gray-900">
+                                                  {getMobilePhaseName(
+                                                    testType.mobilePhaseCodes[2]
+                                                  )}
+                                                </div>
+                                                {getMobilePhaseName(
+                                                  testType.mobilePhaseCodes[2]
+                                                ) !==
+                                                  testType
+                                                    .mobilePhaseCodes[2] && (
+                                                  <div className="text-gray-400 text-xs font-mono">
+                                                    {
+                                                      testType
+                                                        .mobilePhaseCodes[2]
+                                                    }
+                                                  </div>
+                                                )}
+                                              </div>
+                                            ) : (
+                                              "-"
+                                            )}
+                                          </td>
+
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                            {testType.mobilePhaseCodes?.[3] ? (
+                                              <div>
+                                                <div className="font-medium text-gray-900">
+                                                  {getMobilePhaseName(
+                                                    testType.mobilePhaseCodes[3]
+                                                  )}
+                                                </div>
+                                                {getMobilePhaseName(
+                                                  testType.mobilePhaseCodes[3]
+                                                ) !==
+                                                  testType
+                                                    .mobilePhaseCodes[3] && (
+                                                  <div className="text-gray-400 text-xs font-mono">
+                                                    {
+                                                      testType
+                                                        .mobilePhaseCodes[3]
+                                                    }
+                                                  </div>
+                                                )}
+                                              </div>
+                                            ) : (
+                                              "-"
+                                            )}
+                                          </td>
+
+                                          {/* NEW: Wash 1 column */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                            {testType.mobilePhaseCodes?.[4] ? (
+                                              <div>
+                                                <div className="font-medium text-gray-900">
+                                                  {getMobilePhaseName(
+                                                    testType.mobilePhaseCodes[4]
+                                                  )}
+                                                </div>
+                                                {getMobilePhaseName(
+                                                  testType.mobilePhaseCodes[4]
+                                                ) !==
+                                                  testType
+                                                    .mobilePhaseCodes[4] && (
+                                                  <div className="text-gray-400 text-xs font-mono">
+                                                    {
+                                                      testType
+                                                        .mobilePhaseCodes[4]
+                                                    }
+                                                  </div>
+                                                )}
+                                              </div>
+                                            ) : (
+                                              "-"
+                                            )}
+                                          </td>
+
+                                          {/* NEW: Wash 2 column */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                            {testType.mobilePhaseCodes?.[5] ? (
+                                              <div>
+                                                <div className="font-medium text-gray-900">
+                                                  {getMobilePhaseName(
+                                                    testType.mobilePhaseCodes[5]
+                                                  )}
+                                                </div>
+                                                {getMobilePhaseName(
+                                                  testType.mobilePhaseCodes[5]
+                                                ) !==
+                                                  testType
+                                                    .mobilePhaseCodes[5] && (
+                                                  <div className="text-gray-400 text-xs font-mono">
+                                                    {
+                                                      testType
+                                                        .mobilePhaseCodes[5]
+                                                    }
+                                                  </div>
+                                                )}
+                                              </div>
+                                            ) : (
+                                              "-"
+                                            )}
+                                          </td>
+
+                                          {/* Detector - one row per test type */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs">
+                                            <div className="font-medium text-gray-900">
+                                              {getDetectorTypeName(
+                                                testType.detectorTypeId
+                                              )}
+                                            </div>
+                                          </td>
+
+                                          {/* Show pharmacopeials for THIS specific test type */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs">
+                                            {testType.pharmacopoeialId &&
+                                            testType.pharmacopoeialId.length >
+                                              0 ? (
+                                              <div className="font-mono text-center leading-tight">
+                                                {getPharmacopoeialsTickTableForTestType(
+                                                  testType
+                                                )}
+                                              </div>
+                                            ) : (
+                                              <div className="text-center text-gray-400">
+                                                -
+                                              </div>
+                                            )}
+                                          </td>
+
+                                          {/* Blank Injection */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
+                                            {testType.blankInjection || "-"}
+                                          </td>
+
+                                          {/* System Suitability */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
+                                            {testType.systemSuitability || "-"}
+                                          </td>
+
+                                          {/* Sensitivity */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
+                                            {testType.sensitivity || "-"}
+                                          </td>
+
+                                          {/* Placebo */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
+                                            {testType.placebo || "-"}
+                                          </td>
+
+                                          {/* Standard Injection */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
+                                            {testType.standardInjection || "-"}
+                                          </td>
+
+                                          {/* Reference 1 */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
+                                            {testType.reference1 || "-"}
+                                          </td>
+
+                                          {/* Reference 2 */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
+                                            {testType.reference2 || "-"}
+                                          </td>
+
+                                          {/* Sample Injection */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
+                                            {testType.sampleInjection || "-"}
+                                          </td>
+
+                                          {/* Bracketing Frequency */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-blue-25">
+                                            {testType.bracketingFrequency ||
+                                              "-"}
+                                          </td>
+
+                                          {/* Wash Time */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
+                                            {testType.washTime || "-"}
+                                          </td>
+
+                                          {/* Blank Run Time */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
+                                            {testType.blankRunTime || "-"}
+                                          </td>
+
+                                          {/* Standard Run Time */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
+                                            {testType.standardRunTime || "-"}
+                                          </td>
+
+                                          {/* Sample Run Time */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
+                                            {testType.sampleRunTime || "-"}
+                                          </td>
+
+                                          {/* NEW: System Suitability Runtime */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
+                                            {testType.systemSuitabilityRunTime ||
+                                              "-"}
+                                          </td>
+
+                                          {/* NEW: Sensitivity Runtime */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
+                                            {testType.sensitivityRunTime || "-"}
+                                          </td>
+
+                                          {/* NEW: Placebo Runtime */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
+                                            {testType.placeboRunTime || "-"}
+                                          </td>
+
+                                          {/* NEW: Reference1 Runtime */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
+                                            {testType.reference1RunTime || "-"}
+                                          </td>
+
+                                          {/* NEW: Reference2 Runtime */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-green-25">
+                                            {testType.reference2RunTime || "-"}
+                                          </td>
+
+                                          {/* NEW: AMV Injections */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                            {testType.amv
+                                              ? testType.numberOfInjectionsAMV ||
+                                                0
+                                              : "-"}
+                                          </td>
+
+                                          {/* NEW: PV Injections */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                            {testType.pv
+                                              ? testType.numberOfInjectionsPV ||
+                                                0
+                                              : "-"}
+                                          </td>
+
+                                          {/* NEW: CV Injections */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                            {testType.cv
+                                              ? testType.numberOfInjectionsCV ||
+                                                0
+                                              : "-"}
+                                          </td>
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                            <span
+                                              className={`inline-block ${
+                                                testType.isOutsourcedTest
+                                                  ? "text-green-600"
+                                                  : "text-red-500"
+                                              }`}
+                                            >
+                                              {testType.isOutsourcedTest
+                                                ? "✓"
+                                                : "✗"}
+                                            </span>
+                                          </td>
+
+                                          {/* Flags - one row per test type */}
+                                          <td className="px-2 py-2 border border-gray-300 text-xs">
+                                            {getTestTypeFlags(testType)}
+                                          </td>
+                                        </tr>
+                                      );
+                                    }
                                   );
-                                }, 0) || 0)
-                              );
-                            }, 0) || 0;
+                                });
+                              }
+                            );
+                          });
 
-                          return (
-                            <tr
-                              key={index}
-                              onClick={() => handleRowSelect(record)}
-                              className={`cursor-pointer hover:bg-gray-50 ${
-                                selectedRecord?._id === record._id
-                                  ? "bg-blue-100"
-                                  : ""
-                              }`}
-                            >
-                              <td className="px-2 py-2 border border-gray-300 font-mono text-xs">
-                                {record.mfcNumber}
-                              </td>
-                              <td
-                                className="px-2 py-2 border border-gray-300 text-xs"
-                                title={
-                                  productCodes.length > 3
-                                    ? productCodes
-                                        .map((p) => `${p.code} (${p.name})`)
-                                        .join(", ")
-                                    : ""
-                                }
-                              >
-                                <div className="max-w-32">
-                                  {formatProductCodes(productCodes)}
-                                </div>
-                              </td>
-                              <td className="px-2 py-2 border border-gray-300 text-xs">
-                                {record.generics?.[0]?.genericName || "-"}
-                              </td>
-
-                              <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                {apiCount}
-                              </td>
-                              <td className="px-2 py-2 border border-gray-300 text-xs text-center">
-                                {testTypeCount}
-                              </td>
-                              <td className="px-2 py-2 border border-gray-300 text-xs">
-                                {record.generics?.[0]?.apis?.[0]?.testTypes?.[0]
-                                  ?.pharmacopoeialId ? (
-                                  <div className="font-mono text-center leading-tight">
-                                    {getPharmacopoeialsTickTableForTestType(
-                                      record.generics[0].apis[0].testTypes[0],
-                                      getApiName(
-                                        record.generics[0].apis[0].apiName
-                                      )
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="text-center text-gray-400">
-                                    -
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-2 py-2 border border-gray-300 text-xs">
-                                {getDepartmentName(record.departmentId)}
-                              </td>
-                              <td className="px-2 py-2 border border-gray-300 text-xs">
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleEdit(record);
-                                    }}
-                                    className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDelete(record);
-                                    }}
-                                    className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
+                          return tableRows;
+                        })()
                       ) : (
                         <tr>
                           <td
-                            colSpan={7}
+                            colSpan={38}
                             className="px-6 py-4 text-center text-gray-500 border border-gray-300"
                           >
-                            No records found
+                            No MFC records found
                           </td>
                         </tr>
                       )}
@@ -2492,307 +2793,588 @@ const MFCMasterPage: React.FC = () => {
                   </table>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Audit Modal */}
-      {showAuditModal && (
-        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[85vh] flex flex-col overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
-              <h2 className="text-xl font-semibold text-gray-800">
-                Audit Trail
-              </h2>
-              <button
-                onClick={() => setShowAuditModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Filters */}
-            <div className="p-4 border-b bg-gray-50">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <input
-                  type="text"
-                  placeholder="🔍 Search by MFC Number, User..."
-                  value={auditFilters.search}
-                  onChange={(e) =>
-                    setAuditFilters({ ...auditFilters, search: e.target.value })
-                  }
-                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                />
-
-                <select
-                  value={auditFilters.action}
-                  onChange={(e) =>
-                    setAuditFilters({ ...auditFilters, action: e.target.value })
-                  }
-                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                >
-                  <option value="">All Actions</option>
-                  <option value="CREATE">CREATE</option>
-                  <option value="UPDATE">UPDATE</option>
-                  <option value="DELETE">DELETE</option>
-                </select>
-
-                <input
-                  type="date"
-                  value={auditFilters.dateFrom}
-                  onChange={(e) =>
-                    setAuditFilters({
-                      ...auditFilters,
-                      dateFrom: e.target.value,
-                    })
-                  }
-                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                />
-
-                <input
-                  type="date"
-                  value={auditFilters.dateTo}
-                  onChange={(e) =>
-                    setAuditFilters({ ...auditFilters, dateTo: e.target.value })
-                  }
-                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                />
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto">
-              {auditLoading ? (
-                <div className="flex justify-center items-center h-full py-12">
-                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
-                  <span className="ml-3 text-gray-600 text-sm">
-                    Loading audit records...
-                  </span>
-                </div>
-              ) : auditRecords.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm border-collapse">
-                    <thead className="sticky top-0 bg-gray-100 text-gray-700 text-xs uppercase tracking-wide">
-                      <tr>
-                        {[
-                          "MFC Number",
-                          "Action",
-                          "Performed By",
-                          "Performed At",
-                          "Field",
-                          "Old Value",
-                          "New Value",
-                        ].map((col) => (
-                          <th
-                            key={col}
-                            className="px-3 py-2 border text-left font-medium"
-                          >
-                            {col}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {auditRecords.map((audit) =>
-                        audit.changes.map((change, index) => (
-                          <tr
-                            key={`${audit._id}-${index}`}
-                            className="odd:bg-white even:bg-gray-50"
-                          >
-                            {index === 0 && (
-                              <>
-                                <td
-                                  rowSpan={audit.changes.length}
-                                  className="px-3 py-2 border font-mono text-xs"
-                                >
-                                  {audit.mfcNumber}
-                                </td>
-                                <td
-                                  rowSpan={audit.changes.length}
-                                  className="px-3 py-2 border text-xs font-semibold"
-                                >
-                                  <span
-                                    className={`px-2 py-1 rounded text-xs ${
-                                      audit.action === "CREATE"
-                                        ? "bg-green-100 text-green-700"
-                                        : audit.action === "UPDATE"
-                                        ? "bg-yellow-100 text-yellow-700"
-                                        : "bg-red-100 text-red-700"
-                                    }`}
-                                  >
-                                    {audit.action}
-                                  </span>
-                                </td>
-                                <td
-                                  rowSpan={audit.changes.length}
-                                  className="px-3 py-2 border text-xs"
-                                >
-                                  {audit.performedBy}
-                                </td>
-                                <td
-                                  rowSpan={audit.changes.length}
-                                  className="px-3 py-2 border text-xs"
-                                >
-                                  {new Date(audit.performedAt).toLocaleString()}
-                                </td>
-                              </>
-                            )}
-                            <td className="px-3 py-2 border text-xs">
-                              {change.field}
-                            </td>
-                            <td className="px-3 py-2 border text-xs">
-                              {formatChangeValue(change.oldValue)}
-                            </td>
-                            <td className="px-3 py-2 border text-xs">
-                              {formatChangeValue(change.newValue)}
-                            </td>
-                            <td className="px-3 py-2 border text-xs">
-                              {change.field
-                                .toLowerCase()
-                                .includes("pharmacopeial") ? (
-                                <div className="font-mono text-center leading-tight">
-                                  <pre className="whitespace-pre text-xs m-0 p-0">
-                                    {formatChangeValue(
-                                      change.oldValue,
-                                      change.field
-                                    )}
-                                  </pre>
-                                </div>
-                              ) : (
-                                formatChangeValue(change.oldValue, change.field)
-                              )}
-                            </td>
-                            <td className="px-3 py-2 border text-xs">
-                              {change.field
-                                .toLowerCase()
-                                .includes("pharmacopeial") ? (
-                                <div className="font-mono text-center leading-tight">
-                                  <pre className="whitespace-pre text-xs m-0 p-0">
-                                    {formatChangeValue(
-                                      change.newValue,
-                                      change.field
-                                    )}
-                                  </pre>
-                                </div>
-                              ) : (
-                                formatChangeValue(change.newValue, change.field)
-                              )}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center text-gray-500 py-12">
-                  No audit records found
+              {!isLoading && !lookupLoading && pagination.totalPages > 1 && (
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-300 flex justify-between items-center">
+                  <div className="text-sm text-gray-600">
+                    Page {pagination.page} of {pagination.totalPages}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handlePageChange(pagination.page - 1)}
+                      disabled={pagination.page === 1}
+                      className="px-3 py-1 bg-gray-200 text-gray-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => handlePageChange(pagination.page + 1)}
+                      disabled={pagination.page === pagination.totalPages}
+                      className="px-3 py-1 bg-gray-200 text-gray-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
-
-            {/* Footer */}
-            <div className="px-6 py-3 border-t bg-gray-50 flex justify-end">
-              <button
-                onClick={() => setShowAuditModal(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 text-sm"
-              >
-                Close
-              </button>
-            </div>
           </div>
         </div>
-      )}
 
-      {/* Help Modal */}
-      {showHelpModal && (
-        <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">
-                Help - MFC Master
-              </h2>
+        {/* Search Modal - Fixed and working */}
+        {showSearchModal && (
+          <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] overflow-y-auto">
+              <div className="px-6 py-4 border-b border-gray-200 bg-gray-100">
+                <h2 className="text-lg font-bold text-gray-900">
+                  Search MFC Records
+                </h2>
+              </div>
+              <div className="p-6">
+                <form onSubmit={handleSearchSubmit} className="mb-4">
+                  <div className="flex gap-4">
+                    <input
+                      type="text"
+                      placeholder="Search by MFC Number, Generic Name..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      autoFocus
+                    />
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+                    >
+                      {isLoading ? "Searching..." : "Search"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearSearch}
+                      disabled={isLoading}
+                      className="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500 disabled:opacity-50"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowSearchModal(false)}
+                      className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </form>
+
+                {/* Show current search status */}
+                <div className="mb-4 text-sm text-gray-600">
+                  {isLoading ? (
+                    "Searching..."
+                  ) : (
+                    <>
+                      {searchTerm
+                        ? `Found ${pagination.total} results for "${searchTerm}"`
+                        : `Showing ${pagination.total} total records`}
+                    </>
+                  )}
+                </div>
+
+                {isLoading ? (
+                  <div className="flex justify-center items-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                    <span className="ml-3 text-gray-600">Loading...</span>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 text-xs">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                            MFC Number
+                          </th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                            Product Codes
+                          </th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                            Generic Name
+                          </th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                            API Count
+                          </th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                            Test Type Count
+                          </th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                            Department
+                          </th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {mfcRecords.length > 0 ? (
+                          mfcRecords.map((record, index) => {
+                            const productCodes = getProductCodesForMFC(record);
+                            const apiCount =
+                              record.generics?.reduce((total, generic) => {
+                                return (
+                                  total +
+                                  (generic.apis ? generic.apis.length : 0)
+                                );
+                              }, 0) || 0;
+                            const testTypeCount =
+                              record.generics?.reduce((total, generic) => {
+                                return (
+                                  total +
+                                  (generic.apis?.reduce((apiTotal, api) => {
+                                    return (
+                                      apiTotal +
+                                      (api.testTypes ? api.testTypes.length : 0)
+                                    );
+                                  }, 0) || 0)
+                                );
+                              }, 0) || 0;
+
+                            return (
+                              <tr
+                                key={index}
+                                onClick={() => handleRowSelect(record)}
+                                className={`cursor-pointer hover:bg-gray-50 ${
+                                  selectedRecord?._id === record._id
+                                    ? "bg-blue-100"
+                                    : ""
+                                }`}
+                              >
+                                <td className="px-2 py-2 border border-gray-300 font-mono text-xs">
+                                  {record.mfcNumber}
+                                </td>
+                                <td
+                                  className="px-2 py-2 border border-gray-300 text-xs"
+                                  title={
+                                    productCodes.length > 3
+                                      ? productCodes
+                                          .map((p) => `${p.code} (${p.name})`)
+                                          .join(", ")
+                                      : ""
+                                  }
+                                >
+                                  <div className="max-w-32">
+                                    {formatProductCodes(productCodes)}
+                                  </div>
+                                </td>
+                                <td className="px-2 py-2 border border-gray-300 text-xs">
+                                  {record.generics?.[0]?.genericName || "-"}
+                                </td>
+
+                                <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                  {apiCount}
+                                </td>
+                                <td className="px-2 py-2 border border-gray-300 text-xs text-center">
+                                  {testTypeCount}
+                                </td>
+                                <td className="px-2 py-2 border border-gray-300 text-xs">
+                                  {(() => {
+                                    // Show pharmacopeials for all test types in this record
+                                    const allTestTypes =
+                                      record.generics?.flatMap(
+                                        (g) =>
+                                          g.apis?.flatMap(
+                                            (a) => a.testTypes || []
+                                          ) || []
+                                      ) || [];
+
+                                    if (allTestTypes.length === 0)
+                                      return (
+                                        <div className="text-center text-gray-400">
+                                          -
+                                        </div>
+                                      );
+
+                                    // Show pharmacopeials from the first test type that has them
+                                    const testTypeWithPharmaco =
+                                      allTestTypes.find(
+                                        (tt) => tt.pharmacopoeialId
+                                      );
+
+                                    return testTypeWithPharmaco ? (
+                                      <div className="font-mono text-center leading-tight">
+                                        {getPharmacopoeialsTickTableForTestType(
+                                          testTypeWithPharmaco
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="text-center text-gray-400">
+                                        -
+                                      </div>
+                                    );
+                                  })()}
+                                </td>
+                                <td className="px-2 py-2 border border-gray-300 text-xs">
+                                  {getDepartmentName(record.departmentId)}
+                                </td>
+                                <td className="px-2 py-2 border border-gray-300 text-xs">
+                                  {getDepartmentName(record.departmentId)}
+                                </td>
+                                <td className="px-2 py-2 border border-gray-300 text-xs">
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEdit(record);
+                                      }}
+                                      className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDelete(record);
+                                      }}
+                                      className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        ) : (
+                          <tr>
+                            <td
+                              colSpan={7}
+                              className="px-6 py-4 text-center text-gray-500 border border-gray-300"
+                            >
+                              No records found
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="p-6">
-              <h3 className="text-md font-semibold mb-2">Overview</h3>
-              <p className="text-sm text-gray-600 mb-4">
-                The MFC Master module allows you to manage Method Flow Chart
-                (MFC) records. You can create, edit, delete, and view records,
-                as well as perform searches and view audit trails.
-              </p>
-              <h3 className="text-md font-semibold mb-2">Toolbar Actions</h3>
-              <ul className="list-disc pl-5 text-sm text-gray-600 mb-4">
-                <li>
-                  <strong>Add New:</strong> Open a form to create a new MFC
-                  record.
-                </li>
-                <li>
-                  <strong>Save:</strong> Save the currently open form (available
-                  when editing).
-                </li>
-                <li>
-                  <strong>Clear:</strong> Reset the form or clear the selected
-                  record.
-                </li>
-                <li>
-                  <strong>Exit:</strong> Return to the dashboard.
-                </li>
-                <li>
-                  <strong>Up/Down:</strong> Navigate through records in the
-                  table.
-                </li>
-                <li>
-                  <strong>Search:</strong> Open the search modal to find
-                  records.
-                </li>
-                <li>
-                  <strong>Edit:</strong> Edit the selected record.
-                </li>
-                <li>
-                  <strong>Delete:</strong> Delete the selected record.
-                </li>
-                <li>
-                  <strong>Audit:</strong> View the audit trail for the selected
-                  record.
-                </li>
-                <li>
-                  <strong>Print:</strong> Print the selected record.
-                </li>
-                <li>
-                  <strong>Help:</strong> Open this help modal.
-                </li>
-              </ul>
-              <h3 className="text-md font-semibold mb-2">Form Fields</h3>
-              <p className="text-sm text-gray-600 mb-4">
-                The form includes fields for MFC Number, Generic Name,
-                Department, APIs, and Test Types. Ensure all required fields are
-                filled, especially for APIs and Test Types, which include nested
-                configurations for test parameters and flags (Bulk, FP,
-                Stability Partial, Stability Final, AMV, PV, CV, Is Linked).
-              </p>
-              <h3 className="text-md font-semibold mb-2">Product Codes</h3>
-              <p className="text-sm text-gray-600 mb-4">
-                The Product Codes column shows all product codes that are
-                associated with each MFC record. Products are linked to MFC
-                records through their productIds. If more than 3 product codes
-                exist, a truncated display with a "+X more" indicator is shown.
-                Hover over the cell to see all product codes.
-              </p>
-              <div className="flex justify-end">
+          </div>
+        )}
+
+        {/* Audit Modal */}
+        {showAuditModal && (
+          <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[85vh] flex flex-col overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
+                <h2 className="text-xl font-semibold text-gray-800">
+                  Audit Trail
+                </h2>
                 <button
-                  onClick={() => setShowHelpModal(false)}
-                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  onClick={() => setShowAuditModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Filters */}
+              <div className="p-4 border-b bg-gray-50">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <input
+                    type="text"
+                    placeholder="🔍 Search by MFC Number, User..."
+                    value={auditFilters.search}
+                    onChange={(e) =>
+                      setAuditFilters({
+                        ...auditFilters,
+                        search: e.target.value,
+                      })
+                    }
+                    className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  />
+
+                  <select
+                    value={auditFilters.action}
+                    onChange={(e) =>
+                      setAuditFilters({
+                        ...auditFilters,
+                        action: e.target.value,
+                      })
+                    }
+                    className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  >
+                    <option value="">All Actions</option>
+                    <option value="CREATE">CREATE</option>
+                    <option value="UPDATE">UPDATE</option>
+                    <option value="DELETE">DELETE</option>
+                  </select>
+
+                  <input
+                    type="date"
+                    value={auditFilters.dateFrom}
+                    onChange={(e) =>
+                      setAuditFilters({
+                        ...auditFilters,
+                        dateFrom: e.target.value,
+                      })
+                    }
+                    className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  />
+
+                  <input
+                    type="date"
+                    value={auditFilters.dateTo}
+                    onChange={(e) =>
+                      setAuditFilters({
+                        ...auditFilters,
+                        dateTo: e.target.value,
+                      })
+                    }
+                    className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto">
+                {auditLoading ? (
+                  <div className="flex justify-center items-center h-full py-12">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                    <span className="ml-3 text-gray-600 text-sm">
+                      Loading audit records...
+                    </span>
+                  </div>
+                ) : auditRecords.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm border-collapse">
+                      <thead className="sticky top-0 bg-gray-100 text-gray-700 text-xs uppercase tracking-wide">
+                        <tr>
+                          {[
+                            "MFC Number",
+                            "Action",
+                            "Performed By",
+                            "Performed At",
+                            "Field",
+                            "Old Value",
+                            "New Value",
+                          ].map((col) => (
+                            <th
+                              key={col}
+                              className="px-3 py-2 border text-left font-medium"
+                            >
+                              {col}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {auditRecords.map((audit) =>
+                          audit.changes.map((change, index) => (
+                            <tr
+                              key={`${audit._id}-${index}`}
+                              className="odd:bg-white even:bg-gray-50"
+                            >
+                              {index === 0 && (
+                                <>
+                                  <td
+                                    rowSpan={audit.changes.length}
+                                    className="px-3 py-2 border font-mono text-xs"
+                                  >
+                                    {audit.mfcNumber}
+                                  </td>
+                                  <td
+                                    rowSpan={audit.changes.length}
+                                    className="px-3 py-2 border text-xs font-semibold"
+                                  >
+                                    <span
+                                      className={`px-2 py-1 rounded text-xs ${
+                                        audit.action === "CREATE"
+                                          ? "bg-green-100 text-green-700"
+                                          : audit.action === "UPDATE"
+                                          ? "bg-yellow-100 text-yellow-700"
+                                          : "bg-red-100 text-red-700"
+                                      }`}
+                                    >
+                                      {audit.action}
+                                    </span>
+                                  </td>
+                                  <td
+                                    rowSpan={audit.changes.length}
+                                    className="px-3 py-2 border text-xs"
+                                  >
+                                    {audit.performedBy}
+                                  </td>
+                                  <td
+                                    rowSpan={audit.changes.length}
+                                    className="px-3 py-2 border text-xs"
+                                  >
+                                    {new Date(
+                                      audit.performedAt
+                                    ).toLocaleString()}
+                                  </td>
+                                </>
+                              )}
+                              <td className="px-3 py-2 border text-xs">
+                                {change.field}
+                              </td>
+                              <td className="px-3 py-2 border text-xs">
+                                {formatChangeValue(change.oldValue)}
+                              </td>
+                              <td className="px-3 py-2 border text-xs">
+                                {formatChangeValue(change.newValue)}
+                              </td>
+                              <td className="px-3 py-2 border text-xs">
+                                {change.field
+                                  .toLowerCase()
+                                  .includes("pharmacopeial") ? (
+                                  <div className="font-mono text-center leading-tight">
+                                    <pre className="whitespace-pre text-xs m-0 p-0">
+                                      {formatChangeValue(
+                                        change.oldValue,
+                                        change.field
+                                      )}
+                                    </pre>
+                                  </div>
+                                ) : (
+                                  formatChangeValue(
+                                    change.oldValue,
+                                    change.field
+                                  )
+                                )}
+                              </td>
+                              <td className="px-3 py-2 border text-xs">
+                                {change.field
+                                  .toLowerCase()
+                                  .includes("pharmacopeial") ? (
+                                  <div className="font-mono text-center leading-tight">
+                                    <pre className="whitespace-pre text-xs m-0 p-0">
+                                      {formatChangeValue(
+                                        change.newValue,
+                                        change.field
+                                      )}
+                                    </pre>
+                                  </div>
+                                ) : (
+                                  formatChangeValue(
+                                    change.newValue,
+                                    change.field
+                                  )
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center text-gray-500 py-12">
+                    No audit records found
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-3 border-t bg-gray-50 flex justify-end">
+                <button
+                  onClick={() => setShowAuditModal(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 text-sm"
                 >
                   Close
                 </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Help Modal */}
+        {showHelpModal && (
+          <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl">
+              <div className="px-6 py-4 border-b border-gray-200 bg-gray-100">
+                <h2 className="text-lg font-bold text-gray-900">
+                  Help - MFC Master
+                </h2>
+              </div>
+              <div className="p-6">
+                <h3 className="text-md font-semibold mb-2">Overview</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  The MFC Master module allows you to manage Method Flow Chart
+                  (MFC) records. You can create, edit, delete, and view records,
+                  as well as perform searches and view audit trails.
+                </p>
+                <h3 className="text-md font-semibold mb-2">Toolbar Actions</h3>
+                <ul className="list-disc pl-5 text-sm text-gray-600 mb-4">
+                  <li>
+                    <strong>Add New:</strong> Open a form to create a new MFC
+                    record.
+                  </li>
+                  <li>
+                    <strong>Save:</strong> Save the currently open form
+                    (available when editing).
+                  </li>
+                  <li>
+                    <strong>Clear:</strong> Reset the form or clear the selected
+                    record.
+                  </li>
+                  <li>
+                    <strong>Exit:</strong> Return to the dashboard.
+                  </li>
+                  <li>
+                    <strong>Up/Down:</strong> Navigate through records in the
+                    table.
+                  </li>
+                  <li>
+                    <strong>Search:</strong> Open the search modal to find
+                    records.
+                  </li>
+                  <li>
+                    <strong>Edit:</strong> Edit the selected record.
+                  </li>
+                  <li>
+                    <strong>Delete:</strong> Delete the selected record.
+                  </li>
+                  <li>
+                    <strong>Audit:</strong> View the audit trail for the
+                    selected record.
+                  </li>
+                  <li>
+                    <strong>Print:</strong> Print the selected record.
+                  </li>
+                  <li>
+                    <strong>Help:</strong> Open this help modal.
+                  </li>
+                </ul>
+                <h3 className="text-md font-semibold mb-2">Form Fields</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  The form includes fields for MFC Number, Generic Name,
+                  Department, APIs, and Test Types. Ensure all required fields
+                  are filled, especially for APIs and Test Types, which include
+                  nested configurations for test parameters and flags (Bulk, FP,
+                  Stability Partial, Stability Final, AMV, PV, CV, Is Linked).
+                </p>
+                <h3 className="text-md font-semibold mb-2">Product Codes</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  The Product Codes column shows all product codes that are
+                  associated with each MFC record. Products are linked to MFC
+                  records through their productIds. If more than 3 product codes
+                  exist, a truncated display with a "+X more" indicator is
+                  shown. Hover over the cell to see all product codes.
+                </p>
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setShowHelpModal(false)}
+                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

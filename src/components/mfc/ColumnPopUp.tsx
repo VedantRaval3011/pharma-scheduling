@@ -108,50 +108,115 @@ const ColumnPopup: React.FC<ColumnPopupProps> = ({
   }, [suffixes]);
 
   // Improved helper functions using maps
-  const getPrefixName = (prefixId: string | null) => {
-    if (!prefixId || prefixId === '' || prefixId === 'undefined' || prefixId === 'null') {
-      return '-';
-    }
-    
-    const result = prefixesMap.get(prefixId);
-    
-    if (!result && prefixesMap.size > 0) {
-      console.log(`getPrefixName: ID '${prefixId}' NOT FOUND in map.`);
-      return '-';
-    }
-    
-    return result || '-';
-  };
+const getPrefixName = (prefixId: string | object | null) => {
+  console.log(`getPrefixName called with:`, prefixId, `map size: ${prefixesMap.size}`);
+  
+  // Handle null/undefined cases
+  if (!prefixId || prefixId === 'undefined' || prefixId === 'null') {
+    return '-';
+  }
+  
+  // Extract ID if it's an object
+  let actualId: string;
+  if (typeof prefixId === 'object' && prefixId !== null) {
+    actualId = (prefixId as any)._id || (prefixId as any).id;
+    console.log(`Extracted ID from object: "${actualId}"`);
+  } else if (typeof prefixId === 'string') {
+    actualId = prefixId;
+  } else {
+    console.log(`Invalid prefixId type: ${typeof prefixId}`);
+    return '-';
+  }
+  
+  if (!actualId) {
+    console.log('No valid ID found in object');
+    return '-';
+  }
+  
+  const result = prefixesMap.get(actualId);
+  console.log(`getPrefixName result for "${actualId}": "${result}"`);
+  
+  if (!result && prefixesMap.size > 0) {
+    console.log('Available prefix IDs:', Array.from(prefixesMap.keys()));
+    console.log(`getPrefixName: ID '${actualId}' NOT FOUND in map.`);
+    return '-';
+  }
+  
+  return result || '-';
+};
 
-  const getSuffixName = (suffixId: string | null) => {
-    if (!suffixId || suffixId === '' || suffixId === 'undefined' || suffixId === 'null') {
-      return '-';
-    }
-    
-    const result = suffixesMap.get(suffixId);
-    
-    if (!result && suffixesMap.size > 0) {
-      console.log(`getSuffixName: ID '${suffixId}' NOT FOUND in map.`);
-      return '-';
-    }
-    
-    return result || '-';
-  };
+const getSuffixName = (suffixId: string | object | null) => {
+  console.log(`getSuffixName called with:`, suffixId, `map size: ${suffixesMap.size}`);
+  
+  if (!suffixId || suffixId === 'undefined' || suffixId === 'null') {
+    return '-';
+  }
+  
+  // Extract ID if it's an object
+  let actualId: string;
+  if (typeof suffixId === 'object' && suffixId !== null) {
+    actualId = (suffixId as any)._id || (suffixId as any).id;
+    console.log(`Extracted ID from object: "${actualId}"`);
+  } else if (typeof suffixId === 'string') {
+    actualId = suffixId;
+  } else {
+    console.log(`Invalid suffixId type: ${typeof suffixId}`);
+    return '-';
+  }
+  
+  if (!actualId) {
+    console.log('No valid ID found in object');
+    return '-';
+  }
+  
+  const result = suffixesMap.get(actualId);
+  console.log(`getSuffixName result for "${actualId}": "${result}"`);
+  
+  if (!result && suffixesMap.size > 0) {
+    console.log('Available suffix IDs:', Array.from(suffixesMap.keys()));
+    console.log(`getSuffixName: ID '${actualId}' NOT FOUND in map.`);
+    return '-';
+  }
+  
+  return result || '-';
+};
 
-  const getMakeName = (makeId: string | null) => {
-    if (!makeId || makeId === '' || makeId === 'undefined' || makeId === 'null') {
-      return '-';
-    }
-    
-    const result = makesMap.get(makeId);
-    
-    if (!result && makesMap.size > 0) {
-      console.log(`getMakeName: ID '${makeId}' NOT FOUND in map.`);
-      return '-';
-    }
-    
-    return result || '-';
-  };
+const getMakeName = (makeId: string | object | null) => {
+  console.log(`getMakeName called with:`, makeId, `map size: ${makesMap.size}`);
+  
+  if (!makeId || makeId === 'undefined' || makeId === 'null') {
+    return '-';
+  }
+  
+  // Extract ID if it's an object
+  let actualId: string;
+  if (typeof makeId === 'object' && makeId !== null) {
+    actualId = (makeId as any)._id || (makeId as any).id;
+    console.log(`Extracted ID from object: "${actualId}"`);
+  } else if (typeof makeId === 'string') {
+    actualId = makeId;
+  } else {
+    console.log(`Invalid makeId type: ${typeof makeId}`);
+    return '-';
+  }
+  
+  if (!actualId) {
+    console.log('No valid ID found in object');
+    return '-';
+  }
+  
+  const result = makesMap.get(actualId);
+  console.log(`getMakeName result for "${actualId}": "${result}"`);
+  
+  if (!result && makesMap.size > 0) {
+    console.log('Available make IDs:', Array.from(makesMap.keys()));
+    console.log(`getMakeName: ID '${actualId}' NOT FOUND in map.`);
+    return '-';
+  }
+  
+  return result || '-';
+};
+
 
   useEffect(() => {
     if (isOpen && companyId && locationId) {
@@ -169,111 +234,118 @@ const ColumnPopup: React.FC<ColumnPopupProps> = ({
   }, [isOpen, companyId, locationId]);
 
   const fetchAllData = async () => {
-    setLoading(true);
-    setMasterDataLoading(true);
-    setError(null);
+  setLoading(true);
+  setMasterDataLoading(true);
+  setError(null);
+  
+  try {
+    console.log('Starting to fetch all data with params:', { companyId, locationId });
     
-    try {
-      console.log('Starting to fetch all data with params:', { companyId, locationId });
-      
-      // First, fetch master data
-      console.log('Fetching master data...');
-      const [makesResponse, prefixesResponse, suffixesResponse] = await Promise.allSettled([
-        fetchMakes(),
-        fetchPrefixes(), 
-        fetchSuffixes()
-      ]);
-      
-      // Process master data results
-      const makesData = makesResponse.status === 'fulfilled' ? makesResponse.value : [];
-      const prefixesData = prefixesResponse.status === 'fulfilled' ? prefixesResponse.value : [];
-      const suffixesData = suffixesResponse.status === 'fulfilled' ? suffixesResponse.value : [];
-      
-      // Set master data first
-      setMakes(makesData);
-      setPrefixes(prefixesData);
-      setSuffixes(suffixesData);
-      setMasterDataLoaded(true);
-      setMasterDataLoading(false);
-      
-      console.log('Master data loaded:', {
-        makes: makesData.length,
-        prefixes: prefixesData.length,
-        suffixes: suffixesData.length
-      });
+    // First, fetch master data and wait for ALL to complete
+    console.log('Fetching master data...');
+    const [makesData, prefixesData, suffixesData] = await Promise.all([
+      fetchMakes(),
+      fetchPrefixes(), 
+      fetchSuffixes()
+    ]);
+    
+    // Verify we got data
+    console.log('Master data received:', {
+      makes: makesData?.length || 0,
+      prefixes: prefixesData?.length || 0,
+      suffixes: suffixesData?.length || 0
+    });
+    
+    // Set all master data at once
+    setMakes(makesData || []);
+    setPrefixes(prefixesData || []);
+    setSuffixes(suffixesData || []);
+    setMasterDataLoading(false);
+    
+    // Wait for state to settle before marking as loaded
+    await new Promise(resolve => setTimeout(resolve, 100));
+    setMasterDataLoaded(true);
+    
+    // Now fetch columns
+    console.log('Fetching columns...');
+    const columnsData = await fetchColumns();
+    setColumns(columnsData || []);
+    
+    console.log('All data loaded successfully');
+    
+  } catch (err) {
+    console.error('Error in fetchAllData:', err);
+    setError('Error fetching data');
+  } finally {
+    setLoading(false);
+  }
+};
 
-      // Then fetch columns
-      console.log('Fetching columns...');
-      const columnsData = await fetchColumns();
-      setColumns(columnsData);
-      
-      console.log('All data loaded successfully:', {
-        makes: makesData.length,
-        prefixes: prefixesData.length,
-        suffixes: suffixesData.length,
-        columns: columnsData.length
-      });
-      
-    } catch (err) {
-      console.error('Error in fetchAllData:', err);
-      setError('Error fetching data');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const fetchColumns = async (): Promise<Column[]> => {
-    try {
-      console.log('Fetching columns...');
-      const url = `/api/admin/column/getAll?locationId=${locationId}&companyId=${companyId}`;
-      
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        console.log(`✓ Columns loaded: ${data.data?.length || 0} columns`);
-        return data.data || [];
-      } else {
-        throw new Error(data.message || 'Failed to fetch columns');
-      }
-    } catch (err) {
-      console.error('Error fetching columns:', err);
-      throw err;
-    }
+  const normalizeColumnDescription = (desc: any): ColumnDescription => {
+  return {
+    ...desc,
+    prefixId: typeof desc.prefixId === 'object' && desc.prefixId?._id 
+      ? desc.prefixId._id 
+      : desc.prefixId,
+    suffixId: typeof desc.suffixId === 'object' && desc.suffixId?._id 
+      ? desc.suffixId._id 
+      : desc.suffixId,
+    makeId: typeof desc.makeId === 'object' && desc.makeId?._id 
+      ? desc.makeId._id 
+      : desc.makeId,
   };
+};
+
+const fetchColumns = async (): Promise<Column[]> => {
+  try {
+    console.log('Fetching columns...');
+    const url = `/api/admin/column/getAll?locationId=${locationId}&companyId=${companyId}`;
+    
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    if (data.success && data.data) {
+      // Normalize the data to ensure string IDs
+      const normalizedColumns = data.data.map((column: any) => ({
+        ...column,
+        descriptions: column.descriptions.map((desc: any) => normalizeColumnDescription(desc))
+      }));
+      
+      console.log(`✓ Columns loaded and normalized: ${normalizedColumns.length} columns`);
+      return normalizedColumns;
+    } else {
+      throw new Error(data.message || 'Failed to fetch columns');
+    }
+  } catch (err) {
+    console.error('Error fetching columns:', err);
+    throw err;
+  }
+};
+
 
   const fetchMakes = async (): Promise<MakeData[]> => {
-    try {
-      console.log('Fetching makes with params:', { companyId, locationId });
-      const url = `/api/admin/column/make?companyId=${companyId}&locationId=${locationId}`;
-      
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      console.log('Makes API response:', data);
-      
-      if (data.success && data.data) {
-        console.log('Makes successfully fetched:', data.data.length);
-        return data.data;
-      } else {
-        console.warn('Makes API returned success=false or no data:', data.message);
-        return [];
-      }
-    } catch (err) {
-      console.error('Error fetching makes:', err);
+  try {
+    console.log('Fetching makes with params:', { companyId, locationId });
+    const url = `/api/admin/column/make?companyId=${companyId}&locationId=${locationId}`;
+    
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    console.log('Makes API full response:', JSON.stringify(data, null, 2));
+    
+    if (data.success && data.data && Array.isArray(data.data)) {
+      return data.data;
+    } else {
+      console.warn('Makes API returned unexpected structure:', data);
       return [];
     }
-  };
+  } catch (err) {
+    console.error('Error fetching makes:', err);
+    return [];
+  }
+};
+
 
   const fetchPrefixes = async (): Promise<PrefixSuffixData[]> => {
     try {

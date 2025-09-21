@@ -124,6 +124,79 @@ function ProductMaster() {
     }
   }, [status, router]);
 
+  const handleExportExcel = () => {
+  try {
+    // Import required libraries
+    const XLSX = require('xlsx');
+    const { saveAs } = require('file-saver');
+
+    // Prepare data with resolved lookups
+    const exportData = products.map((product) => ({
+      'Product Name': product.productName,
+      'Product Code': product.productCode,
+      'Generic Name': product.genericName || '',
+      'Make': getMakeName(product.makeId),
+      'Marketed By': product.marketedBy || '',
+      'Pharmacopeia': getPharmacopeiaName(product.pharmacopeiaToUse) || '',
+      'MFC Numbers': getMfcDetails(product.mfcs) || '',
+      'Created Date': new Date(product.createdAt).toLocaleDateString(),
+      'Updated Date': new Date(product.updatedAt).toLocaleDateString(),
+      'Created By': product.createdBy || '',
+      'Company ID': product.companyId,
+      'Location ID': product.locationId
+    }));
+
+    // Create worksheet
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    
+    // Set column widths
+    const colWidths = [
+      { wch: 25 }, // Product Name
+      { wch: 15 }, // Product Code
+      { wch: 20 }, // Generic Name
+      { wch: 15 }, // Make
+      { wch: 20 }, // Marketed By
+      { wch: 20 }, // Pharmacopeia
+      { wch: 25 }, // MFC Numbers
+      { wch: 12 }, // Created Date
+      { wch: 12 }, // Updated Date
+      { wch: 15 }, // Created By
+      { wch: 15 }, // Company ID
+      { wch: 15 }  // Location ID
+    ];
+    ws['!cols'] = colWidths;
+
+    // Create workbook and add worksheet
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Products');
+
+    // Generate Excel file
+    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    
+    // Save file
+    const blob = new Blob([excelBuffer], { 
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+    });
+    
+    const fileName = `Product_Master_Export_${new Date().toISOString().split('T')[0]}.xlsx`;
+    saveAs(blob, fileName);
+
+    // Show success message
+    setSuccessMessage(`Excel file exported successfully! (${products.length} records)`);
+    setShowNotification(true);
+    
+    setTimeout(() => {
+      setShowNotification(false);
+      setSuccessMessage("");
+    }, 3000);
+
+  } catch (error) {
+    console.error('Export failed:', error);
+    setError('Failed to export Excel file. Please try again.');
+  }
+};
+
+
   // Listen for MFC updates from storage events
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
@@ -1356,16 +1429,32 @@ useEffect(() => {
               backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
             }}
           >
-            <div
-              className="p-4 border-b border-[#a6c8ff]"
-              style={{
-                backgroundImage: "linear-gradient(to bottom, #f0f0f0, #ffffff)",
-              }}
-            >
-              <h2 className="text-lg font-semibold text-gray-800">
-                Products ({products.length})
-              </h2>
-            </div>
+          
+<div className="p-4 border-b border-[#a6c8ff] flex justify-between items-center"
+  style={{
+    backgroundImage: "linear-gradient(to bottom, #f0f0f0, #ffffff)",
+  }}
+>
+  <h2 className="text-lg font-semibold text-gray-800">
+    Products ({products.length})
+  </h2>
+  
+  <div className="flex space-x-2">
+    <button
+      onClick={handleExportExcel}
+      className="px-4 py-2 bg-gradient-to-b from-[#28a745] to-[#20963d] text-white rounded text-sm hover:bg-gradient-to-b hover:from-[#20963d] hover:to-[#28a745] active:bg-gradient-to-b active:from-[#1e7e34] active:to-[#155724] flex items-center space-x-1"
+      style={{
+        border: "1px solid #155724",
+        boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+      }}
+    >
+      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+      </svg>
+      <span>Export Excel</span>
+    </button>
+  </div>
+</div>
 
             {loading || !mfcsLoaded ? (
               <div className="p-8 text-center">
@@ -1378,6 +1467,7 @@ useEffect(() => {
               </div>
             ) : (
               <div className="overflow-x-auto">
+                
                 <table className="w-full">
                   <thead
                     className="bg-gradient-to-b from-[#f0f0f0] to-[#ffffff]"

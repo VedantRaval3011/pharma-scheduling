@@ -3,6 +3,8 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import WindowsToolbar from "@/components/layout/ToolBox";
 import { useRouter } from "next/navigation";
+import * as XLSX from 'xlsx';
+
 
 interface ColumnDescription {
   prefix: string; // This will now be prefixId
@@ -347,6 +349,148 @@ export default function MasterColumn() {
     form.descriptions[0]?.useSuffixForNewCode,
     selectedColumnId
   ]);
+
+  const exportToExcel = () => {
+  try {
+    // Get current data (active or obsolete columns based on current view)
+    const dataToExport = showObsoleteTable ? obsoleteColumns : columns;
+    
+    // Helper functions to resolve lookup data (reusing existing functions)
+    const resolveMakeName = (makeId: string | undefined) => {
+      if (!makeId) return "";
+      const make = makes.find(m => m._id.toString().trim() === makeId.toString().trim());
+      return make?.make || `Unknown Make (${makeId})`;
+    };
+    
+    const resolvePrefixName = (prefixId: string | undefined) => {
+      if (!prefixId) return "";
+      const prefix = prefixes.find(p => p._id.toString().trim() === prefixId.toString().trim());
+      return prefix?.value || `Unknown Prefix (${prefixId})`;
+    };
+    
+    const resolveSuffixName = (suffixId: string | undefined) => {
+      if (!suffixId) return "";
+      const suffix = suffixes.find(s => s._id.toString().trim() === suffixId.toString().trim());
+      return suffix?.value || `Unknown Suffix (${suffixId})`;
+    };
+    
+    // Prepare data with resolved lookup values
+    const excelData: any[] = [];
+    let serialNo = 1;
+    
+    dataToExport.forEach((column) => {
+      column.descriptions.forEach((desc, descIndex) => {
+        const row: any = {
+          'Serial No': descIndex === 0 ? serialNo : '', // Only show serial number for first description
+          'Column Code': descIndex === 0 ? column.columnCode : '', // Only show column code for first description
+          'Prefix': resolvePrefixName(desc.prefix),
+          'Suffix': resolveSuffixName(desc.suffix),
+          'Carbon Type': desc.carbonType,
+          'Linked Carbon Type': desc.linkedCarbonType,
+          'Inner Diameter (mm)': desc.innerDiameter,
+          'Length (mm)': desc.length,
+          'Particle Size (µm)': desc.particleSize,
+          'Description': `${resolvePrefixName(desc.prefix)} ${desc.carbonType} ${desc.innerDiameter} x ${desc.length} ${desc.particleSize}µm ${resolveSuffixName(desc.suffix)}`.trim(),
+          'Make': resolveMakeName(desc.make),
+          'Column ID': desc.columnId,
+          'Installation Date': desc.installationDate,
+          'Status': desc.isObsolete ? 'Obsolete' : 'Active',
+          'Use Prefix': desc.usePrefix ? 'Yes' : 'No',
+          'Use Suffix': desc.useSuffix ? 'Yes' : 'No',
+          'Use Prefix for New Code': desc.usePrefixForNewCode ? 'Yes' : 'No',
+          'Use Suffix for New Code': desc.useSuffixForNewCode ? 'Yes' : 'No'
+        };
+        excelData.push(row);
+      });
+      serialNo++;
+    });
+    
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    
+    // Set column widths
+    const colWidths = [
+      { wch: 10 }, // Serial No
+      { wch: 15 }, // Column Code
+      { wch: 12 }, // Prefix
+      { wch: 12 }, // Suffix
+      { wch: 15 }, // Carbon Type
+      { wch: 18 }, // Linked Carbon Type
+      { wch: 15 }, // Inner Diameter
+      { wch: 12 }, // Length
+      { wch: 15 }, // Particle Size
+      { wch: 35 }, // Description
+      { wch: 20 }, // Make
+      { wch: 15 }, // Column ID
+      { wch: 15 }, // Installation Date
+      { wch: 10 }, // Status
+      { wch: 12 }, // Use Prefix
+      { wch: 12 }, // Use Suffix
+      { wch: 18 }, // Use Prefix for New Code
+      { wch: 18 }  // Use Suffix for New Code
+    ];
+    ws['!cols'] = colWidths;
+    
+    // Handle merged cells for Column Code and Serial No
+    const merges: XLSX.Range[] = [];
+    let currentRow = 2; // Start from row 2 (after header)
+    
+    dataToExport.forEach((column) => {
+      const descCount = column.descriptions.length;
+      if (descCount > 1) {
+        // Merge Serial No cells (column A)
+        merges.push({
+          s: { r: currentRow - 1, c: 0 }, // start (0-indexed)
+          e: { r: currentRow + descCount - 2, c: 0 } // end
+        });
+        
+        // Merge Column Code cells (column B)
+        merges.push({
+          s: { r: currentRow - 1, c: 1 }, // start (0-indexed)
+          e: { r: currentRow + descCount - 2, c: 1 } // end
+        });
+      }
+      currentRow += descCount;
+    });
+    
+    // Apply merges
+    ws['!merges'] = merges;
+    
+    // Style the header row
+    const headerStyle = {
+      font: { bold: true, color: { rgb: "FFFFFF" } },
+      fill: { fgColor: { rgb: "366092" } },
+      alignment: { horizontal: "center", vertical: "center" }
+    };
+    
+    // Apply header styling
+    const headers = Object.keys(excelData[0] || {});
+    headers.forEach((header, colIndex) => {
+      const cellRef = XLSX.utils.encode_cell({ r: 0, c: colIndex });
+      if (!ws[cellRef]) ws[cellRef] = { v: header, t: 's' };
+      ws[cellRef].s = headerStyle;
+    });
+    
+    // Add worksheet to workbook
+    const sheetName = showObsoleteTable ? 'Obsolete Columns' : 'Active Columns';
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    
+    // Generate filename with current date
+    const currentDate = new Date().toISOString().split('T')[0];
+    const filename = `Column_Master_${sheetName.replace(' ', '_')}_${currentDate}.xlsx`;
+    
+    // Export file
+    XLSX.writeFile(wb, filename);
+    
+    console.log(`Excel file exported: ${filename}`);
+    
+  } catch (error) {
+    console.error('Error exporting to Excel:', error);
+    setError('Failed to export to Excel. Please try again.');
+  }
+};
+
 
   // Load auth data from localStorage
   useEffect(() => {
@@ -2666,25 +2810,35 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
           )}
 
           <div className="mb-4 flex gap-2">
-            <button
-              onClick={() => {
-                setShowObsoleteTable(!showObsoleteTable);
-                setSelectedColumnId("");
-                setSelectedDescriptionIndex(-1);
-                handleCloseForm();
-              }}
-              className={`px-4 py-2 rounded-lg transition-all shadow-sm text-white 
-    ${
-      showObsoleteTable
-        ? "bg-red-600 hover:bg-red-800" // Obsolete table active
-        : "bg-[#0052cc] hover:bg-[#003087]" // Active table
-    }`}
-            >
-              {showObsoleteTable
-                ? "Show Active Columns"
-                : "Show Obsolete Columns"}
-            </button>
-          </div>
+  <button
+    onClick={() => {
+      setShowObsoleteTable(!showObsoleteTable);
+      setSelectedColumnId("");
+      setSelectedDescriptionIndex(-1);
+      handleCloseForm();
+    }}
+    className={`px-4 py-2 rounded-lg transition-all shadow-sm text-white 
+      ${
+        showObsoleteTable
+          ? "bg-red-600 hover:bg-red-800"
+          : "bg-[#0052cc] hover:bg-[#003087]"
+      }`}
+  >
+    {showObsoleteTable
+      ? "Show Active Columns"
+      : "Show Obsolete Columns"}
+  </button>
+  
+  {/* NEW: Add Export to Excel button */}
+  <button
+    onClick={exportToExcel}
+    disabled={loading || (showObsoleteTable ? obsoleteColumns.length === 0 : columns.length === 0)}
+    className="px-4 py-2 rounded-lg transition-all shadow-sm text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+  >
+    📊 Export to Excel
+  </button>
+</div>
+
           <div className="overflow-x-auto border-2 border-gray-300 rounded-lg shadow-sm">
             <table
               key={renderKey}

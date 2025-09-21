@@ -147,6 +147,10 @@ export const adminEmployeeNavData: NavItem[] = [
         path: "/dashboard/mfc-master",
       },
       {
+        label: "HPLC/UPLC Master",
+        path: "/dashboard/hplc-uplc",
+      },
+      {
         label: "API Master",
         path: "/dashboard/api-master",
       },
