@@ -342,7 +342,6 @@ const fetchColumnDisplayText = async (columnId: string): Promise<string> => {
     console.log("🔍 Response status:", response.status);
 
     if (!response.ok) {
-      
       return columnId;
     }
 
@@ -1012,7 +1011,6 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
   };
 
   const onSubmitError = (errors: any) => {
-
     let errorMessages: string[] = [];
 
     if (errors.apiName) {
@@ -1039,9 +1037,7 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
     }
 
     if (errorMessages.length > 0) {
-      const alertMessage = `❌ Invalid input:\n\n${errorMessages.join(
-        "\n"
-      )}`;
+      const alertMessage = `❌ Invalid input:\n\n${errorMessages.join("\n")}`;
       alert(alertMessage);
     } else {
       alert("❌ Please check all required fields and try again.");
@@ -2347,38 +2343,39 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
 
     // Enhanced form submission with better error handling
     const handleFormSubmit = async (data: MFCFormData) => {
-  setSubmitError(''); // Clear any previous errors
-  
-  try {
-    console.log("MFC FORM SUBMISSION");
-    console.log("Form data:", data);
-    
-    await onSubmit(data);
-  } catch (error: any) {
-    // Handle server validation errors
-    if (error.response?.data?.errors) {
-      const serverErrors = error.response.data.errors;
-      
-      // Check for MFC number uniqueness error
-      if (serverErrors.mfcNumber) {
-        setSubmitError(serverErrors.mfcNumber);
-        return;
+      setSubmitError(""); // Clear any previous errors
+
+      try {
+        console.log("MFC FORM SUBMISSION");
+        console.log("Form data:", data);
+
+        await onSubmit(data);
+      } catch (error: any) {
+        // Handle server validation errors
+        if (error.response?.data?.errors) {
+          const serverErrors = error.response.data.errors;
+
+          // Check for MFC number uniqueness error
+          if (serverErrors.mfcNumber) {
+            setSubmitError(serverErrors.mfcNumber);
+            return;
+          }
+
+          // Handle other server errors
+          const errorMessages = Object.entries(serverErrors).map(
+            ([field, message]) => `${field}: ${message}`
+          );
+          setSubmitError(errorMessages.join(", "));
+        } else {
+          setSubmitError(
+            error.message || "An error occurred while saving the MFC record."
+          );
+        }
       }
-      
-      // Handle other server errors
-      const errorMessages = Object.entries(serverErrors).map(([field, message]) => 
-        `${field}: ${message}`
-      );
-      setSubmitError(errorMessages.join(', '));
-    } else {
-      setSubmitError(error.message || 'An error occurred while saving the MFC record.');
-    }
-  }
-};
+    };
 
     // Enhanced error handler for form validation errors
     const handleFormError = (errors: any) => {
-
       let errorMessages: string[] = [];
 
       // Basic form errors
@@ -2607,16 +2604,27 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
             >
               {/* Global Form Error */}
               {submitError && (
-  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-    <div className="flex items-center">
-      <svg className="w-5 h-5 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-      <p className="text-sm font-medium text-red-800">{submitError}</p>
-    </div>
-  </div>
-)}
-
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-center">
+                    <svg
+                      className="w-5 h-5 text-red-600 mr-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <p className="text-sm font-medium text-red-800">
+                      {submitError}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-3 gap-6 mb-8">
                 <div>
@@ -2740,10 +2748,6 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
                       Mark as Obsolete
                     </span>
                   </label>
-
-                  
-
-                 
                 </div>
               </div>
 
