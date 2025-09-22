@@ -128,7 +128,11 @@ function ApiMaster() {
     }
   };
 
-  const logAuditAction = async (action: string, data: any, previousData?: any) => {
+  const logAuditAction = async (
+    action: string,
+    data: any,
+    previousData?: any
+  ) => {
     try {
       if (!companyId || !locationId) {
         return;
@@ -184,7 +188,9 @@ function ApiMaster() {
         queryParams.append("endDate", auditEndDate);
       }
 
-      const response = await fetch(`/api/admin/api/audit?${queryParams.toString()}`);
+      const response = await fetch(
+        `/api/admin/api/audit?${queryParams.toString()}`
+      );
       const data = await response.json();
 
       if (data.success) {
@@ -348,7 +354,8 @@ function ApiMaster() {
   const handleDelete = async () => {
     if (!selectedApi) return;
 
-    if (!confirm(`Are you sure you want to delete "${selectedApi.api}"?`)) return;
+    if (!confirm(`Are you sure you want to delete "${selectedApi.api}"?`))
+      return;
 
     try {
       const response = await fetch(`/api/admin/api?id=${selectedApi._id}`, {
@@ -402,15 +409,17 @@ function ApiMaster() {
         </head>
         <body>
           <h1>API Database Report</h1>
-          <p class="date">Generated on: ${new Date().toLocaleDateString()}</p>
+          <p class="date">Generated on: ${new Date().toLocaleDateString("en-GB")}</p>
           <table>
             <tr><th>API Name</th><th>Description</th><th>Created Date</th></tr>
             ${apis
               .map(
                 (api) =>
-                  `<tr><td>${api.api}</td><td>${api.desc || ""}</td><td>${new Date(
+                  `<tr><td>${api.api}</td><td>${
+                    api.desc || ""
+                  }</td><td>${new Date(
                     api.createdAt
-                  ).toLocaleDateString()}</td></tr>`
+                  ).toLocaleDateString('en-GB')}</td></tr>`
               )
               .join("")}
           </table>
@@ -483,7 +492,10 @@ function ApiMaster() {
         break;
       case "Enter":
         e.preventDefault();
-        if (dropdownSelectedIndex >= 0 && searchResults[dropdownSelectedIndex]) {
+        if (
+          dropdownSelectedIndex >= 0 &&
+          searchResults[dropdownSelectedIndex]
+        ) {
           const api = searchResults[dropdownSelectedIndex];
           setFormData({
             api: api.api,
@@ -601,43 +613,57 @@ function ApiMaster() {
                   }`}
                   style={{
                     borderStyle: "inset",
-                    boxShadow: isFormEnabled ? "inset 1px 1px 2px rgba(0,0,0,0.1)" : "none",
+                    boxShadow: isFormEnabled
+                      ? "inset 1px 1px 2px rgba(0,0,0,0.1)"
+                      : "none",
                   }}
                   placeholder="Enter API name"
                 />
 
-                {showDropdown && filteredApis.length > 0 && isFormEnabled && !isEditMode && (
-                  <div
-                    className="absolute z-10 w-full mt-1 bg-white border border-[#a6c8ff] rounded-md shadow-lg max-h-48 overflow-y-auto"
-                    style={{ backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)" }}
-                  >
-                    {filteredApis.map((api, index) => (
-                      <div
-                        key={api._id}
-                        className={`px-3 py-2 cursor-pointer ${
-                          index === dropdownSelectedIndex
-                            ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]"
-                            : "hover:bg-[#e6f0fa]"
-                        }`}
-                        onClick={() => {
-                          setFormData({
-                            api: api.api,
-                            desc: api.desc || "",
-                          });
-                          setSelectedApi(api);
-                          setCurrentApiIndex(apis.findIndex((c) => c._id === api._id));
-                          setShowDropdown(false);
-                          setDropdownSelectedIndex(-1);
-                        }}
-                      >
-                        <div className="font-medium text-gray-800">{api.api}</div>
-                        {api.desc && (
-                          <div className="text-sm text-gray-500">{api.desc}</div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {showDropdown &&
+                  filteredApis.length > 0 &&
+                  isFormEnabled &&
+                  !isEditMode && (
+                    <div
+                      className="absolute z-10 w-full mt-1 bg-white border border-[#a6c8ff] rounded-md shadow-lg max-h-48 overflow-y-auto"
+                      style={{
+                        backgroundImage:
+                          "linear-gradient(to bottom, #ffffff, #f5faff)",
+                      }}
+                    >
+                      {filteredApis.map((api, index) => (
+                        <div
+                          key={api._id}
+                          className={`px-3 py-2 cursor-pointer ${
+                            index === dropdownSelectedIndex
+                              ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]"
+                              : "hover:bg-[#e6f0fa]"
+                          }`}
+                          onClick={() => {
+                            setFormData({
+                              api: api.api,
+                              desc: api.desc || "",
+                            });
+                            setSelectedApi(api);
+                            setCurrentApiIndex(
+                              apis.findIndex((c) => c._id === api._id)
+                            );
+                            setShowDropdown(false);
+                            setDropdownSelectedIndex(-1);
+                          }}
+                        >
+                          <div className="font-medium text-gray-800">
+                            {api.api}
+                          </div>
+                          {api.desc && (
+                            <div className="text-sm text-gray-500">
+                              {api.desc}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
               </div>
 
               <div>
@@ -648,13 +674,17 @@ function ApiMaster() {
                   type="text"
                   value={formData.desc}
                   disabled={!isFormEnabled}
-                  onChange={(e) => setFormData({ ...formData, desc: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, desc: e.target.value })
+                  }
                   className={`w-full px-3 py-2 border border-[#a6c8ff] rounded focus:ring-2 focus:ring-[#66a3ff] focus:outline-none ${
                     isFormEnabled ? "bg-white" : "bg-[#f0f0f0]"
                   }`}
                   style={{
                     borderStyle: "inset",
-                    boxShadow: isFormEnabled ? "inset 1px 1px 2px rgba(0,0,0,0.1)" : "none",
+                    boxShadow: isFormEnabled
+                      ? "inset 1px 1px 2px rgba(0,0,0,0.1)"
+                      : "none",
                   }}
                   placeholder="Enter description (optional)"
                 />
@@ -689,7 +719,9 @@ function ApiMaster() {
           >
             <div
               className="p-4 border-b border-[#a6c8ff]"
-              style={{ backgroundImage: "linear-gradient(to bottom, #f0f0f0, #ffffff)" }}
+              style={{
+                backgroundImage: "linear-gradient(to bottom, #f0f0f0, #ffffff)",
+              }}
             >
               <h2 className="text-lg font-semibold text-gray-800">
                 APIs ({apis.length})
@@ -755,7 +787,7 @@ function ApiMaster() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(api.createdAt).toLocaleDateString()}
+                          {new Date(api.createdAt).toLocaleDateString("en-GB")}
                         </td>
                       </tr>
                     ))}
@@ -802,7 +834,9 @@ function ApiMaster() {
 
             <div
               className="max-h-48 overflow-y-auto border border-[#a6c8ff] rounded mt-2"
-              style={{ backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)" }}
+              style={{
+                backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
+              }}
             >
               {apis
                 .filter(
@@ -875,7 +909,8 @@ function ApiMaster() {
             }}
           >
             <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Audit Trail {selectedApi ? `for ${selectedApi.api}` : "(All APIs)"}
+              Audit Trail{" "}
+              {selectedApi ? `for ${selectedApi.api}` : "(All APIs)"}
             </h3>
 
             <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -961,7 +996,9 @@ function ApiMaster() {
 
             <div
               className="max-h-64 overflow-y-auto border border-[#a6c8ff] rounded"
-              style={{ backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)" }}
+              style={{
+                backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
+              }}
             >
               <table className="w-full text-sm">
                 <thead
@@ -969,23 +1006,43 @@ function ApiMaster() {
                   style={{ borderBottom: "1px solid #a6c8ff" }}
                 >
                   <tr>
-                    <th className="px-3 py-2 text-left text-gray-700">Timestamp</th>
+                    <th className="px-3 py-2 text-left text-gray-700">
+                      Timestamp
+                    </th>
                     <th className="px-3 py-2 text-left text-gray-700">User</th>
-                    <th className="px-3 py-2 text-left text-gray-700">Action</th>
-                    <th className="px-3 py-2 text-left text-gray-700">API Name</th>
-                    <th className="px-3 py-2 text-left text-gray-700">Description</th>
-                    <th className="px-3 py-2 text-left text-gray-700">Previous API Name</th>
-                    <th className="px-3 py-2 text-left text-gray-700">Previous Description</th>
+                    <th className="px-3 py-2 text-left text-gray-700">
+                      Action
+                    </th>
+                    <th className="px-3 py-2 text-left text-gray-700">
+                      API Name
+                    </th>
+                    <th className="px-3 py-2 text-left text-gray-700">
+                      Description
+                    </th>
+                    <th className="px-3 py-2 text-left text-gray-700">
+                      Previous API Name
+                    </th>
+                    <th className="px-3 py-2 text-left text-gray-700">
+                      Previous Description
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#a6c8ff]">
                   {auditLogs.map((log: any, index) => (
-                    <tr
-                      key={index}
-                      className="hover:bg-[#e6f0fa]"
-                    >
-                      <td className="px-3 py-2">{new Date(log.timestamp).toLocaleString()}</td>
-                      <td className="px-3 py-2">{log.userId}</td>
+                    <tr key={index} className="hover:bg-[#e6f0fa]">
+                      <td className="px-3 py-2">
+                        {new Date(log.timestamp).toLocaleDateString("en-GB", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "2-digit",
+                        })}
+                      </td>
+                      <td className="px-3 py-2">
+                        {log.userId === session?.user?.id
+                          ? session?.user.userId
+                          : log.userId}
+                      </td>
+
                       <td className="px-3 py-2">
                         <span
                           className={`px-2 py-1 rounded text-xs ${
@@ -1002,16 +1059,24 @@ function ApiMaster() {
                         </span>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="max-w-xs truncate">{log.data.api || "—"}</div>
+                        <div className="max-w-xs truncate">
+                          {log.data.api || "—"}
+                        </div>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="max-w-xs truncate">{log.data.desc || "—"}</div>
+                        <div className="max-w-xs truncate">
+                          {log.data.desc || "—"}
+                        </div>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="max-w-xs truncate">{log.previousData?.api || "—"}</div>
+                        <div className="max-w-xs truncate">
+                          {log.previousData?.api || "—"}
+                        </div>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="max-w-xs truncate">{log.previousData?.desc || "—"}</div>
+                        <div className="max-w-xs truncate">
+                          {log.previousData?.desc || "—"}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1061,43 +1126,81 @@ function ApiMaster() {
 
             <div className="space-y-4 text-sm">
               <div>
-                <h4 className="font-semibold text-[#0055a4]">Keyboard Shortcuts:</h4>
+                <h4 className="font-semibold text-[#0055a4]">
+                  Keyboard Shortcuts:
+                </h4>
                 <ul className="ml-4 mt-2 space-y-1">
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F1</kbd> - Add New API
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F1
+                    </kbd>{" "}
+                    - Add New API
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F2</kbd> - Save Current Entry
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F2
+                    </kbd>{" "}
+                    - Save Current Entry
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F3</kbd> - Clear Form
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F3
+                    </kbd>{" "}
+                    - Clear Form
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F4</kbd> - Exit to Dashboard
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F4
+                    </kbd>{" "}
+                    - Exit to Dashboard
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F5</kbd> - Navigate Up
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F5
+                    </kbd>{" "}
+                    - Navigate Up
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F6</kbd> - Navigate Down
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F6
+                    </kbd>{" "}
+                    - Navigate Down
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F7</kbd> - Search APIs
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F7
+                    </kbd>{" "}
+                    - Search APIs
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F9</kbd> - Edit Selected API
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F9
+                    </kbd>{" "}
+                    - Edit Selected API
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F10</kbd> - Delete Selected API
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F10
+                    </kbd>{" "}
+                    - Delete Selected API
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F11</kbd> - View Audit Trail
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F11
+                    </kbd>{" "}
+                    - View Audit Trail
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F12</kbd> - Print Report
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F12
+                    </kbd>{" "}
+                    - Print Report
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">Ctrl+H</kbd> - Show Help
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      Ctrl+H
+                    </kbd>{" "}
+                    - Show Help
                   </li>
                 </ul>
               </div>
@@ -1105,30 +1208,57 @@ function ApiMaster() {
               <div>
                 <h4 className="font-semibold text-[#0055a4]">How to Use:</h4>
                 <ul className="ml-4 mt-2 space-y-1">
-                  <li>• Use <b>Add (F1)</b> to enable form for new API entry</li>
-                  <li>• Use <b>Edit (F9)</b> to modify selected API</li>
-                  <li>• Use <b>Save (F2)</b> to save new or edited API</li>
-                  <li>• Use <b>Clear (F3)</b> to reset form and disable inputs</li>
-                  <li>• Use <b>Up (F5)/Down (F6)</b> to navigate APIs alphabetically</li>
-                  <li>• Use <b>Search (F7)</b> for full-text search with keyboard navigation</li>
-                  <li>• Use <b>Delete (F10)</b> to remove selected API</li>
-                  <li>• Use <b>Audit (F11)</b> to view all changes</li>
-                  <li>• Use <b>Print (F12)</b> to generate API report</li>
-                  <li>• Use <b>Exit (F4)</b> to return to dashboard</li>
+                  <li>
+                    • Use <b>Add (F1)</b> to enable form for new API entry
+                  </li>
+                  <li>
+                    • Use <b>Edit (F9)</b> to modify selected API
+                  </li>
+                  <li>
+                    • Use <b>Save (F2)</b> to save new or edited API
+                  </li>
+                  <li>
+                    • Use <b>Clear (F3)</b> to reset form and disable inputs
+                  </li>
+                  <li>
+                    • Use <b>Up (F5)/Down (F6)</b> to navigate APIs
+                    alphabetically
+                  </li>
+                  <li>
+                    • Use <b>Search (F7)</b> for full-text search with keyboard
+                    navigation
+                  </li>
+                  <li>
+                    • Use <b>Delete (F10)</b> to remove selected API
+                  </li>
+                  <li>
+                    • Use <b>Audit (F11)</b> to view all changes
+                  </li>
+                  <li>
+                    • Use <b>Print (F12)</b> to generate API report
+                  </li>
+                  <li>
+                    • Use <b>Exit (F4)</b> to return to dashboard
+                  </li>
                 </ul>
               </div>
 
               <div>
-                <h4 className="font-semibold text-[#0055a4]">Status Indicators:</h4>
+                <h4 className="font-semibold text-[#0055a4]">
+                  Status Indicators:
+                </h4>
                 <ul className="ml-4 mt-2 space-y-1">
                   <li>
-                    • <span className="text-[#008800]">Green text</span> - Form is enabled for input
+                    • <span className="text-[#008800]">Green text</span> - Form
+                    is enabled for input
                   </li>
                   <li>
-                    • <span className="text-[#0055a4]">Blue background</span> - Selected API in list
+                    • <span className="text-[#0055a4]">Blue background</span> -
+                    Selected API in list
                   </li>
                   <li>
-                    • <span className="text-gray-500">Gray fields</span> - Read-only mode
+                    • <span className="text-gray-500">Gray fields</span> -
+                    Read-only mode
                   </li>
                 </ul>
               </div>

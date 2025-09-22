@@ -24,8 +24,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { userId, action, data, previousData, companyId, locationId, timestamp } = await request.json();
-    if (!userId || !action || !data || !companyId || !locationId) {
+    // CHANGE: Remove userId from destructuring and use session.user.id instead
+    const { action, data, previousData, companyId, locationId, timestamp } = await request.json();
+    
+    // CHANGE: Remove userId validation since we get it from session
+    if (!action || !data || !companyId || !locationId) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
@@ -41,7 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     const auditLog = new ChemicalAuditLog({
-      userId,
+      userId: session.user.id, // CHANGE: Use session.user.id instead of userId from request
       action,
       data,
       previousData,
@@ -138,7 +141,13 @@ export async function GET(request: NextRequest) {
 
     const auditLogs = await ChemicalAuditLog.find(query).sort({ timestamp: -1 });
     
-    return NextResponse.json({ success: true, data: auditLogs }, { status: 200 });
+    // CHANGE: Transform logs to show username instead of userId
+    const transformedLogs = auditLogs.map(log => ({
+      ...log.toObject(),
+      username: log.userId?.toString() === session.user.id ? session.user.userId : log.userId
+    }));
+    
+    return NextResponse.json({ success: true, data: transformedLogs }, { status: 200 });
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: 'Server error', details: error.message },

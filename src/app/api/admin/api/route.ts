@@ -39,12 +39,7 @@ function validateApiData(data: any) {
   return errors;
 }
 
-// Helper function to validate companyId and locationId against session
-function validateCompanyAndLocation(session: any, companyId: string, locationId: string) {
-  // If session validation is simplified, just return true for now
-  // You can implement proper validation based on your session structure
-  return true;
-}
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -236,7 +231,7 @@ export async function PUT(request: NextRequest) {
         description: description?.trim() || "",
         updatedBy: session.user?.id || "system",
         updatedAt: new Date(),
-      },
+      },  
       { new: true, runValidators: true }
     );
 

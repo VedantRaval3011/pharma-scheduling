@@ -78,7 +78,8 @@ function ChemicalMaster() {
     setError("");
 
     try {
-      const chemicalUrl = `http://localhost:3000/api/admin/chemical?companyId=220E43EA-E525-4DDD-9155-631AAAD6A880&locationId=0ae9d80c-add2-423e-9d28-b5b44b097867`;
+     const chemicalUrl = `/api/admin/chemical?companyId=${companyId}&locationId=${locationId}`;
+
       const response = await fetch(chemicalUrl, {
         method: "GET",
         headers: {
@@ -442,7 +443,7 @@ function ChemicalMaster() {
                 (chemical) =>
                   `<tr><td>${chemical.chemicalName}</td><td>${chemical.isSolvent ? 'Yes' : 'No'}</td><td>${chemical.isBuffer ? 'Yes' : 'No'}</td><td>${chemical.desc || ""}</td><td>${new Date(
                     chemical.createdAt
-                  ).toLocaleDateString()}</td></tr>`
+                  ).toLocaleDateString("en-GB")}</td></tr>`
               )
               .join("")}
           </table>
@@ -557,7 +558,7 @@ function ChemicalMaster() {
       }}
     >
       <WindowsToolbar
-        modulePath="/dashboard/chemical-master"
+        modulePath="/dashboard/chemical"
         onAddNew={handleAddNew}
         onSave={handleSave}
         onClear={handleClear}
@@ -891,7 +892,7 @@ function ChemicalMaster() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(chemical.createdAt).toLocaleDateString()}
+                          {new Date(chemical.createdAt).toLocaleDateString("en-GB")}
                         </td>
                       </tr>
                     ))}
@@ -1130,8 +1131,8 @@ function ChemicalMaster() {
                       key={index}
                       className="hover:bg-[#e6f0fa]"
                     >
-                      <td className="px-3 py-2">{new Date(log.timestamp).toLocaleString()}</td>
-                      <td className="px-3 py-2">{log.userId}</td>
+                      <td className="px-3 py-2">{new Date(log.timestamp).toLocaleString("en-GB")}</td>
+                      <td className="px-3 py-2">{log.username}</td>
                       <td className="px-3 py-2">
                         <span
                           className={`px-2 py-1 rounded text-xs ${

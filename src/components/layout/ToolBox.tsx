@@ -162,29 +162,49 @@ const WindowsToolbar: React.FC<ToolbarProps> = ({
   ];
 
   // Check if user has all required permissions for a specific action
-  const hasPermission = (requiredPermissions: string[]) => {
-    // If no permissions required, always allow
-    if (requiredPermissions.length === 0) return true;
-    
-    // If no session or user, deny access
-    if (!session?.user) return false;
-    
-    // Super admins and admins have all permissions
-    if (['super_admin', 'admin'].includes(session.user.role)) return true;
-    
-    // Find the module in user's moduleAccess
-    const module = session.user.moduleAccess?.find((m) => 
-      m.modulePath === modulePath || m.modulePath === '*'
-    );
-    
-    // If module not found, deny access
-    if (!module) return false;
-    
-    // Check if user has ALL required permissions for this action
-    return requiredPermissions.every(permission => 
-      module.permissions.includes(permission)
-    );
-  };
+  // Check if user has all required permissions for a specific action
+const hasPermission = (requiredPermissions: string[]) => {
+  // If no permissions required, always allow
+  if (requiredPermissions.length === 0) return true;
+  
+  // If no session or user, deny access
+  if (!session?.user) return false;
+  
+  console.log('Checking permissions for module:', modulePath);
+  console.log('User role:', session.user.role);
+  console.log('Required permissions:', requiredPermissions);
+  console.log('Available modules:', session.user.moduleAccess?.map(m => m.modulePath));
+  
+  // Super admins and admins have all permissions
+  if (['super_admin', 'admin'].includes(session.user.role)) return true;
+  
+  // Find the module in us  er's moduleAccess - check for exact match OR wildcard
+  const module = session.user.moduleAccess?.find((m) => {
+    return m.modulePath === modulePath || 
+           m.modulePath === '*' || 
+           // Handle cases where modulePath might have trailing slashes or variations
+           m.modulePath.replace(/\/$/, '') === modulePath.replace(/\/$/, '')
+  });
+  
+  console.log('Found module:', module);
+  
+  // If module not found, deny access
+  if (!module) {
+    console.log('Module not found in user access');
+    return false;
+  }
+  
+  // Check if user has ALL required permissions for this action
+  const hasAllPermissions = requiredPermissions.every(permission => 
+    module.permissions.includes(permission)
+  );
+  
+  console.log('Has all permissions:', hasAllPermissions);
+  console.log('Module permissions:', module.permissions);
+  
+  return hasAllPermissions;
+};
+
 
   // Handle keyboard shortcuts
   useEffect(() => {

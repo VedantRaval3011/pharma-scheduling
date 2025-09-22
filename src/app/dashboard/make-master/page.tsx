@@ -18,23 +18,6 @@ interface Make {
   updatedAt: string;
 }
 
-interface ToolbarProps {
-  modulePath: string;
-  onAddNew?: () => void;
-  onSave?: () => void;
-  onClear?: () => void;
-  onExit?: () => void;
-  onUp?: () => void;
-  onDown?: () => void;
-  onSearch?: () => void;
-  onImplementQuery?: () => void;
-  onEdit?: () => void;
-  onDelete?: () => void;
-  onAudit?: () => void;
-  onPrint?: () => void;
-  onHelp?: () => void;
-}
-
 function MakeMaster() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -459,17 +442,17 @@ function MakeMaster() {
         <head>
           <title>Make Database Report</title>
           <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            h1 { text-align: center; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f2f2f2; }
-            .date { margin-bottom: 20px; }
+            body { font-family: 'Segoe UI', Arial, sans-serif; margin: 20px; background: #f5faff; }
+            h1 { text-align: center; color: #0055a4; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; border: 1px solid #a6c8ff; }
+            th, td { border: 1px solid #a6c8ff; padding: 8px; text-align: left; }
+            th { background: linear-gradient(to bottom, #f0f0f0, #ffffff); color: #333; }
+            .date { margin-bottom: 20px; color: #333; }
           </style>
         </head>
         <body>
           <h1>Make Database Report</h1>
-          <p class="date">Generated on: ${new Date().toLocaleDateString()}</p>
+          <p class="date">Generated on: ${new Date().toLocaleDateString("en-GB")}</p>
           <table>
             <tr><th>Make Name</th><th>Description</th><th>Created Date</th></tr>
             ${makes
@@ -479,7 +462,7 @@ function MakeMaster() {
                     make.description || ""
                   }</td><td>${new Date(
                     make.createdAt
-                  ).toLocaleDateString()}</td></tr>`
+                  ).toLocaleDateString("en-GB")}</td></tr>`
               )
               .join("")}
           </table>
@@ -581,11 +564,20 @@ function MakeMaster() {
   };
 
   if (status === "loading") {
-    return <div>Loading...</div>;
+    return (
+      <div className="min-h-screen bg-[#c0dcff] flex items-center justify-center">
+        <div className="text-lg font-segoe text-gray-700">Loading...</div>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div
+      className="min-h-screen bg-[#c0dcff] font-segoe"
+      style={{
+        backgroundImage: "linear-gradient(to bottom, #e6f0fa, #c0dcff)",
+      }}
+    >
       <WindowsToolbar
         modulePath="/dashboard/make-master"
         onAddNew={handleAddNew}
@@ -602,112 +594,42 @@ function MakeMaster() {
         onHelp={handleHelp}
       />
 
-      <div className="ml-20">
-        <div className="bg-blue-600 text-white px-4 py-2 flex items-center">
+      <div>
+        <div
+          className="bg-gradient-to-b from-[#0055a4] to-[#0088d1] text-white px-4 py-2 flex items-center shadow-md"
+          style={{ border: "1px solid #004080" }}
+        >
           <div className="flex items-center space-x-2">
-            <div className="w-4 h-4 bg-white rounded-sm flex items-center justify-center">
-              <span className="text-blue-600 text-xs font-bold">M</span>
+            <div
+              className="w-4 h-4 bg-white rounded-sm flex items-center justify-center"
+              style={{ border: "1px solid #004080" }}
+            >
+              <span className="text-[#0055a4] text-xs font-bold">M</span>
             </div>
-            <span className="font-semibold">Make Master</span>
+            <span className="font-semibold text-sm">Make Master</span>
           </div>
         </div>
 
-        <div className="container mx-auto p-6">
+        <div className="container mx-auto p-6 px-2 max-w-7xl">
           {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            <div
+              className="bg-[#ffe6e6] border border-[#cc0000] text-[#cc0000] px-4 py-3 rounded mb-4 shadow-inner"
+              style={{ borderStyle: "inset" }}
+            >
               {error}
             </div>
           )}
-          {session?.user?.role === "admin" ? (
-            <div className="mb-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Select Company
-                  </label>
-                  <select
-                    value={selectedCompanyId || ""}
-                    onChange={(e) => {
-                      setSelectedCompanyId(e.target.value);
-                      const selectedCompany = session?.user?.companies.find(
-                        (c: any) => c.companyId === e.target.value
-                      );
-                      setSelectedLocationId(
-                        selectedCompany?.locations[0]?.locationId || null
-                      );
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  >
-                    <option value="" disabled>
-                      Select a company
-                    </option>
-                    {session?.user?.companies.map((company: any) => (
-                      <option key={company.companyId} value={company.companyId}>
-                        {company.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Select Location
-                  </label>
-                  <select
-                    value={selectedLocationId || ""}
-                    onChange={(e) => setSelectedLocationId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    disabled={!selectedCompanyId}
-                  >
-                    <option value="" disabled>
-                      Select a location
-                    </option>
-                    {selectedCompanyId &&
-                      session?.user?.companies
-                        .find((c: any) => c.companyId === selectedCompanyId)
-                        ?.locations.map((location: any) => (
-                          <option
-                            key={location.locationId}
-                            value={location.locationId}
-                          >
-                            {location.name}
-                          </option>
-                        ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="mb-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Company
-                  </label>
-                  <input
-                    type="text"
-                    value={session?.user?.companies[0]?.name || ""}
-                    disabled
-                    className="w-full px-3 py-2 border border-gray-300 rounded bg-gray-100"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Location
-                  </label>
-                  <input
-                    type="text"
-                    value={
-                      session?.user?.companies[0]?.locations[0]?.name || ""
-                    }
-                    disabled
-                    className="w-full px-3 py-2 border border-gray-300 rounded bg-gray-100"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-lg font-semibold mb-4">Make Information</h2>
+          
+          <div
+            className="bg-white rounded-lg shadow-md p-6 mb-6"
+            style={{
+              border: "1px solid #a6c8ff",
+              backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
+            }}
+          >
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">
+              Column Make Information
+            </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="relative">
@@ -734,9 +656,15 @@ function MakeMaster() {
                       setShowDropdown(true);
                     }
                   }}
-                  className={`w-full px-3 py-2 border border-gray-300 rounded ${
-                    isFormEnabled ? "bg-white" : "bg-gray-100"
-                  } focus:ring-2 focus:ring-blue-500 focus:outline-none`}
+                  className={`w-full px-3 py-2 border border-[#a6c8ff] rounded focus:ring-2 focus:ring-[#66a3ff] focus:outline-none ${
+                    isFormEnabled ? "bg-white" : "bg-[#f0f0f0]"
+                  }`}
+                  style={{
+                    borderStyle: "inset",
+                    boxShadow: isFormEnabled
+                      ? "inset 1px 1px 2px rgba(0,0,0,0.1)"
+                      : "none",
+                  }}
                   placeholder="Enter make name"
                 />
 
@@ -744,14 +672,20 @@ function MakeMaster() {
                   filteredMakes.length > 0 &&
                   isFormEnabled &&
                   !isEditMode && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                    <div
+                      className="absolute z-10 w-full mt-1 bg-white border border-[#a6c8ff] rounded-md shadow-lg max-h-48 overflow-y-auto"
+                      style={{
+                        backgroundImage:
+                          "linear-gradient(to bottom, #ffffff, #f5faff)",
+                      }}
+                    >
                       {filteredMakes.map((make, index) => (
                         <div
                           key={make._id}
                           className={`px-3 py-2 cursor-pointer ${
                             index === dropdownSelectedIndex
-                              ? "bg-blue-100"
-                              : "hover:bg-gray-100"
+                              ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]"
+                              : "hover:bg-[#e6f0fa]"
                           }`}
                           onClick={() => {
                             setFormData({
@@ -766,7 +700,9 @@ function MakeMaster() {
                             setDropdownSelectedIndex(-1);
                           }}
                         >
-                          <div className="font-medium">{make.make}</div>
+                          <div className="font-medium text-gray-800">
+                            {make.make}
+                          </div>
                           {make.description && (
                             <div className="text-sm text-gray-500">
                               {make.description}
@@ -789,9 +725,15 @@ function MakeMaster() {
                   onChange={(e) =>
                     setFormData({ ...formData, description: e.target.value })
                   }
-                  className={`w-full px-3 py-2 border border-gray-300 rounded ${
-                    isFormEnabled ? "bg-white" : "bg-gray-100"
-                  } focus:ring-2 focus:ring-blue-500 focus:outline-none`}
+                  className={`w-full px-3 py-2 border border-[#a6c8ff] rounded focus:ring-2 focus:ring-[#66a3ff] focus:outline-none ${
+                    isFormEnabled ? "bg-white" : "bg-[#f0f0f0]"
+                  }`}
+                  style={{
+                    borderStyle: "inset",
+                    boxShadow: isFormEnabled
+                      ? "inset 1px 1px 2px rgba(0,0,0,0.1)"
+                      : "none",
+                  }}
                   placeholder="Enter description (optional)"
                 />
               </div>
@@ -807,7 +749,7 @@ function MakeMaster() {
                 </div>
               )}
               {isFormEnabled && (
-                <div className="text-green-600 font-medium">
+                <div className="text-[#008800] font-medium">
                   {isEditMode
                     ? "Edit Mode - Modify the selected make"
                     : "Add Mode - Enter new make details"}
@@ -815,8 +757,20 @@ function MakeMaster() {
               )}
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow-md">
-            <div className="p-4 border-b border-gray-200">
+
+          <div
+            className="bg-white rounded-lg shadow-md"
+            style={{
+              border: "1px solid #a6c8ff",
+              backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
+            }}
+          >
+            <div
+              className="p-4 border-b border-[#a6c8ff]"
+              style={{
+                backgroundImage: "linear-gradient(to bottom, #f0f0f0, #ffffff)",
+              }}
+            >
               <h2 className="text-lg font-semibold text-gray-800">
                 Makes ({makes.length})
               </h2>
@@ -824,7 +778,7 @@ function MakeMaster() {
 
             {loading ? (
               <div className="p-8 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0055a4] mx-auto"></div>
                 <p className="mt-2 text-gray-600">Loading makes...</p>
               </div>
             ) : makes.length === 0 ? (
@@ -834,25 +788,30 @@ function MakeMaster() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50">
+                  <thead
+                    className="bg-gradient-to-b from-[#f0f0f0] to-[#ffffff]"
+                    style={{ borderBottom: "1px solid #a6c8ff" }}
+                  >
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                         Make Name
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                         Description
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                         Created
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="divide-y divide-[#a6c8ff]">
                     {makes.map((make, index) => (
                       <tr
                         key={make._id}
-                        className={`hover:bg-gray-50 cursor-pointer ${
-                          selectedMake?._id === make._id ? "bg-blue-50" : ""
+                        className={`cursor-pointer ${
+                          selectedMake?._id === make._id
+                            ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]"
+                            : "hover:bg-[#e6f0fa]"
                         }`}
                         onClick={() => {
                           if (!isFormEnabled) {
@@ -866,7 +825,7 @@ function MakeMaster() {
                         }}
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="font-medium text-gray-900">
+                          <div className="font-medium text-gray-800">
                             {make.make}
                           </div>
                         </td>
@@ -876,7 +835,7 @@ function MakeMaster() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(make.createdAt).toLocaleDateString()}
+                          {new Date(make.createdAt).toLocaleDateString("en-GB")}
                         </td>
                       </tr>
                     ))}
@@ -889,9 +848,21 @@ function MakeMaster() {
       </div>
 
       {showSearchModal && (
-        <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96 max-h-96">
-            <h3 className="text-lg font-semibold mb-4">Search Makes</h3>
+        <div
+          className="fixed inset-0 bg-opacity-30 flex items-center justify-center z-50"
+          style={{ backdropFilter: "blur(2px)" }}
+        >
+          <div
+            className="bg-white rounded-lg p-6 w-96 max-h-96"
+            style={{
+              border: "1px solid #a6c8ff",
+              backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+            }}
+          >
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+              Search Makes
+            </h3>
             <input
               ref={searchInputRef}
               type="text"
@@ -901,17 +872,24 @@ function MakeMaster() {
                 setDropdownSelectedIndex(-1);
               }}
               onKeyDown={handleSearchKeyDown}
-              className="w-full px-3 py-2 border border-gray-300 rounded mb-4 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full px-3 py-2 border border-[#a6c8ff] rounded focus:ring-2 focus:ring-[#66a3ff] focus:outline-none bg-white"
+              style={{
+                borderStyle: "inset",
+                boxShadow: "inset 1px 1px 2px rgba(0,0,0,0.1)",
+              }}
               placeholder="Type to search..."
             />
 
-            <div className="max-h-48 overflow-y-auto border border-gray-200 rounded">
+            <div
+              className="max-h-48 overflow-y-auto border border-[#a6c8ff] rounded mt-2"
+              style={{
+                backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
+              }}
+            >
               {makes
                 .filter(
                   (make) =>
-                    make.make
-                      .toLowerCase()
-                      .includes(searchTerm.toLowerCase()) ||
+                    make.make.toLowerCase().includes(searchTerm.toLowerCase()) ||
                     (make.description &&
                       make.description
                         .toLowerCase()
@@ -922,8 +900,8 @@ function MakeMaster() {
                     key={make._id}
                     className={`px-3 py-2 cursor-pointer ${
                       index === dropdownSelectedIndex
-                        ? "bg-blue-100"
-                        : "hover:bg-gray-100"
+                        ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]"
+                        : "hover:bg-[#e6f0fa]"
                     }`}
                     onClick={() => {
                       setFormData({
@@ -939,7 +917,7 @@ function MakeMaster() {
                       setSearchTerm("");
                     }}
                   >
-                    <div className="font-medium">{make.make}</div>
+                    <div className="font-medium text-gray-800">{make.make}</div>
                     {make.description && (
                       <div className="text-sm text-gray-500">
                         {make.description}
@@ -956,7 +934,11 @@ function MakeMaster() {
                   setDropdownSelectedIndex(-1);
                   setSearchTerm("");
                 }}
-                className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                className="px-4 py-2 bg-gradient-to-b from-[#d9d9d9] to-[#b3b3b3] text-gray-800 rounded hover:bg-gradient-to-b hover:from-[#b3b3b3] hover:to-[#d9d9d9] active:bg-gradient-to-b active:from-[#b3b3b3] active:to-[#999999]"
+                style={{
+                  border: "1px solid #808080",
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                }}
               >
                 Cancel
               </button>
@@ -966,9 +948,21 @@ function MakeMaster() {
       )}
 
       {showAuditModal && (
-        <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-4/5 max-w-4xl max-h-[80vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4">Audit Trail {selectedMake ? `for ${selectedMake.make}` : '(All Makes)'}</h3>
+        <div
+          className="fixed inset-0 bg-opacity-30 flex items-center justify-center z-50"
+          style={{ backdropFilter: "blur(2px)" }}
+        >
+          <div
+            className="bg-white rounded-lg p-6 w-4/5 max-w-4xl max-h-[80vh] overflow-y-auto"
+            style={{
+              border: "1px solid #a6c8ff",
+              backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+            }}
+          >
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+              Audit Trail {selectedMake ? `for ${selectedMake.make}` : '(All Makes)'}
+            </h3>
 
             <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
@@ -983,7 +977,11 @@ function MakeMaster() {
                     setAuditSearchTerm(e.target.value);
                     fetchAuditLogs();
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full px-3 py-2 border border-[#a6c8ff] rounded focus:ring-2 focus:ring-[#66a3ff] focus:outline-none bg-white"
+                  style={{
+                    borderStyle: "inset",
+                    boxShadow: "inset 1px 1px 2px rgba(0,0,0,0.1)",
+                  }}
                   placeholder="Search make or description..."
                 />
               </div>
@@ -997,7 +995,11 @@ function MakeMaster() {
                     setAuditActionFilter(e.target.value);
                     fetchAuditLogs();
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full px-3 py-2 border border-[#a6c8ff] rounded focus:ring-2 focus:ring-[#66a3ff] focus:outline-none bg-white"
+                  style={{
+                    borderStyle: "inset",
+                    boxShadow: "inset 1px 1px 2px rgba(0,0,0,0.1)",
+                  }}
                 >
                   <option value="">All Actions</option>
                   <option value="CREATE">Create</option>
@@ -1016,7 +1018,11 @@ function MakeMaster() {
                     setAuditStartDate(e.target.value);
                     fetchAuditLogs();
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full px-3 py-2 border border-[#a6c8ff] rounded focus:ring-2 focus:ring-[#66a3ff] focus:outline-none bg-white"
+                  style={{
+                    borderStyle: "inset",
+                    boxShadow: "inset 1px 1px 2px rgba(0,0,0,0.1)",
+                  }}
                 />
               </div>
               <div>
@@ -1030,41 +1036,57 @@ function MakeMaster() {
                     setAuditEndDate(e.target.value);
                     fetchAuditLogs();
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full px-3 py-2 border border-[#a6c8ff] rounded focus:ring-2 focus:ring-[#66a3ff] focus:outline-none bg-white"
+                  style={{
+                    borderStyle: "inset",
+                    boxShadow: "inset 1px 1px 2px rgba(0,0,0,0.1)",
+                  }}
                 />
               </div>
             </div>
 
-            <div className="max-h-64 overflow-y-auto border border-gray-200 rounded">
+            <div
+              className="max-h-64 overflow-y-auto border border-[#a6c8ff] rounded"
+              style={{
+                backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
+              }}
+            >
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 sticky top-0">
+                <thead
+                  className="bg-gradient-to-b from-[#f0f0f0] to-[#ffffff] sticky top-0"
+                  style={{ borderBottom: "1px solid #a6c8ff" }}
+                >
                   <tr>
-                    <th className="px-3 py-2 text-left">Timestamp</th>
-                    <th className="px-3 py-2 text-left">User</th>
-                    <th className="px-3 py-2 text-left">Action</th>
-                    <th className="px-3 py-2 text-left">Make</th>
-                    <th className="px-3 py-2 text-left">Description</th>
-                    <th className="px-3 py-2 text-left">Previous Make</th>
-                    <th className="px-3 py-2 text-left">Previous Description</th>
+                    <th className="px-3 py-2 text-left text-gray-700">Timestamp</th>
+                    <th className="px-3 py-2 text-left text-gray-700">User</th>
+                    <th className="px-3 py-2 text-left text-gray-700">Action</th>
+                    <th className="px-3 py-2 text-left text-gray-700">Make</th>
+                    <th className="px-3 py-2 text-left text-gray-700">Description</th>
+                    <th className="px-3 py-2 text-left text-gray-700">Previous Make</th>
+                    <th className="px-3 py-2 text-left text-gray-700">Previous Description</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-[#a6c8ff]">
                   {auditLogs.map((log: any, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
+                    <tr key={index} className="hover:bg-[#e6f0fa]">
                       <td className="px-3 py-2">
                         {new Date(log.timestamp).toLocaleString()}
                       </td>
-                      <td className="px-3 py-2">{log.userId}</td>
+                      <td className="px-3 py-2">
+                        {log.userId === session?.user?.id
+                          ? session?.user.userId
+                          : log.userId}
+                      </td>
                       <td className="px-3 py-2">
                         <span
                           className={`px-2 py-1 rounded text-xs ${
                             log.action === "CREATE"
-                              ? "bg-green-100 text-green-800"
+                              ? "bg-[#ccffcc] text-[#008800]"
                               : log.action === "UPDATE"
-                              ? "bg-yellow-100 text-yellow-800"
+                              ? "bg-[#ffffcc] text-[#666600]"
                               : log.action === "DELETE"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-gray-100"
+                              ? "bg-[#ffe6e6] text-[#cc0000]"
+                              : "bg-[#f0f0f0]"
                           }`}
                         >
                           {log.action}
@@ -1106,7 +1128,11 @@ function MakeMaster() {
                   setAuditEndDate("");
                   setAuditLogs([]);
                 }}
-                className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                className="px-4 py-2 bg-gradient-to-b from-[#d9d9d9] to-[#b3b3b3] text-gray-800 rounded hover:bg-gradient-to-b hover:from-[#b3b3b3] hover:to-[#d9d9d9] active:bg-gradient-to-b active:from-[#b3b3b3] active:to-[#999999]"
+                style={{
+                  border: "1px solid #808080",
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                }}
               >
                 Close
               </button>
@@ -1116,69 +1142,105 @@ function MakeMaster() {
       )}
 
       {showHelpModal && (
-        <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-4/5 max-w-2xl max-h-96 overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4">Make Master - Help</h3>
+        <div
+          className="fixed inset-0 bg-opacity-30 flex items-center justify-center z-50"
+          style={{ backdropFilter: "blur(2px)" }}
+        >
+          <div
+            className="bg-white rounded-lg p-6 w-4/5 max-w-2xl max-h-96 overflow-y-auto"
+            style={{
+              border: "1px solid #a6c8ff",
+              backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+            }}
+          >
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+              Make Master - Help
+            </h3>
 
             <div className="space-y-4 text-sm">
               <div>
-                <h4 className="font-semibold text-blue-600">
+                <h4 className="font-semibold text-[#0055a4]">
                   Keyboard Shortcuts:
                 </h4>
                 <ul className="ml-4 mt-2 space-y-1">
                   <li>
-                    <kbd className="bg-gray-200 px-2 py-1 rounded">F1</kbd> -
-                    Add New Make
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F1
+                    </kbd>{" "}
+                    - Add New Make
                   </li>
                   <li>
-                    <kbd className="bg-gray-200 px-2 py-1 rounded">F2</kbd> -
-                    Save Current Entry
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F2
+                    </kbd>{" "}
+                    - Save Current Entry
                   </li>
                   <li>
-                    <kbd className="bg-gray-200 px-2 py-1 rounded">F3</kbd> -
-                    Clear Form
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F3
+                    </kbd>{" "}
+                    - Clear Form
                   </li>
                   <li>
-                    <kbd className="bg-gray-200 px-2 py-1 rounded">F4</kbd> -
-                    Exit to Dashboard
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F4
+                    </kbd>{" "}
+                    - Exit to Dashboard
                   </li>
                   <li>
-                    <kbd className="bg-gray-200 px-2 py-1 rounded">F5</kbd> -
-                    Navigate Up
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F5
+                    </kbd>{" "}
+                    - Navigate Up
                   </li>
                   <li>
-                    <kbd className="bg-gray-200 px-2 py-1 rounded">F6</kbd> -
-                    Navigate Down
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F6
+                    </kbd>{" "}
+                    - Navigate Down
                   </li>
                   <li>
-                    <kbd className="bg-gray-200 px-2 py-1 rounded">F7</kbd> -
-                    Search Makes
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F7
+                    </kbd>{" "}
+                    - Search Makes
                   </li>
                   <li>
-                    <kbd className="bg-gray-200 px-2 py-1 rounded">F9</kbd> -
-                    Edit Selected Make
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F9
+                    </kbd>{" "}
+                    - Edit Selected Make
                   </li>
                   <li>
-                    <kbd className="bg-gray-200 px-2 py-1 rounded">F10</kbd> -
-                    Delete Selected Make
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F10
+                    </kbd>{" "}
+                    - Delete Selected Make
                   </li>
                   <li>
-                    <kbd className="bg-gray-200 px-2 py-1 rounded">F11</kbd> -
-                    View Audit Trail
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F11
+                    </kbd>{" "}
+                    - View Audit Trail
                   </li>
                   <li>
-                    <kbd className="bg-gray-200 px-2 py-1 rounded">F12</kbd> -
-                    Print Report
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F12
+                    </kbd>{" "}
+                    - Print Report
                   </li>
                   <li>
-                    <kbd className="bg-gray-200 px-2 py-1 rounded">Ctrl+H</kbd>{" "}
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      Ctrl+H
+                    </kbd>{" "}
                     - Show Help
                   </li>
                 </ul>
               </div>
 
               <div>
-                <h4 className="font-semibold text-blue-600">How to Use:</h4>
+                <h4 className="font-semibold text-[#0055a4]">How to Use:</h4>
                 <ul className="ml-4 mt-2 space-y-1">
                   <li>
                     • Use <b>Add (F1)</b> to enable form for new make entry
@@ -1216,16 +1278,16 @@ function MakeMaster() {
               </div>
 
               <div>
-                <h4 className="font-semibold text-blue-600">
+                <h4 className="font-semibold text-[#0055a4]">
                   Status Indicators:
                 </h4>
                 <ul className="ml-4 mt-2 space-y-1">
                   <li>
-                    • <span className="text-green-600">Green text</span> - Form
+                    • <span className="text-[#008800]">Green text</span> - Form
                     is enabled for input
                   </li>
                   <li>
-                    • <span className="text-blue-600">Blue background</span> -
+                    • <span className="text-[#0055a4]">Blue background</span> -
                     Selected make in list
                   </li>
                   <li>
@@ -1236,7 +1298,7 @@ function MakeMaster() {
               </div>
 
               <div>
-                <h4 className="font-semibold text-blue-600">Tips:</h4>
+                <h4 className="font-semibold text-[#0055a4]">Tips:</h4>
                 <ul className="ml-4 mt-2 space-y-1">
                   <li>• All fields are disabled by default until Add/Edit</li>
                   <li>• Make name is required for saving</li>
@@ -1250,7 +1312,11 @@ function MakeMaster() {
             <div className="flex justify-end mt-6">
               <button
                 onClick={() => setShowHelpModal(false)}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                className="px-4 py-2 bg-gradient-to-b from-[#0055a4] to-[#0088d1] text-white rounded hover:bg-gradient-to-b hover:from-[#0088d1] hover:to-[#0055a4] active:bg-gradient-to-b active:from-[#004080] active:to-[#0066b3]"
+                style={{
+                  border: "1px solid #004080",
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                }}
               >
                 Close
               </button>

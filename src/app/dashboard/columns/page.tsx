@@ -3,8 +3,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import WindowsToolbar from "@/components/layout/ToolBox";
 import { useRouter } from "next/navigation";
-import * as XLSX from 'xlsx';
-
+import * as XLSX from "xlsx";
 
 interface ColumnDescription {
   prefix: string; // This will now be prefixId
@@ -249,7 +248,6 @@ export default function MasterColumn() {
   const [makes, setMakes] = useState<Option[]>([]);
   const [prefixes, setPrefixes] = useState<Option[]>([]);
   const [suffixes, setSuffixes] = useState<Option[]>([]);
-  const [series, setSeries] = useState<Series[]>([]);
   const [audits, setAudits] = useState<Audit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -264,7 +262,6 @@ export default function MasterColumn() {
   const [showObsoleteTable, setShowObsoleteTable] = useState(false);
   const [showDescriptionPopup, setShowDescriptionPopup] = useState(false);
   const [columnCodeFilter, setColumnCodeFilter] = useState("");
-  const [selectedSeriesName, setSelectedSeriesName] = useState<string>("");
   const [warningMessage, setWarningMessage] = useState<string>("");
   const carbonTypeDropdownRefs = useRef<{
     [key: number]: HTMLDivElement | null;
@@ -290,7 +287,7 @@ export default function MasterColumn() {
   const [carbonTypeFilters, setCarbonTypeFilters] = useState<{
     [key: number]: string;
   }>({});
-  const [selectedSeriesId, setSelectedSeriesId] = useState<string>("");
+
   const [auditFilters, setAuditFilters] = useState({
     columnCode: "",
     action: "",
@@ -347,150 +344,168 @@ export default function MasterColumn() {
     form.descriptions[0]?.suffix,
     form.descriptions[0]?.usePrefixForNewCode,
     form.descriptions[0]?.useSuffixForNewCode,
-    selectedColumnId
+    selectedColumnId,
   ]);
 
   const exportToExcel = () => {
-  try {
-    // Get current data (active or obsolete columns based on current view)
-    const dataToExport = showObsoleteTable ? obsoleteColumns : columns;
-    
-    // Helper functions to resolve lookup data (reusing existing functions)
-    const resolveMakeName = (makeId: string | undefined) => {
-      if (!makeId) return "";
-      const make = makes.find(m => m._id.toString().trim() === makeId.toString().trim());
-      return make?.make || `Unknown Make (${makeId})`;
-    };
-    
-    const resolvePrefixName = (prefixId: string | undefined) => {
-      if (!prefixId) return "";
-      const prefix = prefixes.find(p => p._id.toString().trim() === prefixId.toString().trim());
-      return prefix?.value || `Unknown Prefix (${prefixId})`;
-    };
-    
-    const resolveSuffixName = (suffixId: string | undefined) => {
-      if (!suffixId) return "";
-      const suffix = suffixes.find(s => s._id.toString().trim() === suffixId.toString().trim());
-      return suffix?.value || `Unknown Suffix (${suffixId})`;
-    };
-    
-    // Prepare data with resolved lookup values
-    const excelData: any[] = [];
-    let serialNo = 1;
-    
-    dataToExport.forEach((column) => {
-      column.descriptions.forEach((desc, descIndex) => {
-        const row: any = {
-          'Serial No': descIndex === 0 ? serialNo : '', // Only show serial number for first description
-          'Column Code': descIndex === 0 ? column.columnCode : '', // Only show column code for first description
-          'Prefix': resolvePrefixName(desc.prefix),
-          'Suffix': resolveSuffixName(desc.suffix),
-          'Carbon Type': desc.carbonType,
-          'Linked Carbon Type': desc.linkedCarbonType,
-          'Inner Diameter (mm)': desc.innerDiameter,
-          'Length (mm)': desc.length,
-          'Particle Size (µm)': desc.particleSize,
-          'Description': `${resolvePrefixName(desc.prefix)} ${desc.carbonType} ${desc.innerDiameter} x ${desc.length} ${desc.particleSize}µm ${resolveSuffixName(desc.suffix)}`.trim(),
-          'Make': resolveMakeName(desc.make),
-          'Column ID': desc.columnId,
-          'Installation Date': desc.installationDate,
-          'Status': desc.isObsolete ? 'Obsolete' : 'Active',
-          'Use Prefix': desc.usePrefix ? 'Yes' : 'No',
-          'Use Suffix': desc.useSuffix ? 'Yes' : 'No',
-          'Use Prefix for New Code': desc.usePrefixForNewCode ? 'Yes' : 'No',
-          'Use Suffix for New Code': desc.useSuffixForNewCode ? 'Yes' : 'No'
-        };
-        excelData.push(row);
-      });
-      serialNo++;
-    });
-    
-    // Create workbook and worksheet
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(excelData);
-    
-    // Set column widths
-    const colWidths = [
-      { wch: 10 }, // Serial No
-      { wch: 15 }, // Column Code
-      { wch: 12 }, // Prefix
-      { wch: 12 }, // Suffix
-      { wch: 15 }, // Carbon Type
-      { wch: 18 }, // Linked Carbon Type
-      { wch: 15 }, // Inner Diameter
-      { wch: 12 }, // Length
-      { wch: 15 }, // Particle Size
-      { wch: 35 }, // Description
-      { wch: 20 }, // Make
-      { wch: 15 }, // Column ID
-      { wch: 15 }, // Installation Date
-      { wch: 10 }, // Status
-      { wch: 12 }, // Use Prefix
-      { wch: 12 }, // Use Suffix
-      { wch: 18 }, // Use Prefix for New Code
-      { wch: 18 }  // Use Suffix for New Code
-    ];
-    ws['!cols'] = colWidths;
-    
-    // Handle merged cells for Column Code and Serial No
-    const merges: XLSX.Range[] = [];
-    let currentRow = 2; // Start from row 2 (after header)
-    
-    dataToExport.forEach((column) => {
-      const descCount = column.descriptions.length;
-      if (descCount > 1) {
-        // Merge Serial No cells (column A)
-        merges.push({
-          s: { r: currentRow - 1, c: 0 }, // start (0-indexed)
-          e: { r: currentRow + descCount - 2, c: 0 } // end
-        });
-        
-        // Merge Column Code cells (column B)
-        merges.push({
-          s: { r: currentRow - 1, c: 1 }, // start (0-indexed)
-          e: { r: currentRow + descCount - 2, c: 1 } // end
-        });
-      }
-      currentRow += descCount;
-    });
-    
-    // Apply merges
-    ws['!merges'] = merges;
-    
-    // Style the header row
-    const headerStyle = {
-      font: { bold: true, color: { rgb: "FFFFFF" } },
-      fill: { fgColor: { rgb: "366092" } },
-      alignment: { horizontal: "center", vertical: "center" }
-    };
-    
-    // Apply header styling
-    const headers = Object.keys(excelData[0] || {});
-    headers.forEach((header, colIndex) => {
-      const cellRef = XLSX.utils.encode_cell({ r: 0, c: colIndex });
-      if (!ws[cellRef]) ws[cellRef] = { v: header, t: 's' };
-      ws[cellRef].s = headerStyle;
-    });
-    
-    // Add worksheet to workbook
-    const sheetName = showObsoleteTable ? 'Obsolete Columns' : 'Active Columns';
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    
-    // Generate filename with current date
-    const currentDate = new Date().toISOString().split('T')[0];
-    const filename = `Column_Master_${sheetName.replace(' ', '_')}_${currentDate}.xlsx`;
-    
-    // Export file
-    XLSX.writeFile(wb, filename);
-    
-    console.log(`Excel file exported: ${filename}`);
-    
-  } catch (error) {
-    console.error('Error exporting to Excel:', error);
-    setError('Failed to export to Excel. Please try again.');
-  }
-};
+    try {
+      // Get current data (active or obsolete columns based on current view)
+      const dataToExport = showObsoleteTable ? obsoleteColumns : columns;
 
+      // Helper functions to resolve lookup data (reusing existing functions)
+      const resolveMakeName = (makeId: string | undefined) => {
+        if (!makeId) return "";
+        const make = makes.find(
+          (m) => m._id.toString().trim() === makeId.toString().trim()
+        );
+        return make?.make || `Unknown Make (${makeId})`;
+      };
+
+      const resolvePrefixName = (prefixId: string | undefined) => {
+        if (!prefixId) return "";
+        const prefix = prefixes.find(
+          (p) => p._id.toString().trim() === prefixId.toString().trim()
+        );
+        return prefix?.value || `Unknown Prefix (${prefixId})`;
+      };
+
+      const resolveSuffixName = (suffixId: string | undefined) => {
+        if (!suffixId) return "";
+        const suffix = suffixes.find(
+          (s) => s._id.toString().trim() === suffixId.toString().trim()
+        );
+        return suffix?.value || `Unknown Suffix (${suffixId})`;
+      };
+
+      // Prepare data with resolved lookup values
+      const excelData: any[] = [];
+      let serialNo = 1;
+
+      dataToExport.forEach((column) => {
+        column.descriptions.forEach((desc, descIndex) => {
+          const row: any = {
+            "Serial No": descIndex === 0 ? serialNo : "",
+            "Column Code": descIndex === 0 ? column.columnCode : "",
+            Prefix: resolvePrefixName(desc.prefix),
+            Suffix: resolveSuffixName(desc.suffix),
+            "Carbon Type": desc.carbonType,
+            "Linked Carbon Type": desc.linkedCarbonType,
+            "Inner Diameter (mm)": desc.innerDiameter,
+            "Length (mm)": desc.length,
+            "Particle Size (µm)": desc.particleSize,
+            Description: `${resolvePrefixName(desc.prefix)} ${
+              desc.carbonType
+            } ${desc.innerDiameter} x ${desc.length} ${
+              desc.particleSize
+            }µm ${resolveSuffixName(desc.suffix)}`.trim(),
+            Make: resolveMakeName(desc.make),
+            "Column ID": desc.columnId,
+            "Installation Date": desc.installationDate,
+            "Make Specific":
+              desc.usePrefixForNewCode || desc.useSuffixForNewCode
+                ? "Yes"
+                : "No", // Add this line
+            Status: desc.isObsolete ? "Obsolete" : "Active",
+            "Use Prefix": desc.usePrefix ? "Yes" : "No",
+            "Use Suffix": desc.useSuffix ? "Yes" : "No",
+            "Use Prefix for New Code": desc.usePrefixForNewCode ? "Yes" : "No",
+            "Use Suffix for New Code": desc.useSuffixForNewCode ? "Yes" : "No",
+          };
+
+          excelData.push(row);
+        });
+        serialNo++;
+      });
+
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(excelData);
+
+      // Set column widths
+      const colWidths = [
+        { wch: 10 }, // Serial No
+        { wch: 15 }, // Column Code
+        { wch: 12 }, // Prefix
+        { wch: 12 }, // Suffix
+        { wch: 15 }, // Carbon Type
+        { wch: 18 }, // Linked Carbon Type
+        { wch: 15 }, // Inner Diameter
+        { wch: 12 }, // Length
+        { wch: 15 }, // Particle Size
+        { wch: 35 }, // Description
+        { wch: 20 }, // Make
+        { wch: 15 }, // Column ID
+        { wch: 15 }, // Installation Date
+        { wch: 10 }, // Status
+        { wch: 12 }, // Use Prefix
+        { wch: 12 }, // Use Suffix
+        { wch: 18 }, // Use Prefix for New Code
+        { wch: 18 }, // Use Suffix for New Code
+      ];
+      ws["!cols"] = colWidths;
+
+      // Handle merged cells for Column Code and Serial No
+      const merges: XLSX.Range[] = [];
+      let currentRow = 2; // Start from row 2 (after header)
+
+      dataToExport.forEach((column) => {
+        const descCount = column.descriptions.length;
+        if (descCount > 1) {
+          // Merge Serial No cells (column A)
+          merges.push({
+            s: { r: currentRow - 1, c: 0 }, // start (0-indexed)
+            e: { r: currentRow + descCount - 2, c: 0 }, // end
+          });
+
+          // Merge Column Code cells (column B)
+          merges.push({
+            s: { r: currentRow - 1, c: 1 }, // start (0-indexed)
+            e: { r: currentRow + descCount - 2, c: 1 }, // end
+          });
+        }
+        currentRow += descCount;
+      });
+
+      // Apply merges
+      ws["!merges"] = merges;
+
+      // Style the header row
+      const headerStyle = {
+        font: { bold: true, color: { rgb: "FFFFFF" } },
+        fill: { fgColor: { rgb: "366092" } },
+        alignment: { horizontal: "center", vertical: "center" },
+      };
+
+      // Apply header styling
+      const headers = Object.keys(excelData[0] || {});
+      headers.forEach((header, colIndex) => {
+        const cellRef = XLSX.utils.encode_cell({ r: 0, c: colIndex });
+        if (!ws[cellRef]) ws[cellRef] = { v: header, t: "s" };
+        ws[cellRef].s = headerStyle;
+      });
+
+      // Add worksheet to workbook
+      const sheetName = showObsoleteTable
+        ? "Obsolete Columns"
+        : "Active Columns";
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+      // Generate filename with current date
+      const currentDate = new Date().toISOString().split("T")[0];
+      const filename = `Column_Master_${sheetName.replace(
+        " ",
+        "_"
+      )}_${currentDate}.xlsx`;
+
+      // Export file
+      XLSX.writeFile(wb, filename);
+
+      console.log(`Excel file exported: ${filename}`);
+    } catch (error) {
+      console.error("Error exporting to Excel:", error);
+      setError("Failed to export to Excel. Please try again.");
+    }
+  };
 
   // Load auth data from localStorage
   useEffect(() => {
@@ -550,28 +565,35 @@ export default function MasterColumn() {
   };
 
   const getCoreAttributes = (desc: ColumnDescription): CoreAttributes => {
-  return {
-    carbonType: (desc.carbonType || "").toString().trim(),
-    innerDiameter: Number(desc.innerDiameter),
-    length: Number(desc.length),
-    particleSize: Number(desc.particleSize),
+    return {
+      carbonType: (desc.carbonType || "").toString().trim(),
+      innerDiameter: Number(desc.innerDiameter),
+      length: Number(desc.length),
+      particleSize: Number(desc.particleSize),
+    };
   };
-};
 
   // Helper function to compare core attributes
-  const coreAttributesChanged = (current: CoreAttributes, previous: CoreAttributes): boolean => {
-  const sameStr = (a: any, b: any) =>
-    String(a ?? "").trim().toLowerCase() === String(b ?? "").trim().toLowerCase();
-  const sameNum = (a: any, b: any) => Number(a) === Number(b);
+  const coreAttributesChanged = (
+    current: CoreAttributes,
+    previous: CoreAttributes
+  ): boolean => {
+    const sameStr = (a: any, b: any) =>
+      String(a ?? "")
+        .trim()
+        .toLowerCase() ===
+      String(b ?? "")
+        .trim()
+        .toLowerCase();
+    const sameNum = (a: any, b: any) => Number(a) === Number(b);
 
-  return !(
-    sameStr(current.carbonType, previous.carbonType) &&
-    sameNum(current.innerDiameter, previous.innerDiameter) &&
-    sameNum(current.length, previous.length) &&
-    sameNum(current.particleSize, previous.particleSize)
-  );
-};
-
+    return !(
+      sameStr(current.carbonType, previous.carbonType) &&
+      sameNum(current.innerDiameter, previous.innerDiameter) &&
+      sameNum(current.length, previous.length) &&
+      sameNum(current.particleSize, previous.particleSize)
+    );
+  };
 
   // Helper function to create core specification string
   const createCoreSpec = (desc: ColumnDescription): string => {
@@ -642,28 +664,44 @@ export default function MasterColumn() {
     }
   }, [companyId, locationId, authLoaded]);
 
- const incrementSeriesNumber = async (seriesId: string) => {
-  try {
-    const response = await fetch(
-      `/api/admin/series/increment?seriesId=${seriesId}&companyId=${companyId}&locationId=${locationId}`,
-      {
-        method: 'PUT',
-        credentials: 'include',
-      }
-    );
+  const fetchSingleColumnAudit = async (columnCode?: string) => {
+    try {
+      // Use the provided columnCode or the selected one
+      const codeToAudit = columnCode || selectedColumnCodeForAudit;
 
-    const data = await response.json();
-    if (!data.success) {
-      console.error('Failed to increment series number:', data.error);
-      // Don't throw error here as the column was already saved successfully
-    } else {
-      console.log('Series number incremented successfully:', data.data);
+      if (!codeToAudit) {
+        setError("Please select a column first.");
+        return;
+      }
+
+      const response = await fetch(
+        `/api/admin/column/audit?companyId=${companyId}&locationId=${locationId}&columnCode=${codeToAudit}`,
+        { credentials: "include" }
+      );
+
+      const data = await response.json();
+      if (data.success) {
+        setAudits(
+          data.data.map((audit: any) => ({
+            ...audit,
+            changes: Array.isArray(audit.changes)
+              ? audit.changes
+              : [audit.changes],
+          }))
+        );
+        // Pre-filter for this specific column
+        setAuditFilters((prev) => ({
+          ...prev,
+          columnCode: codeToAudit,
+        }));
+        setShowAuditModal(true);
+      } else {
+        setError(data.error || "Failed to fetch audit logs.");
+      }
+    } catch (err: any) {
+      setError(`Error fetching audits: ${err.message}`);
     }
-  } catch (err) {
-    console.error('Error incrementing series number:', err);
-    // Don't throw error here as the column was already saved successfully
-  }
-};
+  };
 
   const fetchData = async () => {
     console.log("=== FETCH DATA START ===");
@@ -681,57 +719,44 @@ export default function MasterColumn() {
     try {
       console.log("=== MAKING API CALLS ===");
 
-      const [
-        columnsRes,
-        obsoleteColumnsRes,
-        makesRes,
-        prefixRes,
-        suffixRes,
-        seriesRes,
-      ] = await Promise.all([
-        fetch(
-          `/api/admin/column?companyId=${companyId}&locationId=${locationId}`,
-          {
-            credentials: "include",
-            headers: { "Cache-Control": "no-cache" },
-          }
-        ),
-        fetch(
-          `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`,
-          {
-            credentials: "include",
-            headers: { "Cache-Control": "no-cache" },
-          }
-        ),
-        fetch(
-          `/api/admin/column/make?companyId=${companyId}&locationId=${locationId}`,
-          {
-            credentials: "include",
-            headers: { "Cache-Control": "no-cache" },
-          }
-        ),
-        fetch(
-          `/api/admin/prefixAndSuffix?type=PREFIX&companyId=${companyId}&locationId=${locationId}`,
-          {
-            credentials: "include",
-            headers: { "Cache-Control": "no-cache" },
-          }
-        ),
-        fetch(
-          `/api/admin/prefixAndSuffix?type=SUFFIX&companyId=${companyId}&locationId=${locationId}`,
-          {
-            credentials: "include",
-            headers: { "Cache-Control": "no-cache" },
-          }
-        ),
-        fetch(
-          `/api/admin/series?companyId=${companyId}&locationId=${locationId}`,
-          {
-            credentials: "include",
-            headers: { "Cache-Control": "no-cache" },
-          }
-        ),
-      ]);
+      const [columnsRes, obsoleteColumnsRes, makesRes, prefixRes, suffixRes] =
+        await Promise.all([
+          fetch(
+            `/api/admin/column?companyId=${companyId}&locationId=${locationId}`,
+            {
+              credentials: "include",
+              headers: { "Cache-Control": "no-cache" },
+            }
+          ),
+          fetch(
+            `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`,
+            {
+              credentials: "include",
+              headers: { "Cache-Control": "no-cache" },
+            }
+          ),
+          fetch(
+            `/api/admin/column/make?companyId=${companyId}&locationId=${locationId}`,
+            {
+              credentials: "include",
+              headers: { "Cache-Control": "no-cache" },
+            }
+          ),
+          fetch(
+            `/api/admin/prefixAndSuffix?type=PREFIX&companyId=${companyId}&locationId=${locationId}`,
+            {
+              credentials: "include",
+              headers: { "Cache-Control": "no-cache" },
+            }
+          ),
+          fetch(
+            `/api/admin/prefixAndSuffix?type=SUFFIX&companyId=${companyId}&locationId=${locationId}`,
+            {
+              credentials: "include",
+              headers: { "Cache-Control": "no-cache" },
+            }
+          ),
+        ]);
 
       console.log("=== API RESPONSE STATUS ===");
       const responses = [
@@ -740,7 +765,6 @@ export default function MasterColumn() {
         { name: "makes", response: makesRes },
         { name: "prefix", response: prefixRes },
         { name: "suffix", response: suffixRes },
-        { name: "series", response: seriesRes },
       ];
 
       // Log all response statuses and headers
@@ -773,14 +797,12 @@ export default function MasterColumn() {
         makesData,
         prefixData,
         suffixData,
-        seriesData,
       ] = await Promise.all([
         columnsRes.json(),
         obsoleteColumnsRes.json(),
         makesRes.json(),
         prefixRes.json(),
         suffixRes.json(),
-        seriesRes.json(),
       ]);
 
       console.log("=== RAW API RESPONSES ===");
@@ -801,7 +823,6 @@ export default function MasterColumn() {
         "Raw suffixes response:",
         JSON.stringify(suffixData, null, 2)
       );
-      console.log("Raw series response:", JSON.stringify(seriesData, null, 2));
 
       // Process MAKES first (highest priority for debugging)
       console.log("=== PROCESSING MAKES ===");
@@ -1060,16 +1081,6 @@ export default function MasterColumn() {
         );
       }
 
-      // Process SERIES
-      console.log("=== PROCESSING SERIES ===");
-      if (seriesData.success) {
-        console.log("Series data:", JSON.stringify(seriesData.data, null, 2));
-        setSeries(seriesData.data);
-      } else {
-        console.error("Series API failed:", seriesData.error);
-        setError(`Failed to fetch series: ${seriesData.error}`);
-      }
-
       console.log("=== FINAL STATE SUMMARY ===");
       console.log("State will be set to:", {
         makesCount: makesData.success
@@ -1088,7 +1099,6 @@ export default function MasterColumn() {
         obsoleteColumnsCount: obsoleteColumnsData.success
           ? obsoleteColumnsData.data?.length
           : 0,
-        seriesCount: seriesData.success ? seriesData.data?.length : 0,
       });
     } catch (err: any) {
       console.error("=== FETCH DATA ERROR ===");
@@ -1104,104 +1114,125 @@ export default function MasterColumn() {
     }
   };
 
- const generateColumnCode = (
-  desc: ColumnDescription,
-  columns: Column[],
-  obsoleteColumns: Column[],
-  previousCoreAttributes?: CoreAttributes
-): string => {
-  const currentCoreAttributes = getCoreAttributes(desc);
-  const coreSpec = createCoreSpec(desc);
-  const fullSpec = createFullSpec(desc, true);
+  const generateColumnCode = (
+    desc: ColumnDescription,
+    columns: Column[],
+    obsoleteColumns: Column[],
+    previousCoreAttributes?: CoreAttributes
+  ): string => {
+    const currentCoreAttributes = getCoreAttributes(desc);
+    const coreSpec = createCoreSpec(desc);
+    const fullSpec = createFullSpec(desc, true);
 
-  const allOtherColumns = [...columns, ...obsoleteColumns].filter(
-    (col) => col._id !== selectedColumnId
-  );
+    const allOtherColumns = [...columns, ...obsoleteColumns].filter(
+      (col) => col._id !== selectedColumnId
+    );
 
-  console.log("=== GENERATE COLUMN CODE DEBUG ===");
-  console.log("Current core attributes:", currentCoreAttributes);
-  console.log("Previous core attributes:", previousCoreAttributes);
-  console.log("Core spec:", coreSpec);
-  console.log("Full spec:", fullSpec);
-  console.log("Is editing:", !!selectedColumnId);
-  console.log("All other columns count:", allOtherColumns.length);
+    console.log("=== GENERATE COLUMN CODE DEBUG ===");
+    console.log("Current core attributes:", currentCoreAttributes);
+    console.log("Previous core attributes:", previousCoreAttributes);
+    console.log("Core spec:", coreSpec);
+    console.log("Full spec:", fullSpec);
+    console.log("Is editing:", !!selectedColumnId);
+    console.log("All other columns count:", allOtherColumns.length);
 
-  // --- PRIORITY 1: Exact FULL spec match ---
-  const exactFullMatch = allOtherColumns.find((col) =>
-    col.descriptions.some((d) => createFullSpec(d, true) === fullSpec)
-  );
-  if (exactFullMatch) {
-    console.log("Found exact full match:", exactFullMatch.columnCode);
-    return exactFullMatch.columnCode;
-  }
+    // --- PRIORITY 1: Exact FULL spec match ---
+    const exactFullMatch = allOtherColumns.find((col) =>
+      col.descriptions.some((d) => createFullSpec(d, true) === fullSpec)
+    );
+    if (exactFullMatch) {
+      console.log("Found exact full match:", exactFullMatch.columnCode);
+      return exactFullMatch.columnCode;
+    }
 
-  // --- PRIORITY 2: Core spec match (ignoring prefix/suffix based on settings) ---
-  const coreSpecMatch = allOtherColumns.find((col) =>
-    col.descriptions.some((d) => {
-      if (desc.usePrefixForNewCode || desc.useSuffixForNewCode) {
-        // Prefix/suffix matter → must match full spec including them
-        return createFullSpec(d, true) === fullSpec;
-      } else {
-        // Prefix/suffix ignored → match on core spec only
-        return createCoreSpec(d) === coreSpec;
-      }
-    })
-  );
-  if (coreSpecMatch) {
-    console.log("Found core spec match:", coreSpecMatch.columnCode);
-    return coreSpecMatch.columnCode;
-  }
+    // --- PRIORITY 2: Core spec match (ignoring prefix/suffix based on settings) ---
+    const coreSpecMatch = allOtherColumns.find((col) =>
+      col.descriptions.some((d) => {
+        if (desc.usePrefixForNewCode || desc.useSuffixForNewCode) {
+          // Prefix/suffix matter → must match full spec including them
+          return createFullSpec(d, true) === fullSpec;
+        } else {
+          // Prefix/suffix ignored → match on core spec only
+          return createCoreSpec(d) === coreSpec;
+        }
+      })
+    );
+    if (coreSpecMatch) {
+      console.log("Found core spec match:", coreSpecMatch.columnCode);
+      return coreSpecMatch.columnCode;
+    }
 
-  // --- PRIORITY 3: Handle edit mode logic ---
-  if (selectedColumnId && previousCoreAttributes) {
-    const coreChanged = coreAttributesChanged(currentCoreAttributes, previousCoreAttributes);
-    
-    console.log("Core changed:", coreChanged);
-    console.log("Previous core spec:", createCoreSpec({
-      carbonType: previousCoreAttributes.carbonType,
-      innerDiameter: previousCoreAttributes.innerDiameter,
-      length: previousCoreAttributes.length,
-      particleSize: previousCoreAttributes.particleSize,
-      prefix: "", suffix: "", make: "", columnId: "", installationDate: "",
-      usePrefix: false, useSuffix: false, usePrefixForNewCode: false,
-      useSuffixForNewCode: false, isObsolete: false, linkedCarbonType: ""
-    }));
-    
-    if (!coreChanged) {
-      // Core attributes haven't changed → keep original column code
-      const currentColumn = [...columns, ...obsoleteColumns].find(
-        (col) => col._id === selectedColumnId
+    // --- PRIORITY 3: Handle edit mode logic ---
+    if (selectedColumnId && previousCoreAttributes) {
+      const coreChanged = coreAttributesChanged(
+        currentCoreAttributes,
+        previousCoreAttributes
       );
-      if (currentColumn) {
-        console.log("Core unchanged, keeping original:", currentColumn.columnCode);
-        return currentColumn.columnCode;
-      }
-    } else {
-      // Core specs changed → check if another column has this new core spec
-      const newCoreMatch = allOtherColumns.find((col) =>
-        col.descriptions.some((d) => {
-          if (desc.usePrefixForNewCode || desc.useSuffixForNewCode) {
-            return createFullSpec(d, true) === fullSpec;
-          } else {
-            return createCoreSpec(d) === coreSpec;
-          }
+
+      console.log("Core changed:", coreChanged);
+      console.log(
+        "Previous core spec:",
+        createCoreSpec({
+          carbonType: previousCoreAttributes.carbonType,
+          innerDiameter: previousCoreAttributes.innerDiameter,
+          length: previousCoreAttributes.length,
+          particleSize: previousCoreAttributes.particleSize,
+          prefix: "",
+          suffix: "",
+          make: "",
+          columnId: "",
+          installationDate: "",
+          usePrefix: false,
+          useSuffix: false,
+          usePrefixForNewCode: false,
+          useSuffixForNewCode: false,
+          isObsolete: false,
+          linkedCarbonType: "",
         })
       );
-      if (newCoreMatch) {
-        console.log("Found existing column with new core spec:", newCoreMatch.columnCode);
-        return newCoreMatch.columnCode;
+
+      if (!coreChanged) {
+        // Core attributes haven't changed → keep original column code
+        const currentColumn = [...columns, ...obsoleteColumns].find(
+          (col) => col._id === selectedColumnId
+        );
+        if (currentColumn) {
+          console.log(
+            "Core unchanged, keeping original:",
+            currentColumn.columnCode
+          );
+          return currentColumn.columnCode;
+        }
+      } else {
+        // Core specs changed → check if another column has this new core spec
+        const newCoreMatch = allOtherColumns.find((col) =>
+          col.descriptions.some((d) => {
+            if (desc.usePrefixForNewCode || desc.useSuffixForNewCode) {
+              return createFullSpec(d, true) === fullSpec;
+            } else {
+              return createCoreSpec(d) === coreSpec;
+            }
+          })
+        );
+        if (newCoreMatch) {
+          console.log(
+            "Found existing column with new core spec:",
+            newCoreMatch.columnCode
+          );
+          return newCoreMatch.columnCode;
+        }
+        // No existing column found with new core spec, generate new code
+        console.log(
+          "Core changed, no existing match found, generating new code"
+        );
+        return generateNewColumnCode(columns, obsoleteColumns);
       }
-      // No existing column found with new core spec, generate new code
-      console.log("Core changed, no existing match found, generating new code");
-      return generateNewColumnCode(columns, obsoleteColumns);
     }
-  }
 
-  // --- PRIORITY 4: Generate new code for new entries or when no matches found ---
-  console.log("Generating completely new column code");
-  return generateNewColumnCode(columns, obsoleteColumns);
-};
-
+    // --- PRIORITY 4: Generate new code for new entries or when no matches found ---
+    console.log("Generating completely new column code");
+    return generateNewColumnCode(columns, obsoleteColumns);
+  };
 
   // Helper function to generate new column code
   const generateNewColumnCode = (
@@ -1234,45 +1265,6 @@ export default function MasterColumn() {
     return newColumnCode;
   };
 
-  const reserveNextColumnId = async (seriesId: string) => {
-  try {
-    console.log("=== RESERVE NEXT COLUMN ID START ===");
-    console.log("Series ID:", seriesId);
-    console.log("Company ID:", companyId);
-    console.log("Location ID:", locationId);
-
-    const selectedSeries = series.find((s) => s._id === seriesId);
-    if (!selectedSeries) {
-      throw new Error("Series not found");
-    }
-
-    // Final check before reserving
-    if (selectedSeries.currentNumber >= selectedSeries.endNumber) {
-      throw new Error(
-        `Series has reached its maximum number (${selectedSeries.endNumber})`
-      );
-    }
-
-    if (selectedSeries.currentNumber + 1 > selectedSeries.endNumber) {
-      throw new Error(
-        `Next number would exceed the series maximum (${selectedSeries.endNumber})`
-      );
-    }
-
-    // FIXED: Use the CURRENT number, not currentNumber + 1
-    const currentColumnId = `${selectedSeries.prefix}${selectedSeries.currentNumber
-      .toString()
-      .padStart(selectedSeries.padding, "0")}`;
-
-    console.log("Using current Column ID:", currentColumnId);
-    console.log("=== RESERVE NEXT COLUMN ID END ===");
-    
-    return currentColumnId;
-  } catch (err) {
-    console.error("Error in reserveNextColumnId:", err);
-    throw err;
-  }
-};
   const validateForm = () => {
     console.log("=== FORM VALIDATION START ===");
     const errors: { [key: string]: string } = {};
@@ -1319,24 +1311,10 @@ export default function MasterColumn() {
         "Column code is required. Please generate or enter a valid code.";
     }
 
-    // CRITICAL: Series end number validation
-    if (selectedSeriesId && !selectedColumnId) {
-      // Only check for new entries
-      const selectedSeries = series.find((s) => s._id === selectedSeriesId);
-      if (selectedSeries) {
-        if (selectedSeries.currentNumber >= selectedSeries.endNumber) {
-          errors.seriesEndReached = `This series has reached its maximum number (${selectedSeries.endNumber}). Please change the end number from Series Master before proceeding.`;
-          errors.columnId_0 =
-            "Cannot generate Column ID - series limit reached";
-        } else if (
-          selectedSeries.currentNumber + 1 >
-          selectedSeries.endNumber
-        ) {
-          errors.seriesEndReached = `Next number would exceed the series maximum (${selectedSeries.endNumber}). Please change the end number from Series Master before proceeding.`;
-          errors.columnId_0 =
-            "Cannot generate Column ID - would exceed series limit";
-        }
-      }
+    // Manual Column ID validation
+    const columnIdError = validateColumnId(desc.columnId);
+    if (columnIdError) {
+      errors[`columnId_0`] = columnIdError;
     }
 
     // Check if there's a series-related error message already set
@@ -1357,78 +1335,88 @@ export default function MasterColumn() {
     return Object.keys(errors).length === 0;
   };
 
- const updateColumnCode = (
-  index: number,
-  preserveSelection: boolean = false,
-  forceUpdate: boolean = false // Add this parameter
-) => {
-  const desc = form.descriptions[index];
+  const updateColumnCode = (
+    index: number,
+    preserveSelection: boolean = false,
+    forceUpdate: boolean = false // Add this parameter
+  ) => {
+    const desc = form.descriptions[index];
 
-  // Always generate column code when all required fields are filled
-  if (
-    desc.carbonType &&
-    desc.innerDiameter &&
-    desc.length &&
-    desc.particleSize
-  ) {
-    try {
-      // For edit mode, get the ORIGINAL core attributes from database
-      let originalCoreAttributes: CoreAttributes | undefined;
-      
-      if (selectedColumnId && selectedDescriptionIndex >= 0) {
-        const originalColumn = [...columns, ...obsoleteColumns].find(
-          (col) => col._id === selectedColumnId
-        );
-        if (originalColumn && originalColumn.descriptions[selectedDescriptionIndex]) {
-          originalCoreAttributes = getCoreAttributes(
-            originalColumn.descriptions[selectedDescriptionIndex]
+    // Always generate column code when all required fields are filled
+    if (
+      desc.carbonType &&
+      desc.innerDiameter &&
+      desc.length &&
+      desc.particleSize
+    ) {
+      try {
+        // For edit mode, get the ORIGINAL core attributes from database
+        let originalCoreAttributes: CoreAttributes | undefined;
+
+        if (selectedColumnId && selectedDescriptionIndex >= 0) {
+          const originalColumn = [...columns, ...obsoleteColumns].find(
+            (col) => col._id === selectedColumnId
           );
-          
-          // If we're editing and not forcing an update, check if we should preserve the existing code
-          if (!forceUpdate) {
-            const currentCoreAttributes = getCoreAttributes(desc);
-            const coreChanged = coreAttributesChanged(currentCoreAttributes, originalCoreAttributes);
-            
-            // If core attributes haven't changed, keep the existing column code
-            if (!coreChanged) {
-              const existingColumnCode = originalColumn.columnCode;
-              if (form.columnCode !== existingColumnCode) {
-                console.log("Preserving existing column code:", existingColumnCode);
-                setForm((prev) => ({ ...prev, columnCode: existingColumnCode }));
+          if (
+            originalColumn &&
+            originalColumn.descriptions[selectedDescriptionIndex]
+          ) {
+            originalCoreAttributes = getCoreAttributes(
+              originalColumn.descriptions[selectedDescriptionIndex]
+            );
+
+            // If we're editing and not forcing an update, check if we should preserve the existing code
+            if (!forceUpdate) {
+              const currentCoreAttributes = getCoreAttributes(desc);
+              const coreChanged = coreAttributesChanged(
+                currentCoreAttributes,
+                originalCoreAttributes
+              );
+
+              // If core attributes haven't changed, keep the existing column code
+              if (!coreChanged) {
+                const existingColumnCode = originalColumn.columnCode;
+                if (form.columnCode !== existingColumnCode) {
+                  console.log(
+                    "Preserving existing column code:",
+                    existingColumnCode
+                  );
+                  setForm((prev) => ({
+                    ...prev,
+                    columnCode: existingColumnCode,
+                  }));
+                }
+                return;
               }
-              return;
             }
           }
         }
-      }
 
-      // Generate new column code
-      const newColumnCode = generateColumnCode(
-        desc,
-        columns,
-        obsoleteColumns,
-        originalCoreAttributes
-      );
-
-      if (newColumnCode !== form.columnCode) {
-        console.log(
-          "Column code changing from",
-          form.columnCode,
-          "to",
-          newColumnCode
+        // Generate new column code
+        const newColumnCode = generateColumnCode(
+          desc,
+          columns,
+          obsoleteColumns,
+          originalCoreAttributes
         );
-        setForm((prev) => ({ ...prev, columnCode: newColumnCode }));
-      } else {
-        console.log("Column code unchanged:", newColumnCode);
+
+        if (newColumnCode !== form.columnCode) {
+          console.log(
+            "Column code changing from",
+            form.columnCode,
+            "to",
+            newColumnCode
+          );
+          setForm((prev) => ({ ...prev, columnCode: newColumnCode }));
+        } else {
+          console.log("Column code unchanged:", newColumnCode);
+        }
+      } catch (err: any) {
+        console.error("Error generating column code:", err);
+        setError(err.message);
       }
-    } catch (err: any) {
-      console.error("Error generating column code:", err);
-      setError(err.message);
     }
-  }
-};
-
-
+  };
 
   const getMakeName = (makeId: string | undefined) => {
     if (!makeId) return "-";
@@ -1594,177 +1582,99 @@ export default function MasterColumn() {
     }
   };
 
- const handleCarbonTypeChange = (
-  index: number,
-  field: "carbonType" | "linkedCarbonType",
-  value: string
-) => {
-  console.log(`=== ${field.toUpperCase()} CHANGE: ${value} ===`);
+  const handleCarbonTypeChange = (
+    index: number,
+    field: "carbonType" | "linkedCarbonType",
+    value: string
+  ) => {
+    console.log(`=== ${field.toUpperCase()} CHANGE: ${value} ===`);
 
-  // Allow typing freely without validation during input
-  setForm((prev) => {
-    const newDescriptions = [...prev.descriptions];
-    newDescriptions[index] = {
-      ...newDescriptions[index],
-      [field]: value,
-      // Only auto-sync if the value exists in the mapping
-      [field === "carbonType" ? "linkedCarbonType" : "carbonType"]:
-        carbonTypeMap[value] ||
-        newDescriptions[index][
-          field === "carbonType" ? "linkedCarbonType" : "carbonType"
-        ],
-    };
-    return { ...prev, descriptions: newDescriptions };
-  });
+    // Allow typing freely without validation during input
+    setForm((prev) => {
+      const newDescriptions = [...prev.descriptions];
+      newDescriptions[index] = {
+        ...newDescriptions[index],
+        [field]: value,
+        // Only auto-sync if the value exists in the mapping
+        [field === "carbonType" ? "linkedCarbonType" : "carbonType"]:
+          carbonTypeMap[value] ||
+          newDescriptions[index][
+            field === "carbonType" ? "linkedCarbonType" : "carbonType"
+          ],
+      };
+      return { ...prev, descriptions: newDescriptions };
+    });
 
-  // Clear any existing errors
-  setFormErrors((prev) => ({
-    ...prev,
-    [`${field}_${index}`]: "",
-    [`${
-      field === "carbonType" ? "linkedCarbonType" : "carbonType"
-    }_${index}`]: "",
-  }));
+    // Clear any existing errors
+    setFormErrors((prev) => ({
+      ...prev,
+      [`${field}_${index}`]: "",
+      [`${
+        field === "carbonType" ? "linkedCarbonType" : "carbonType"
+      }_${index}`]: "",
+    }));
 
-  // Update the filter for dropdown suggestions
-  if (field === "carbonType") {
-    setCarbonTypeFilters((prev) => ({ ...prev, [index]: value }));
-  } else {
-    setLinkedCarbonTypeFilters((prev) => ({ ...prev, [index]: value }));
-  }
-
-  // Force update column code since this is a user-initiated change
-  setTimeout(() => {
-    updateColumnCode(index, false, true); // Force update = true
-  }, 50);
-};
-
-
-
-const handleDescriptionChange = (
-  index: number,
-  field: keyof ColumnDescription,
-  value: string | number | boolean
-) => {
-  console.log(`=== FIELD CHANGE: ${field} = ${value} ===`);
-
-  setForm((prev) => {
-    const newDescriptions = [...prev.descriptions];
-    newDescriptions[index] = { ...newDescriptions[index], [field]: value };
-
-    // Handle prefix/suffix checkbox clearing logic within the setForm callback
-    if (field === "prefix" && !value) {
-      newDescriptions[index].usePrefixForNewCode = false;
-    }
-    if (field === "suffix" && !value) {
-      newDescriptions[index].useSuffixForNewCode = false;
+    // Update the filter for dropdown suggestions
+    if (field === "carbonType") {
+      setCarbonTypeFilters((prev) => ({ ...prev, [index]: value }));
+    } else {
+      setLinkedCarbonTypeFilters((prev) => ({ ...prev, [index]: value }));
     }
 
-    return { ...prev, descriptions: newDescriptions };
-  });
-
-  // Clear any existing error for this field
-  setFormErrors((prev) => ({ ...prev, [`${field}_${index}`]: "" }));
-
-  // Trigger column code update if the changed field affects code generation
-  if (
-    field === "carbonType" ||
-    field === "innerDiameter" ||
-    field === "length" ||
-    field === "particleSize" ||
-    field === "prefix" ||
-    field === "suffix" ||
-    field === "usePrefixForNewCode" ||
-    field === "useSuffixForNewCode"
-  ) {
+    // Force update column code since this is a user-initiated change
     setTimeout(() => {
-      // Force update for core attribute changes
-      const isCoreField = ["carbonType", "innerDiameter", "length", "particleSize"].includes(field);
-      updateColumnCode(index, false, isCoreField);
+      updateColumnCode(index, false, true); // Force update = true
     }, 50);
-  }
-};
+  };
 
+  const handleDescriptionChange = (
+    index: number,
+    field: keyof ColumnDescription,
+    value: string | number | boolean
+  ) => {
+    console.log(`=== FIELD CHANGE: ${field} = ${value} ===`);
 
+    setForm((prev) => {
+      const newDescriptions = [...prev.descriptions];
+      newDescriptions[index] = { ...newDescriptions[index], [field]: value };
 
-  const handleSeriesChange = async (index: number, seriesId: string) => {
-  console.log("=== SERIES CHANGE START ===");
-  console.log("Index:", index, "Series ID:", seriesId);
-
-  setSelectedSeriesId(seriesId);
-  setWarningMessage(""); // Clear any existing warning
-  setError(""); // Clear any existing error
-
-  if (!seriesId) {
-    console.log("No series selected, clearing columnId");
-    handleDescriptionChange(index, "columnId", "");
-    return;
-  }
-
-  const selectedSeries = series.find((s) => s._id === seriesId);
-  console.log("Selected series:", selectedSeries);
-
-  if (selectedSeries) {
-    try {
-      // Check if we're in edit mode (selectedColumnId exists)
-      if (selectedColumnId) {
-        // For editing, retain the existing columnId
-        const currentColumn = [...columns, ...obsoleteColumns].find(
-          (col) => col._id === selectedColumnId
-        );
-        if (currentColumn && currentColumn.descriptions[selectedDescriptionIndex]) {
-          const currentDesc = currentColumn.descriptions[selectedDescriptionIndex];
-          console.log("Retaining existing columnId for edit:", currentDesc.columnId);
-          handleDescriptionChange(index, "columnId", currentDesc.columnId);
-          setSelectedSeriesName(selectedSeries.name);
-          return;
-        }
+      // Handle prefix/suffix checkbox clearing logic within the setForm callback
+      if (field === "prefix" && !value) {
+        newDescriptions[index].usePrefixForNewCode = false;
+      }
+      if (field === "suffix" && !value) {
+        newDescriptions[index].useSuffixForNewCode = false;
       }
 
-      // For new entries, check series limits
-      if (selectedSeries.currentNumber >= selectedSeries.endNumber) {
-        const endReachedMessage = `This series has reached its maximum number (${selectedSeries.endNumber}). Please change the end number from Series Master before proceeding.`;
-        setWarningMessage(endReachedMessage);
-        setError(endReachedMessage);
-        setFormErrors((prev) => ({
-          ...prev,
-          [`columnId_${index}`]: "Cannot generate Column ID - series limit reached",
-        }));
-        handleDescriptionChange(index, "columnId", "");
-        return;
-      }
+      return { ...prev, descriptions: newDescriptions };
+    });
 
-      // Generate PREVIEW of CURRENT column ID using currentNumber
-      const currentNumber = selectedSeries.currentNumber;
-const previewColumnId = `${selectedSeries.prefix}${currentNumber
-  .toString()
-  .padStart(selectedSeries.padding, "0")}`;
+    // Clear any existing error for this field
+    setFormErrors((prev) => ({ ...prev, [`${field}_${index}`]: "" }));
 
-      console.log("Preview column ID:", previewColumnId);
-      handleDescriptionChange(index, "columnId", previewColumnId);
-      setFormErrors((prev) => ({ ...prev, [`columnId_${index}`]: "" }));
-      setSelectedSeriesName(selectedSeries.name);
-
-      // Check if we're approaching the end number (show warning at 10 numbers before end)
-      if (selectedSeries.currentNumber + 10 >= selectedSeries.endNumber) {
-        const remainingNumbers = selectedSeries.endNumber - selectedSeries.currentNumber;
-        setWarningMessage(
-          `Warning: Only ${remainingNumbers} numbers remaining in this series.`
-        );
-      }
-
-      console.log("Column ID preview set successfully");
-    } catch (err) {
-      console.error("Error generating column ID preview:", err);
-      setError("Failed to generate Column ID preview. Please try again.");
-      setFormErrors((prev) => ({
-        ...prev,
-        [`columnId_${index}`]: "Failed to generate Column ID",
-      }));
+    // Trigger column code update if the changed field affects code generation
+    if (
+      field === "carbonType" ||
+      field === "innerDiameter" ||
+      field === "length" ||
+      field === "particleSize" ||
+      field === "prefix" ||
+      field === "suffix" ||
+      field === "usePrefixForNewCode" ||
+      field === "useSuffixForNewCode"
+    ) {
+      setTimeout(() => {
+        // Force update for core attribute changes
+        const isCoreField = [
+          "carbonType",
+          "innerDiameter",
+          "length",
+          "particleSize",
+        ].includes(field);
+        updateColumnCode(index, false, isCoreField);
+      }, 50);
     }
-  }
-  console.log("=== SERIES CHANGE END ===");
-};
+  };
 
   const handleTableRowClick = (
     column: Column,
@@ -1772,25 +1682,13 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
     event: React.MouseEvent
   ) => {
     event.preventDefault();
-
     setSelectedColumnId(column._id);
     setSelectedDescriptionIndex(descIndex);
+    setSelectedColumnCodeForAudit(column.columnCode); // Add this line
 
     const desc = column.descriptions[descIndex];
 
-    // Find the series that matches this column's columnId
-    const matchingSeries = series.find((s) =>
-      desc.columnId.startsWith(s.prefix)
-    );
-
-    if (matchingSeries) {
-      setSelectedSeriesId(matchingSeries._id);
-      setSelectedSeriesName(matchingSeries.name);
-    } else {
-      setSelectedSeriesId("");
-      setSelectedSeriesName("");
-    }
-
+    // Remove series finding logic - just set the form
     setForm({
       columnCode: column.columnCode,
       descriptions: [
@@ -1850,8 +1748,6 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
     // Reset selection states including series
     setSelectedColumnId("");
     setSelectedDescriptionIndex(-1);
-    setSelectedSeriesId("");
-    setSelectedSeriesName(""); // Add this line
 
     // Clear all form-related states including new dropdown states
     setCarbonTypeDropdowns({});
@@ -1860,6 +1756,26 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
     setLinkedCarbonTypeFilters({});
 
     console.log("Form state reset completed");
+  };
+
+  const validateColumnId = (columnId: string): string | null => {
+    if (!columnId.trim()) {
+      return "Column ID is required";
+    }
+
+    // Check if the columnId is already in use (excluding current column being edited)
+    const allColumns = [...columns, ...obsoleteColumns];
+    const existingColumn = allColumns.find(
+      (col) =>
+        col.descriptions.some((desc) => desc.columnId === columnId) &&
+        col._id !== selectedColumnId
+    );
+
+    if (existingColumn) {
+      return `Column ID "${columnId}" is already in use by ${existingColumn.columnCode}`;
+    }
+
+    return null; // Valid
   };
 
   // 1. Fix the formattedDesc creation in handleSave function
@@ -1895,31 +1811,10 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
         throw new Error(errorMsg);
       }
 
-      // NEW: Reserve column ID if this is a new entry
-      let finalColumnId = desc.columnId;
-      if (!selectedColumnId && selectedSeriesId) {
-        console.log("Reserving column ID for new entry...");
-        try {
-          finalColumnId = await reserveNextColumnId(selectedSeriesId);
-          console.log("Column ID reserved:", finalColumnId);
-
-          // Update the form with the reserved ID
-          setForm((prev) => ({
-            ...prev,
-            descriptions: prev.descriptions.map((d, idx) =>
-              idx === 0 ? { ...d, columnId: finalColumnId } : d
-            ),
-          }));
-        } catch (reserveError) {
-          console.error("Failed to reserve column ID:", reserveError);
-          throw new Error(`Failed to reserve column ID: ${reserveError}`);
-        }
-      }
-
       // Format description for backend (use finalColumnId)
       const formattedDesc = {
         ...desc,
-        columnId: finalColumnId, // Use the reserved ID
+        columnId: desc.columnId, // Use manual entry directly
         innerDiameter: Number(desc.innerDiameter),
         length: Number(desc.length),
         particleSize: Number(desc.particleSize),
@@ -2380,23 +2275,17 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
       }
 
       if (jsonData.success) {
-  console.log("Save successful:", jsonData);
-  
-  // NEW: Increment series number if this was a new entry (not an edit)
-  if (!selectedColumnId && selectedSeriesId) {
-    console.log("Incrementing series number for new entry...");
-    await incrementSeriesNumber(selectedSeriesId);
-  }
-  
-  // Refresh data after successful save
-  await fetchData();
-  handleCloseForm();
-  
-  console.log("Column saved successfully");
-} else {
-  console.error("API returned success: false", jsonData);
-  throw new Error(jsonData.error || "Failed to save column");
-}
+        console.log("Save successful:", jsonData);
+
+        // Refresh data after successful save
+        await fetchData();
+        handleCloseForm();
+
+        console.log("Column saved successfully");
+      } else {
+        console.error("API returned success: false", jsonData);
+        throw new Error(jsonData.error || "Failed to save column");
+      }
     } catch (err) {
       console.error("Save operation failed:", err);
       setError(
@@ -2410,26 +2299,26 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
   };
 
   const handleCodeGenerationCheckboxChange = (
-  index: number,
-  field: "usePrefixForNewCode" | "useSuffixForNewCode",
-  checked: boolean
-) => {
-  console.log(`=== ${field.toUpperCase()} CHECKBOX CHANGE: ${checked} ===`);
+    index: number,
+    field: "usePrefixForNewCode" | "useSuffixForNewCode",
+    checked: boolean
+  ) => {
+    console.log(`=== ${field.toUpperCase()} CHECKBOX CHANGE: ${checked} ===`);
 
-  setForm((prev) => {
-    const newDescriptions = [...prev.descriptions];
-    newDescriptions[index] = { ...newDescriptions[index], [field]: checked };
-    return { ...prev, descriptions: newDescriptions };
-  });
+    setForm((prev) => {
+      const newDescriptions = [...prev.descriptions];
+      newDescriptions[index] = { ...newDescriptions[index], [field]: checked };
+      return { ...prev, descriptions: newDescriptions };
+    });
 
-  // Clear any related errors
-  setFormErrors((prev) => ({ ...prev, [`${field}_${index}`]: "" }));
+    // Clear any related errors
+    setFormErrors((prev) => ({ ...prev, [`${field}_${index}`]: "" }));
 
-  // FIXED: Let updateColumnCode handle the original core attributes internally
-  setTimeout(() => {
-    updateColumnCode(index, false); // Remove the third parameter
-  }, 50);
-};
+    // FIXED: Let updateColumnCode handle the original core attributes internally
+    setTimeout(() => {
+      updateColumnCode(index, false); // Remove the third parameter
+    }, 50);
+  };
 
   const handleEdit = () => {
     if (selectedColumnId && selectedDescriptionIndex >= 0) {
@@ -2438,17 +2327,6 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
       );
       if (column) {
         const desc = column.descriptions[selectedDescriptionIndex];
-
-        // Find the series that matches this column's columnId
-        const matchingSeries = series.find((s) =>
-          desc.columnId.startsWith(s.prefix)
-        );
-
-        if (matchingSeries) {
-          setSelectedSeriesId(matchingSeries._id);
-          setSelectedSeriesName(matchingSeries.name);
-        }
-
         setForm({
           columnCode: column.columnCode,
           descriptions: [
@@ -2669,7 +2547,7 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
     return (
       <ProtectedRoute allowedRoles={["admin", "employee"]}>
         <div className="min-h-screen bg-gradient-to-b from-[#d7e6f5] to-[#a0b7d0] pt-5 p-4 flex items-center justify-center">
-          <div className="text-[#0052cc] text-lg">
+          <div className="text-[#0052cc] text-sm">
             Loading authentication data...
           </div>
         </div>
@@ -2681,7 +2559,7 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
     return (
       <ProtectedRoute allowedRoles={["admin", "employee"]}>
         <div className="min-h-screen bg-gradient-to-b from-[#d7e6f5] to-[#a0b7d0] pt-5 p-4 flex items-center justify-center">
-          <div className="text-red-500 text-lg bg-[#ffe6e6] p-4 rounded border border-red-300">
+          <div className="text-red-500 text-sm bg-[#ffe6e6] p-4 rounded border border-red-300">
             Authentication Error:{" "}
             {error || "Company ID or Location ID not found"}
             <div className="mt-2 text-sm">
@@ -2697,57 +2575,43 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
   return (
     <ProtectedRoute allowedRoles={["admin", "employee"]}>
       <div
-        className="min-h-screen bg-gradient-to-b from-[#d7e6f5] to-[#a0b7d0] pt-5 p-4"
+        className="min-h-screen bg-gradient-to-b from-[#d7e6f5] to-[#a0b7d0] pt-4 p-3"
         style={{ fontFamily: "Verdana, Arial, sans-serif" }}
       >
         <WindowsToolbar
           modulePath="/dashboard/columns"
           onAddNew={() => {
-  // Determine initial column code based on whether there are existing columns
-  const initialColumnCode =
-    columns.length === 0 && obsoleteColumns.length === 0 ? "CL01" : "";
-
-  // Find the "Internal Column Id" series
-  const internalSeries = series.find((s) => s.name === "Internal Column Id");
-  const defaultSeriesId = internalSeries ? internalSeries._id : "";
-
-  // Initialize form
-  setForm({
-    columnCode: initialColumnCode,
-    descriptions: [
-      {
-        prefix: "",
-        carbonType: "",
-        linkedCarbonType: "",
-        innerDiameter: "",
-        length: "",
-        particleSize: "",
-        suffix: "",
-        make: "",
-        columnId: "", // Will be set by handleSeriesChange
-        installationDate: "",
-        usePrefix: false,
-        useSuffix: false,
-        usePrefixForNewCode: false,
-        useSuffixForNewCode: false,
-        isObsolete: false,
-      },
-    ],
-  });
-
-  // Set default series and generate column ID if available
-  setSelectedSeriesId(defaultSeriesId);
-  setSelectedSeriesName(defaultSeriesId ? "Internal Column Id" : "");
-  if (defaultSeriesId) {
-    handleSeriesChange(0, defaultSeriesId);
-  }
-
-  setFormErrors({});
-  setSelectedColumnId("");
-  setSelectedDescriptionIndex(-1);
-  setShowDescriptionPopup(false);
-  setIsFormOpen(true);
-}}
+            setForm({
+              columnCode:
+                columns.length === 0 && obsoleteColumns.length === 0
+                  ? "CL01"
+                  : "",
+              descriptions: [
+                {
+                  prefix: "",
+                  carbonType: "",
+                  linkedCarbonType: "",
+                  innerDiameter: "",
+                  length: "",
+                  particleSize: "",
+                  suffix: "",
+                  make: "",
+                  columnId: "",
+                  installationDate: "",
+                  usePrefix: false,
+                  useSuffix: false,
+                  usePrefixForNewCode: false,
+                  useSuffixForNewCode: false,
+                  isObsolete: false,
+                },
+              ],
+            });
+            setFormErrors({});
+            setSelectedColumnId("");
+            setSelectedDescriptionIndex(-1);
+            setShowDescriptionPopup(false);
+            setIsFormOpen(true);
+          }}
           onSave={handleSave}
           onClear={handleCloseForm}
           onExit={() => router.push("/dashboard")}
@@ -2757,32 +2621,34 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
           onEdit={handleEdit}
           onDelete={handleDelete}
           onAudit={() => {
-            fetchAudits();
-            setShowAuditModal(true);
+            if (selectedColumnCodeForAudit) {
+              fetchSingleColumnAudit();
+            } else {
+              fetchAudits();
+              setShowAuditModal(true);
+            }
           }}
           onPrint={() => {
             const printContent = `<h1>${
               showObsoleteTable ? "Obsolete" : "Active"
             } Column Master</h1>
-              <table border="1"><thead><tr><th>Serial No</th><th>Column Code</th><th>Description</th><th>Make</th><th>Column ID</th><th>Installation Date</th><th>Status</th></tr></thead>
-              <tbody>${currentColumns
-                .flatMap((column, index) =>
-                  column.descriptions.map(
-                    (desc) =>
-                      `<tr><td>${index + 1}</td><td>${
-                        column.columnCode
-                      }</td><td>${desc.prefix} ${desc.carbonType} ${
-                        desc.innerDiameter
-                      } x ${desc.length} ${desc.particleSize}µm ${
-                        desc.suffix
-                      }</td><td>${desc.make}</td><td>${desc.columnId}</td><td>${
-                        desc.installationDate
-                      }</td><td>${
-                        desc.isObsolete ? "Obsolete" : "Active"
-                      }</td></tr>`
-                  )
-                )
-                .join("")}</tbody></table>`;
+    <table border="1"><thead><tr><th>Serial No</th><th>Column Code</th><th>Description</th><th>Make</th><th>Column ID</th><th>Installation Date</th><th>Status</th></tr></thead>
+    <tbody>${currentColumns
+      .flatMap((column, index) =>
+        column.descriptions.map(
+          (desc) =>
+            `<tr><td>${index + 1}</td><td>${column.columnCode}</td><td>${
+              desc.prefix
+            } ${desc.carbonType} ${desc.innerDiameter} x ${desc.length} ${
+              desc.particleSize
+            }µm ${desc.suffix}</td><td>${desc.make}</td><td>${
+              desc.columnId
+            }</td><td>${desc.installationDate}</td><td>${
+              desc.isObsolete ? "Obsolete" : "Active"
+            }</td></tr>`
+        )
+      )
+      .join("")}</tbody></table>`;
             const printWindow = window.open("", "_blank");
             printWindow?.document.write(
               `<html><head><title>Print Column Master</title></head><body>${printContent}</body></html>`
@@ -2793,56 +2659,59 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
           onHelp={() => setShowHelpModal(true)}
         />
 
-        <div className="max-w-5xl mx-auto bg-[#f0f0f0] border-2 border-[#3a6ea5] rounded-lg shadow-[0_4px_8px_rgba(0,0,0,0.2)] p-6 backdrop-blur-sm bg-opacity-80">
-          <h1 className="text-2xl font-bold mb-4 text-[#003087]">
+        <div className="max-w-4xl mx-auto bg-[#f0f0f0] border-2 border-[#3a6ea5] rounded-lg shadow-[0_2px_4px_rgba(0,0,0,0.2)] p-2 backdrop-blur-sm bg-opacity-80">
+          <h1 className="text-xs font-bold mb-3 text-[#003087]">
             Column Master
           </h1>
 
           {error && (
-            <p className="text-red-500 mb-4 bg-[#ffe6e6] p-2 rounded border border-red-300">
+            <p className="text-red-500 mb-3 bg-[#ffe6e6] p-2 rounded border border-red-300 text-xs">
               {error}
             </p>
           )}
           {loading && (
-            <p className="text-[#0052cc] mb-4 bg-[#e6f0ff] p-2 rounded border border-[#add8e6]">
+            <p className="text-[#0052cc] mb-3 bg-[#e6f0ff] p-2 rounded border border-[#add8e6] text-xs">
               Loading...
             </p>
           )}
 
-          <div className="mb-4 flex gap-2">
-  <button
-    onClick={() => {
-      setShowObsoleteTable(!showObsoleteTable);
-      setSelectedColumnId("");
-      setSelectedDescriptionIndex(-1);
-      handleCloseForm();
-    }}
-    className={`px-4 py-2 rounded-lg transition-all shadow-sm text-white 
-      ${
-        showObsoleteTable
-          ? "bg-red-600 hover:bg-red-800"
-          : "bg-[#0052cc] hover:bg-[#003087]"
-      }`}
-  >
-    {showObsoleteTable
-      ? "Show Active Columns"
-      : "Show Obsolete Columns"}
-  </button>
-  
-  {/* NEW: Add Export to Excel button */}
-  <button
-    onClick={exportToExcel}
-    disabled={loading || (showObsoleteTable ? obsoleteColumns.length === 0 : columns.length === 0)}
-    className="px-4 py-2 rounded-lg transition-all shadow-sm text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-  >
-    📊 Export to Excel
-  </button>
-</div>
+          <div className="mb-3 flex gap-2">
+            <button
+              onClick={() => {
+                setShowObsoleteTable(!showObsoleteTable);
+                setSelectedColumnId("");
+                setSelectedDescriptionIndex(-1);
+                handleCloseForm();
+              }}
+              className={`px-3 py-1 rounded-lg transition-all shadow-sm text-white text-xs ${
+                showObsoleteTable
+                  ? "bg-red-600 hover:bg-red-800"
+                  : "bg-[#0052cc] hover:bg-[#003087]"
+              }`}
+            >
+              {showObsoleteTable
+                ? "Show Active Columns"
+                : "Show Obsolete Columns"}
+            </button>
 
-          <div className="overflow-x-auto border-2 border-gray-300 rounded-lg shadow-sm">
+            <button
+              onClick={exportToExcel}
+              disabled={
+                loading ||
+                (showObsoleteTable
+                  ? obsoleteColumns.length === 0
+                  : columns.length === 0)
+              }
+              className="px-3 py-1 rounded-lg transition-all shadow-sm text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+            >
+              📊 Export to Excel
+            </button>
+          </div>
+
+          <div className="overflow-x-auto border border-gray-300 max-w-7xl rounded-lg shadow-sm">
             <table
               key={renderKey}
-              className="w-full border-collapse border border-gray-300 bg-white"
+              className="w-full border-collapse border border-gray-300 bg-white text-xs"
             >
               <thead>
                 <tr className="bg-gray-100">
@@ -2855,11 +2724,12 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                     "Make",
                     "Column ID",
                     "Installation Date",
+                    "Make Specific",
                     "Status",
                   ].map((header) => (
                     <th
                       key={header}
-                      className="border border-gray-300 p-2 text-gray-700 font-semibold"
+                      className="border border-gray-300 p-1 text-gray-700 font-semibold text-[10px]"
                     >
                       {header}
                     </th>
@@ -2883,40 +2753,52 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                       {descIndex === 0 && (
                         <>
                           <td
-                            className="border border-gray-300 p-2"
+                            className="border border-gray-300 p-1 text-center"
                             rowSpan={column.descriptions.length}
                           >
                             {colIndex + 1}
                           </td>
                           <td
-                            className="border border-gray-300 p-2"
+                            className="border border-gray-300 p-1 text-center"
                             rowSpan={column.descriptions.length}
                           >
                             {column.columnCode}
                           </td>
                         </>
                       )}
-                      <td className="border border-gray-300 p-2">
+                      <td className="border border-gray-300 p-1 text-center">
                         {getPrefixName(desc.prefix) || "-"}
                       </td>
-                      <td className="border border-gray-300 p-2">
+                      <td className="border border-gray-300 p-1 text-center">
                         {getSuffixName(desc.suffix) || "-"}
                       </td>
-                      <td className="border border-gray-300 p-2">
+                      <td className="border border-gray-300 p-1">
                         {desc.carbonType} {desc.innerDiameter} x {desc.length}{" "}
-                        {desc.particleSize}
-                        µm
+                        {desc.particleSize}µm
                       </td>
-                      <td className="border border-gray-300 p-2">
+                      <td className="border border-gray-300 p-1 text-center">
                         {getMakeName(desc.make)}
                       </td>
-                      <td className="border border-gray-300 p-2">
+                      <td className="border border-gray-300 p-1 text-center">
                         {desc.columnId}
                       </td>
-                      <td className="border border-gray-300 p-2">
-                        {desc.installationDate}
+                      <td className="border border-gray-300 p-1 text-center">
+                        {desc.installationDate
+                          ? new Date(desc.installationDate)
+                              .toLocaleDateString("en-GB", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "2-digit",
+                              })
+                              
+                          : "-"}
                       </td>
-                      <td className="border border-gray-300 p-2">
+                      <td className="border border-gray-300 p-1 text-center">
+                        {desc.usePrefixForNewCode || desc.useSuffixForNewCode
+                          ? "Yes"
+                          : "No"}
+                      </td>
+                      <td className="border border-gray-300 p-1 text-center">
                         {desc.isObsolete ? "Obsolete" : "Active"}
                       </td>
                     </tr>
@@ -2928,14 +2810,14 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
 
           {/* Selection Info */}
           {selectedColumnId && selectedDescriptionIndex >= 0 && (
-            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
+            <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-xs text-blue-800">
                 <strong>Selected:</strong> {form.columnCode} -{" "}
                 {form.descriptions[0]?.carbonType}{" "}
                 {form.descriptions[0]?.innerDiameter}x
                 {form.descriptions[0]?.length}{" "}
                 {form.descriptions[0]?.particleSize}µm
-                <span className="ml-4 text-xs text-gray-600">
+                <span className="ml-3 text-[10px] text-gray-600">
                   (Ctrl+Click for popup, Use toolbar buttons for actions)
                 </span>
               </p>
@@ -2948,7 +2830,7 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
           selectedColumnId &&
           selectedDescriptionIndex >= 0 && (
             <div className="fixed inset-0 backdrop-blur-md bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-[#f0f0f0] border-2 border-[#3a6ea5] rounded-lg p-6 max-w-2xl w-full shadow-[0_4px_8px_rgba(0,0,0,0.2)]">
+              <div className="bg-[#f0f0f0] border-2 border-[#3a6ea5] rounded-lg p-2 max-w-xl w-full shadow-[0_2px_4px_rgba(0,0,0,0.2)]">
                 <WindowsToolbar
                   modulePath="/dashboard/columns"
                   onAddNew={() => {
@@ -2973,11 +2855,11 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
 
                 {error && (
                   <div className="fixed inset-0 backdrop-blur-md bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-[#f0f0f0] border-2 border-red-500 rounded-lg p-6 max-w-md w-full shadow-[0_4px_8px_rgba(0,0,0,0.2)]">
-                      <div className="flex items-center mb-4">
-                        <div className="bg-red-500 text-white rounded-full p-2 mr-3">
+                    <div className="bg-[#f0f0f0] border-2 border-red-500 rounded-lg p-2 max-w-sm w-full shadow-[0_2px_4px_rgba(0,0,0,0.2)]">
+                      <div className="flex items-center mb-3">
+                        <div className="bg-red-500 text-white rounded-full p-1.5 mr-2">
                           <svg
-                            className="w-6 h-6"
+                            className="w-5 h-5"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -2990,13 +2872,13 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                             />
                           </svg>
                         </div>
-                        <h2 className="text-lg font-bold text-red-600">
+                        <h2 className="text-xs font-bold text-red-600">
                           Error
                         </h2>
                       </div>
 
-                      <div className="mb-4">
-                        <p className="text-gray-700 whitespace-pre-wrap">
+                      <div className="mb-3">
+                        <p className="text-gray-700 whitespace-pre-wrap text-xs">
                           {error}
                         </p>
                       </div>
@@ -3004,7 +2886,7 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => setError("")}
-                          className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-all"
+                          className="bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-600 transition-all text-xs"
                         >
                           OK
                         </button>
@@ -3013,70 +2895,95 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                   </div>
                 )}
 
-                <h2 className="text-lg font-bold mt-4 mb-4 text-[#003087]">
+                <h2 className="text-xs font-bold mt-3 mb-3 text-[#003087]">
                   Column Description Details
                 </h2>
 
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-2 gap-2 mb-3">
                   <div>
-                    <label className="block text-sm font-medium text-[#003087]">
+                    <label className="block text-xs font-medium text-[#003087]">
                       Column Code:
                     </label>
-                    <p className="text-lg font-semibold">{form.columnCode}</p>
+                    <p className="text-xs font-semibold">{form.columnCode}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#003087]">
+                    <label className="block text-xs font-medium text-[#003087]">
                       Make:
                     </label>
-                    <p>{getMakeName(form.descriptions[0]?.make)}</p>
+                    <p className="text-xs">
+                      {getMakeName(form.descriptions[0]?.make)}
+                    </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#003087]">
+                    <label className="block text-xs font-medium text-[#003087]">
                       Carbon Type:
                     </label>
-                    <p>{form.descriptions[0]?.carbonType}</p>
+                    <p className="text-xs">
+                      {form.descriptions[0]?.carbonType}
+                    </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#003087]">
+                    <label className="block text-xs font-medium text-[#003087]">
                       Linked Carbon Type:
                     </label>
-                    <p>{form.descriptions[0]?.linkedCarbonType}</p>
+                    <p className="text-xs">
+                      {form.descriptions[0]?.linkedCarbonType}
+                    </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#003087]">
+                    <label className="block text-xs font-medium text-[#003087]">
                       Inner Diameter:
                     </label>
-                    <p>{form.descriptions[0]?.innerDiameter} mm</p>
+                    <p className="text-xs">
+                      {form.descriptions[0]?.innerDiameter} mm
+                    </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#003087]">
+                    <label className="block text-xs font-medium text-[#003087]">
                       Length:
                     </label>
-                    <p>{form.descriptions[0]?.length} mm</p>
+                    <p className="text-xs">{form.descriptions[0]?.length} mm</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#003087]">
+                    <label className="block text-xs font-medium text-[#003087]">
                       Particle Size:
                     </label>
-                    <p>{form.descriptions[0]?.particleSize} µm</p>
+                    <p className="text-xs">
+                      {form.descriptions[0]?.particleSize} µm
+                    </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#003087]">
+                    <label className="block text-xs font-medium text-[#003087]">
                       Column ID:
                     </label>
-                    <p>{form.descriptions[0]?.columnId}</p>
+                    <p className="text-xs">{form.descriptions[0]?.columnId}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#003087]">
+                    <label className="block text-xs font-medium text-[#003087]">
                       Installation Date:
                     </label>
-                    <p>{form.descriptions[0]?.installationDate}</p>
+                    <p className="text-xs">
+                      {form.descriptions[0]?.installationDate
+                        ? new Date(
+                            form.descriptions[0].installationDate.replace(
+                              /-/g,
+                              "/"
+                            )
+                          )
+                            .toLocaleDateString("en-GB", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "2-digit",
+                            })
+                            .replace(/\//g, " ")
+                        : "-"}
+                    </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#003087]">
+                    <label className="block text-xs font-medium text-[#003087]">
                       Status:
                     </label>
-                    <p>
+                    <p className="text-xs">
                       {form.descriptions[0]?.isObsolete ? "Obsolete" : "Active"}
                     </p>
                   </div>
@@ -3084,11 +2991,11 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
 
                 {(form.descriptions[0]?.prefix ||
                   form.descriptions[0]?.suffix) && (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-[#003087]">
+                  <div className="mb-3">
+                    <label className="block text-xs font-medium text-[#003087]">
                       Full Description:
                     </label>
-                    <p className="text-lg">
+                    <p className="text-xs">
                       {form.descriptions[0]?.prefix}{" "}
                       {form.descriptions[0]?.carbonType}{" "}
                       {form.descriptions[0]?.innerDiameter} x{" "}
@@ -3099,10 +3006,10 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                   </div>
                 )}
 
-                <div className="flex gap-2 mt-6">
+                <div className="flex gap-2 mt-4">
                   <button
                     onClick={() => setShowDescriptionPopup(false)}
-                    className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-all"
+                    className="bg-gray-500 text-white px-3 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs"
                   >
                     Close
                   </button>
@@ -3114,18 +3021,18 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
         {/* Add/Edit Form Modal */}
         {isFormOpen && (
           <div className="fixed inset-0 backdrop-blur-md bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-[#f0f0f0] border-2 border-[#3a6ea5] rounded-lg p-4 max-w-3xl w-full shadow-[0_4px_8px_rgba(0,0,0,0.2)] max-h-[90vh] overflow-y-auto relative">
-              <h2 className="text-lg font-bold mb-3 text-[#003087]">
+            <div className="bg-[#f0f0f0] border-2 border-[#3a6ea5] rounded-lg p-3 max-w-2xl w-full shadow-[0_2px_4px_rgba(0,0,0,0.2)] max-h-[85vh] overflow-y-auto relative">
+              <h2 className="text-xs font-bold mb-2 text-[#003087]">
                 {selectedColumnId ? "Edit Column Description" : "Add Column"}
               </h2>
 
               {form.descriptions.map((desc, index) => (
-                <div key={index} className="mb-3 p-3 border rounded bg-white">
+                <div key={index} className="mb-2 p-2 border rounded bg-white">
                   {formErrors.seriesEndReached && (
-                    <div className="mb-4 p-3 bg-red-100 border-2 border-red-400 text-red-700 rounded-lg">
-                      <div className="flex items-center mb-2">
+                    <div className="mb-3 p-2 bg-red-100 border-2 border-red-400 text-red-700 rounded-lg text-xs">
+                      <div className="flex items-center mb-1">
                         <svg
-                          className="w-5 h-5 mr-2"
+                          className="w-4 h-4 mr-2"
                           fill="currentColor"
                           viewBox="0 0 20 20"
                         >
@@ -3137,35 +3044,27 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                         </svg>
                         <strong>Series Limit Reached</strong>
                       </div>
-                      <p className="text-sm">{formErrors.seriesEndReached}</p>
-                      <div className="mt-2 text-sm">
+                      <p className="text-xs">{formErrors.seriesEndReached}</p>
+                      <div className="mt-1 text-xs">
                         <strong>Action Required:</strong>
-                        <ul className="list-disc ml-5 mt-1">
+                        <ul className="list-disc ml-4 mt-1">
                           <li>Go to Series Master</li>
-                          <li>
-                            Find the series:{" "}
-                            {
-                              series.find((s) => s._id === selectedSeriesId)
-                                ?.name
-                            }
-                          </li>
                           <li>Increase the "End Number" value</li>
                           <li>Return here to continue</li>
                         </ul>
                       </div>
                     </div>
                   )}
-                  <div className="space-y-3">
+                  <div className="space-y-1">
                     {/* Make and Prefix */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-xs font-medium text-[#003087] mb-1">
+                        <label className="block text-[10px] font-medium text-[#003087] mb-1">
                           Make
                         </label>
                         <select
                           value={desc.make}
                           onChange={(e) => {
-                            // Find the selected make object and store its ID instead of the string
                             const selectedMake = makes.find(
                               (m) => m._id === e.target.value
                             );
@@ -3175,7 +3074,7 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                               e.target.value
                             );
                           }}
-                          className="border-2 border-[#3a6ea5] rounded-lg p-2 w-full bg-[#f8f8f8] text-xs"
+                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
                           required
                         >
                           <option value="">Select Make</option>
@@ -3186,13 +3085,13 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                           ))}
                         </select>
                         {formErrors[`make_${index}`] && (
-                          <p className="text-red-500 text-xs mt-1">
+                          <p className="text-red-500 text-[10px] mt-1">
                             {formErrors[`make_${index}`]}
                           </p>
                         )}
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-[#003087] mb-1">
+                        <label className="block text-[10px] font-medium text-[#003087] mb-1">
                           Prefix
                         </label>
                         <select
@@ -3204,12 +3103,11 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                               e.target.value
                             )
                           }
-                          className="border-2 border-[#3a6ea5] rounded-lg p-2 w-full bg-[#f8f8f8] text-xs"
+                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
                         >
                           <option value="">Select Prefix</option>
                           {prefixes.map((prefix) => (
                             <option key={prefix._id} value={prefix._id}>
-                              {" "}
                               {prefix.value}
                             </option>
                           ))}
@@ -3218,9 +3116,9 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                     </div>
 
                     {/* Carbon Type and Linked Carbon Type */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-2">
                       <div className="relative">
-                        <label className="block text-xs font-medium text-[#003087] mb-1">
+                        <label className="block text-[10px] font-medium text-[#003087] mb-1">
                           Carbon Type
                         </label>
                         <input
@@ -3258,12 +3156,12 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                               }));
                             }, 200)
                           }
-                          className={`border-2 rounded-lg p-2 w-full bg-[#f8f8f8] text-xs ${
+                          className={`border-2 rounded-lg p-1 w-full bg-[#f8f8f8] text-xs ${
                             formErrors[`carbonType_${index}`]
                               ? "border-red-500"
                               : "border-[#3a6ea5]"
                           }`}
-                          placeholder="Type C18, C8, C1... or use arrows to select"
+                          placeholder="Type C18, C8, C1... or use arrows"
                           required
                         />
                         {carbonTypeDropdowns[index] && (
@@ -3271,7 +3169,7 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                             ref={(el) => {
                               carbonTypeDropdownRefs.current[index] = el;
                             }}
-                            className="absolute z-10 w-full bg-[#f8f8f8] border-2 border-[#3a6ea5] rounded-lg mt-1 shadow-lg max-h-32 overflow-y-auto"
+                            className="absolute z-10 w-full bg-[#f8f8f8] border-2 border-[#3a6ea5] rounded-lg mt-1 shadow-lg max-h-28 overflow-y-auto"
                           >
                             {carbonTypeOptions
                               .filter((option) =>
@@ -3288,7 +3186,7 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                               .map((option, optIndex) => (
                                 <div
                                   key={option}
-                                  className={`p-1 cursor-pointer flex justify-between text-xs ${
+                                  className={`p-1 cursor-pointer flex justify-between text-[10px] ${
                                     optIndex ===
                                     (selectedDropdownIndex[index]?.carbonType ||
                                       0)
@@ -3314,7 +3212,7 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                                 >
                                   <span>{option}</span>
                                   <span
-                                    className={`text-xs ${
+                                    className={`text-[10px] ${
                                       optIndex ===
                                       (selectedDropdownIndex[index]
                                         ?.carbonType || 0)
@@ -3329,15 +3227,14 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                           </div>
                         )}
                         {formErrors[`carbonType_${index}`] && (
-                          <p className="text-red-500 text-xs mt-1">
+                          <p className="text-red-500 text-[10px] mt-1">
                             {formErrors[`carbonType_${index}`]}
                           </p>
                         )}
                       </div>
 
-                      {/* Linked Carbon Type Input with Enhanced Dropdown */}
                       <div className="relative">
-                        <label className="block text-xs font-medium text-[#003087] mb-1">
+                        <label className="block text-[10px] font-medium text-[#003087] mb-1">
                           Linked Carbon Type
                         </label>
                         <input
@@ -3382,19 +3279,19 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                               }));
                             }, 200)
                           }
-                          className={`border-2 rounded-lg p-2 w-full bg-[#f8f8f8] text-xs ${
+                          className={`border-2 rounded-lg p-1 w-full bg-[#f8f8f8] text-xs ${
                             formErrors[`linkedCarbonType_${index}`]
                               ? "border-red-500"
                               : "border-[#3a6ea5]"
                           }`}
-                          placeholder="Type L1, L7, L3... or use arrows to select"
+                          placeholder="Type L1, L7, L3... or use arrows"
                         />
                         {linkedCarbonTypeDropdowns[index] && (
                           <div
                             ref={(el) => {
                               linkedCarbonTypeDropdownRefs.current[index] = el;
                             }}
-                            className="absolute z-10 w-full bg-[#f8f8f8] border-2 border-[#3a6ea5] rounded-lg mt-1 shadow-lg max-h-32 overflow-y-auto"
+                            className="absolute z-10 w-full bg-[#f8f8f8] border-2 border-[#3a6ea5] rounded-lg mt-1 shadow-lg max-h-28 overflow-y-auto"
                           >
                             {linkedCarbonTypeOptions
                               .filter((option) =>
@@ -3411,7 +3308,7 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                               .map((option, optIndex) => (
                                 <div
                                   key={option}
-                                  className={`p-1 cursor-pointer flex justify-between text-xs ${
+                                  className={`p-1 cursor-pointer flex justify-between text-[10px] ${
                                     optIndex ===
                                     (selectedDropdownIndex[index]
                                       ?.linkedCarbonType || 0)
@@ -3437,7 +3334,7 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                                 >
                                   <span>{option}</span>
                                   <span
-                                    className={`text-xs ${
+                                    className={`text-[10px] ${
                                       optIndex ===
                                       (selectedDropdownIndex[index]
                                         ?.linkedCarbonType || 0)
@@ -3452,7 +3349,7 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                           </div>
                         )}
                         {formErrors[`linkedCarbonType_${index}`] && (
-                          <p className="text-red-500 text-xs mt-1">
+                          <p className="text-red-500 text-[10px] mt-1">
                             {formErrors[`linkedCarbonType_${index}`]}
                           </p>
                         )}
@@ -3460,9 +3357,9 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                     </div>
 
                     {/* Inner Diameter, Length, Particle Size */}
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-3 gap-2">
                       <div>
-                        <label className="block text-xs font-medium text-[#003087] mb-1">
+                        <label className="block text-[10px] font-medium text-[#003087] mb-1">
                           Inner Diameter (mm)
                         </label>
                         <input
@@ -3476,17 +3373,17 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                               e.target.value
                             )
                           }
-                          className="border-2 border-[#3a6ea5] rounded-lg p-2 w-full bg-[#f8f8f8] text-xs"
+                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
                           required
                         />
                         {formErrors[`innerDiameter_${index}`] && (
-                          <p className="text-red-500 text-xs mt-1">
+                          <p className="text-red-500 text-[10px] mt-1">
                             {formErrors[`innerDiameter_${index}`]}
                           </p>
                         )}
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-[#003087] mb-1">
+                        <label className="block text-[10px] font-medium text-[#003087] mb-1">
                           Length (mm)
                         </label>
                         <input
@@ -3499,17 +3396,17 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                               e.target.value
                             )
                           }
-                          className="border-2 border-[#3a6ea5] rounded-lg p-2 w-full bg-[#f8f8f8] text-xs"
+                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
                           required
                         />
                         {formErrors[`length_${index}`] && (
-                          <p className="text-red-500 text-xs mt-1">
+                          <p className="text-red-500 text-[10px] mt-1">
                             {formErrors[`length_${index}`]}
                           </p>
                         )}
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-[#003087] mb-1">
+                        <label className="block text-[10px] font-medium text-[#003087] mb-1">
                           Particle Size (µm)
                         </label>
                         <input
@@ -3522,21 +3419,21 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                               e.target.value
                             )
                           }
-                          className="border-2 border-[#3a6ea5] rounded-lg p-2 w-full bg-[#f8f8f8] text-xs"
+                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
                           required
                         />
                         {formErrors[`particleSize_${index}`] && (
-                          <p className="text-red-500 text-xs mt-1">
+                          <p className="text-red-500 text-[10px] mt-1">
                             {formErrors[`particleSize_${index}`]}
                           </p>
                         )}
                       </div>
                     </div>
 
-                    {/* Suffix and Series */}
-                    <div className="grid grid-cols-2 gap-3">
+                    {/* Suffix and Column ID */}
+                    <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-xs font-medium text-[#003087] mb-1">
+                        <label className="block text-[10px] font-medium text-[#003087] mb-1">
                           Suffix
                         </label>
                         <select
@@ -3548,95 +3445,58 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                               e.target.value
                             )
                           }
-                          className="border-2 border-[#3a6ea5] rounded-lg p-2 w-full bg-[#f8f8f8] text-xs"
+                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
                         >
                           <option value="">Select Suffix</option>
                           {suffixes.map((suffix) => (
                             <option key={suffix._id} value={suffix._id}>
-                              {" "}
                               {suffix.value}
                             </option>
                           ))}
                         </select>
                       </div>
-                      {!selectedColumnId ? (
-                        <div>
-                          <label className="block text-xs font-medium text-[#003087] mb-1">
-                            Series
-                          </label>
-                          {series.find(
-                            (s) => s.name === "Internal Column Id"
-                          ) ? (
-                            // If Internal Column ID series exists, make it read-only
-                            <div>
-                              <input
-                                type="text"
-                                value="Internal Column Id"
-                                className="border-2 border-gray-300 rounded-lg p-2 w-full bg-gray-100 text-xs opacity-60"
-                                readOnly
-                              />
-                              <p className="text-xs text-gray-600 mt-1">
-                                Current ID: {desc.columnId || "Generating..."}
-                              </p>
-                            </div>
-                          ) : (
-                            // If Internal Column ID series doesn't exist, allow selection
-                            <div>
-                              <select
-                                value={selectedSeriesId}
-                                onChange={(e) =>
-                                  handleSeriesChange(index, e.target.value)
-                                }
-                                className="border-2 border-[#3a6ea5] rounded-lg p-2 w-full bg-[#f8f8f8] text-xs"
-                                required
-                              >
-                                <option value="">
-                                  Select Series (Internal Column Id not found)
-                                </option>
-                                {series.map((s) => (
-                                  <option key={s._id} value={s._id}>
-                                    {s.name}
-                                  </option>
-                                ))}
-                              </select>
-                              <p className="text-xs text-red-600 mt-1">
-                                Warning: Internal Column Id series not found.
-                                Please select an alternative.
-                              </p>
-                              <p className="text-xs text-gray-600">
-                                Current ID: {desc.columnId || "Select a series"}
-                              </p>
-                            </div>
-                          )}
-                          {formErrors[`columnId_${index}`] && (
-                            <p className="text-red-500 text-xs mt-1">
-                              {formErrors[`columnId_${index}`]}
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        // Existing edit mode logic remains the same
-                        <div>
-                          <label className="block text-xs font-medium text-[#003087] mb-1">
-                            Series (Read-only)
-                          </label>
-                          <input
-                            type="text"
-                            value={selectedSeriesName || "Unknown Series"}
-                            className="border-2 border-gray-300 rounded-lg p-2 w-full bg-gray-100 text-xs opacity-60"
-                            readOnly
-                          />
-                          <p className="text-xs text-gray-600 mt-1">
-                            Column ID: {desc.columnId}
+
+                      <div>
+                        <label className="block text-[10px] font-medium text-[#003087] mb-1">
+                          Column ID
+                        </label>
+                        <input
+                          type="text"
+                          value={desc.columnId}
+                          onChange={(e) => {
+                            handleDescriptionChange(
+                              index,
+                              "columnId",
+                              e.target.value
+                            );
+                            setFormErrors((prev) => ({
+                              ...prev,
+                              [`columnId_${index}`]: "",
+                            }));
+                          }}
+                          className={`border-2 rounded-lg p-1 w-full bg-[#f8f8f8] text-xs ${
+                            formErrors[`columnId_${index}`]
+                              ? "border-red-500"
+                              : "border-[#3a6ea5]"
+                          }`}
+                          placeholder="Enter Column ID (e.g., COL001)"
+                          required
+                        />
+                        {formErrors[`columnId_${index}`] && (
+                          <p className="text-red-500 text-[10px] mt-1">
+                            {formErrors[`columnId_${index}`]}
                           </p>
-                        </div>
-                      )}
+                        )}
+                        <p className="text-[10px] text-gray-600 mt-1">
+                          Enter any unique identifier for this column
+                        </p>
+                      </div>
                     </div>
 
                     {/* Installation Date and Column Code */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-xs font-medium text-[#003087] mb-1">
+                        <label className="block text-[10px] font-medium text-[#003087] mb-1">
                           Installation Date
                         </label>
                         <input
@@ -3649,27 +3509,27 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                               e.target.value
                             )
                           }
-                          className="border-2 border-[#3a6ea5] rounded-lg p-2 w-full bg-[#f8f8f8] text-xs"
+                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
                           required
                         />
                         {formErrors[`installationDate_${index}`] && (
-                          <p className="text-red-500 text-xs mt-1">
+                          <p className="text-red-500 text-[10px] mt-1">
                             {formErrors[`installationDate_${index}`]}
                           </p>
                         )}
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-[#003087] mb-1">
+                        <label className="block text-[10px] font-medium text-[#003087] mb-1">
                           Column Code
                         </label>
                         <input
                           type="text"
                           value={form.columnCode}
-                          className="border-2 border-[#3a6ea5] rounded-lg p-2 w-full bg-[#f8f8f8] text-xs font-semibold opacity-50"
+                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs font-semibold opacity-50"
                           readOnly
                         />
                         {formErrors.columnCode && (
-                          <p className="text-red-500 text-xs mt-1">
+                          <p className="text-red-500 text-[10px] mt-1">
                             {formErrors.columnCode}
                           </p>
                         )}
@@ -3678,10 +3538,9 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
 
                     {/* Column Code Generation Options */}
                     <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                      <div className="grid grid-cols-2 gap-3">
-                        {/* Prefix Checkbox */}
+                      <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="flex items-center gap-2">
+                          <label className="flex items-center gap-1">
                             <input
                               type="checkbox"
                               checked={desc.usePrefixForNewCode || false}
@@ -3692,15 +3551,15 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                                   e.target.checked
                                 )
                               }
-                              disabled={!desc.prefix} // Disable when no prefix is selected
-                              className={`form-checkbox h-4 w-4 ${
+                              disabled={!desc.prefix}
+                              className={`form-checkbox h-3 w-3 ${
                                 desc.prefix
                                   ? "text-[#3a6ea5] cursor-pointer"
                                   : "text-gray-300 cursor-not-allowed opacity-50"
                               }`}
                             />
                             <span
-                              className={`text-xs font-medium ${
+                              className={`text-[10px] font-medium ${
                                 desc.prefix ? "text-[#003087]" : "text-gray-400"
                               }`}
                             >
@@ -3709,16 +3568,15 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                             </span>
                           </label>
                           {desc.prefix && (
-                            <p className="text-xs text-gray-600 mt-1 ml-6">
+                            <p className="text-[10px] text-gray-600 mt-1 ml-5">
                               When checked, different prefixes will create
                               separate column codes
                             </p>
                           )}
                         </div>
 
-                        {/* Suffix Checkbox */}
                         <div>
-                          <label className="flex items-center gap-2">
+                          <label className="flex items-center gap-1">
                             <input
                               type="checkbox"
                               checked={desc.useSuffixForNewCode || false}
@@ -3729,15 +3587,15 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                                   e.target.checked
                                 )
                               }
-                              disabled={!desc.suffix} // Disable when no suffix is selected
-                              className={`form-checkbox h-4 w-4 ${
+                              disabled={!desc.suffix}
+                              className={`form-checkbox h-3 w-3 ${
                                 desc.suffix
                                   ? "text-[#3a6ea5] cursor-pointer"
                                   : "text-gray-300 cursor-not-allowed opacity-50"
                               }`}
                             />
                             <span
-                              className={`text-xs font-medium ${
+                              className={`text-[10px] font-medium ${
                                 desc.suffix ? "text-[#003087]" : "text-gray-400"
                               }`}
                             >
@@ -3746,7 +3604,7 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                             </span>
                           </label>
                           {desc.suffix && (
-                            <p className="text-xs text-gray-600 mt-1 ml-6">
+                            <p className="text-[10px] text-gray-600 mt-1 ml-5">
                               When checked, different suffixes will create
                               separate column codes
                             </p>
@@ -3768,9 +3626,9 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                               e.target.checked
                             )
                           }
-                          className="form-checkbox h-4 w-4 text-[#3a6ea5]"
+                          className="form-checkbox h-3 w-3 text-[#3a6ea5]"
                         />
-                        <span className="text-xs font-medium text-[#003087]">
+                        <span className="text-[10px] font-medium text-[#003087]">
                           Mark as Obsolete
                         </span>
                       </label>
@@ -3779,19 +3637,19 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                 </div>
               ))}
 
-              <div className="flex gap-2 mt-3 justify-end">
+              <div className="flex gap-2 mt-2 justify-end">
                 <button
                   type="button"
                   onClick={handleSave}
                   disabled={loading}
-                  className="bg-[#0052cc] text-white px-4 py-2 rounded-lg hover:bg-[#003087] transition-all disabled:opacity-50"
+                  className="bg-[#0052cc] text-white px-3 py-1 rounded-lg hover:bg-[#003087] transition-all disabled:opacity-50 text-xs"
                 >
                   {loading ? "Saving..." : "Save"}
                 </button>
                 <button
                   type="button"
                   onClick={handleCloseForm}
-                  className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-all"
+                  className="bg-gray-500 text-white px-3 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs"
                 >
                   Cancel
                 </button>
@@ -3799,11 +3657,12 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
             </div>
           </div>
         )}
+
         {/* Search Modal */}
         {showSearchModal && (
           <div className="fixed inset-0 backdrop-blur-md bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-[#f0f0f0] border-2 border-[#3a6ea5] rounded-lg p-4 max-w-md w-full shadow-lg">
-              <h2 className="text-lg font-bold mb-2 text-[#003087]">
+            <div className="bg-[#f0f0f0] border-2 border-[#3a6ea5] rounded-lg p-3 max-w-sm w-full shadow-lg">
+              <h2 className="text-xs font-bold mb-2 text-[#003087]">
                 Quick Search Columns
               </h2>
               <input
@@ -3811,9 +3670,9 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                 value={columnCodeFilter}
                 onChange={(e) => setColumnCodeFilter(e.target.value)}
                 placeholder="Enter Column Code..."
-                className="border-2 border-[#3a6ea5] rounded-lg p-2 w-full bg-[#f8f8f8] mb-4"
+                className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
               />
-              <div className="flex gap-2">
+              <div className="flex gap-2 mt-3">
                 <button
                   onClick={() => {
                     setSearchFilters((prev) => ({
@@ -3822,7 +3681,7 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                     }));
                     setShowSearchModal(false);
                   }}
-                  className="bg-[#0052cc] text-white px-4 py-2 rounded-lg hover:bg-[#003087] transition-all"
+                  className="bg-[#0052cc] text-white px-3 py-1 rounded-lg hover:bg-[#003087] transition-all text-xs"
                 >
                   Apply
                 </button>
@@ -3835,15 +3694,260 @@ const previewColumnId = `${selectedSeries.prefix}${currentNumber
                     }));
                     setShowSearchModal(false);
                   }}
-                  className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-all"
+                  className="bg-gray-500 text-white px-3 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs"
                 >
                   Clear
                 </button>
                 <button
                   onClick={() => setShowSearchModal(false)}
-                  className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-all"
+                  className="bg-gray-500 text-white px-3 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs"
                 >
                   Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Audit Modal */}
+        {showAuditModal && (
+          <div className="fixed inset-0 backdrop-blur-md bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-[#f0f0f0] border-2 border-[#3a6ea5] rounded-lg p-2 max-w-5xl w-full shadow-[0_2px_4px_rgba(0,0,0,0.2)] max-h-[85vh] overflow-y-auto">
+              <h2 className="text-xs font-bold mb-3 text-[#003087]">
+                {auditFilters.columnCode
+                  ? `Audit Trail (${auditFilters.columnCode})`
+                  : "Audit Trail (All Columns)"}
+              </h2>
+
+              <div className="grid grid-cols-4 gap-2 mb-2">
+                <div>
+                  <label className="block text-[10px] font-medium text-[#003087] mb-1">
+                    Search
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Search column code"
+                    value={auditFilters.columnCode}
+                    onChange={(e) =>
+                      setAuditFilters((prev) => ({
+                        ...prev,
+                        columnCode: e.target.value,
+                      }))
+                    }
+                    className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-medium text-[#003087] mb-1">
+                    Action
+                  </label>
+                  <select
+                    value={auditFilters.action}
+                    onChange={(e) =>
+                      setAuditFilters((prev) => ({
+                        ...prev,
+                        action: e.target.value,
+                      }))
+                    }
+                    className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
+                  >
+                    <option value="">All Actions</option>
+                    <option value="CREATE">CREATE</option>
+                    <option value="UPDATE">UPDATE</option>
+                    <option value="DELETE">DELETE</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-medium text-[#003087] mb-1">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    placeholder="dd-mm-yyyy"
+                    value={auditFilters.dateFrom}
+                    onChange={(e) =>
+                      setAuditFilters((prev) => ({
+                        ...prev,
+                        dateFrom: e.target.value,
+                      }))
+                    }
+                    className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-medium text-[#003087] mb-1">
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    placeholder="dd-mm-yyyy"
+                    value={auditFilters.dateTo}
+                    onChange={(e) =>
+                      setAuditFilters((prev) => ({
+                        ...prev,
+                        dateTo: e.target.value,
+                      }))
+                    }
+                    className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
+                  />
+                </div>
+              </div>
+
+              {auditFilters.columnCode && (
+                <div className="mb-3">
+                  <button
+                    onClick={() => {
+                      setAuditFilters((prev) => ({ ...prev, columnCode: "" }));
+                      fetchAudits();
+                    }}
+                    className="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600"
+                  >
+                    Show All Audits
+                  </button>
+                  <span className="ml-2 text-xs text-gray-600">
+                    Currently showing audits for:{" "}
+                    <strong>{auditFilters.columnCode}</strong>
+                  </span>
+                </div>
+              )}
+
+              <div className="overflow-x-auto border border-gray-300 rounded-lg bg-white max-h-80 overflow-y-auto">
+                <table className="w-full border-collapse border border-gray-300 text-xs">
+                  <thead className="bg-gray-200 sticky top-0">
+                    <tr>
+                      <th className="border border-gray-300 p-1 text-left text-[10px] font-semibold">
+                        Timestamp
+                      </th>
+                      <th className="border border-gray-300 p-1 text-left text-[10px] font-semibold">
+                        User
+                      </th>
+                      <th className="border border-gray-300 p-1 text-left text-[10px] font-semibold">
+                        Action
+                      </th>
+                      <th className="border border-gray-300 p-1 text-left text-[10px] font-semibold">
+                        Column Code
+                      </th>
+                      <th className="border border-gray-300 p-1 text-left text-[10px] font-semibold">
+                        Previous Value
+                      </th>
+                      <th className="border border-gray-300 p-1 text-left text-[10px] font-semibold">
+                        Changed To
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filterAudits(audits).length > 0 ? (
+                      filterAudits(audits).map((audit) => (
+                        <tr key={audit._id} className="hover:bg-gray-50">
+                          <td className="border border-gray-300 p-1 text-[10px]">
+                            {new Date(audit.timestamp).toLocaleString("en-US", {
+                              month: "numeric",
+                              day: "numeric",
+                              year: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit",
+                              second: "2-digit",
+                              hour12: true,
+                            })}
+                          </td>
+                          <td className="border border-gray-300 p-1 text-[10px]">
+                            {audit.userId}
+                          </td>
+                          <td className="border border-gray-300 p-1 text-[10px]">
+                            <span
+                              className={`px-1 py-0.5 rounded text-[10px] font-semibold ${
+                                audit.action === "CREATE"
+                                  ? "bg-green-100 text-green-800"
+                                  : audit.action === "UPDATE"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : audit.action === "DELETE"
+                                  ? "bg-red-100 text-red-800"
+                                  : "bg-gray-100 text-gray-800"
+                              }`}
+                            >
+                              {audit.action}
+                            </span>
+                          </td>
+                          <td className="border border-gray-300 p-1 text-[10px]">
+                            {audit.columnCode || "-"}
+                          </td>
+                          <td className="border border-gray-300 p-1 text-[10px]">
+                            {audit.action === "CREATE" ? (
+                              <span className="text-gray-500 italic">
+                                New Record
+                              </span>
+                            ) : audit.changes && audit.changes.length > 0 ? (
+                              <div className="space-y-0.5">
+                                {audit.changes.map((change, idx) => (
+                                  <div key={idx} className="text-[10px]">
+                                    <span className="font-medium text-gray-700">
+                                      {change.field}:
+                                    </span>{" "}
+                                    <span className="text-red-600">
+                                      {typeof change.from === "object"
+                                        ? JSON.stringify(change.from)
+                                        : String(change.from || "null")}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              "-"
+                            )}
+                          </td>
+                          <td className="border border-gray-300 p-1 text-[10px]">
+                            {audit.action === "DELETE" ? (
+                              <span className="text-gray-500 italic">
+                                Deleted
+                              </span>
+                            ) : audit.action === "CREATE" ? (
+                              <span className="text-green-600 italic">
+                                Column Created
+                              </span>
+                            ) : audit.changes && audit.changes.length > 0 ? (
+                              <div className="space-y-0.5">
+                                {audit.changes.map((change, idx) => (
+                                  <div key={idx} className="text-[10px]">
+                                    <span className="font-medium text-gray-700">
+                                      {change.field}:
+                                    </span>{" "}
+                                    <span className="text-green-600">
+                                      {typeof change.to === "object"
+                                        ? JSON.stringify(change.to)
+                                        : String(change.to || "null")}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              "-"
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="border border-gray-300 p-2 text-center text-gray-500 text-[10px]"
+                        >
+                          No audit records found
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-end mt-3">
+                <button
+                  onClick={() => setShowAuditModal(false)}
+                  className="bg-gray-500 text-white px-4 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs"
+                >
+                  Close
                 </button>
               </div>
             </div>

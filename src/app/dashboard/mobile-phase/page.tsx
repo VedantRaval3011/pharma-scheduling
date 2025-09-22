@@ -873,7 +873,7 @@ const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
       }}
     >
       <WindowsToolbar
-        modulePath="/dashboard/mobilephase-master"
+        modulePath="/dashboard/mobile-phase"
         onAddNew={handleAddNew}
         onSave={handleSave}
         onClear={handleClear}

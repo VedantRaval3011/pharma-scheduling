@@ -79,6 +79,65 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
     );
   };
 
+  // Sort navigation items with custom priority order
+  const sortNavItems = (navItems: NavItem[]): NavItem[] => {
+    // Define priority order for top-level items
+    const priorityOrder = ['master', 'batch', 'tests', 'analysis'];
+    
+    // Helper function to find priority index with flexible matching
+    const getPriorityIndex = (label: string): number => {
+      const lowerLabel = label.toLowerCase();
+      
+      // First try exact match
+      let index = priorityOrder.indexOf(lowerLabel);
+      if (index !== -1) return index;
+      
+      // Then try if label starts with any priority term
+      for (let i = 0; i < priorityOrder.length; i++) {
+        if (lowerLabel.startsWith(priorityOrder[i])) {
+          return i;
+        }
+      }
+      
+      // Then try if label contains any priority term
+      for (let i = 0; i < priorityOrder.length; i++) {
+        if (lowerLabel.includes(priorityOrder[i])) {
+          return i;
+        }
+      }
+      
+      return -1; // Not found
+    };
+    
+    return navItems
+      .sort((a, b) => {
+        const aIndex = getPriorityIndex(a.label);
+        const bIndex = getPriorityIndex(b.label);
+        
+        // If both items are in priority list, sort by their priority index
+        if (aIndex !== -1 && bIndex !== -1) {
+          return aIndex - bIndex;
+        }
+        
+        // If only 'a' is in priority list, it comes first
+        if (aIndex !== -1 && bIndex === -1) {
+          return -1;
+        }
+        
+        // If only 'b' is in priority list, it comes first
+        if (aIndex === -1 && bIndex !== -1) {
+          return 1;
+        }
+        
+        // If neither is in priority list, sort alphabetically
+        return a.label.toLowerCase().localeCompare(b.label.toLowerCase());
+      })
+      .map(item => ({
+        ...item,
+        children: item.children ? sortNavItems(item.children) : undefined
+      }));
+  };
+
   // Filter navigation items based on permissions
   const filterNavItems = (navItems: NavItem[]): NavItem[] => {
     return navItems
@@ -129,8 +188,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
         baseNavData = [];
     }
 
-    // Filter navigation based on permissions
-    return filterNavItems(baseNavData);
+    // Filter navigation based on permissions, then sort alphabetically
+    const filteredNavData = filterNavItems(baseNavData);
+    return sortNavItems(filteredNavData);
   };
 
   const handleItemClick = (item: NavItem) => {
@@ -157,10 +217,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
   return (
     <div>
-      {/* Navigation */}
-      <NavigationMenu navData={getNavData()} onItemClick={handleItemClick} />
-      {/* Main Content */}
-      <main>{children}</main>
+      {/* Sticky Navigation */}
+      <div className="sticky top-0 z-50 bg-white shadow-md">
+        <NavigationMenu navData={getNavData()} onItemClick={handleItemClick} />
+      </div>
+      {/* Main Content with top padding to account for sticky nav */}
+      <main >{children}</main>
     </div>
   );
 };

@@ -649,7 +649,7 @@ function HPLCMaster() {
       }}
     >
       <WindowsToolbar
-        modulePath="/dashboard/hplc-master"
+        modulePath="/dashboard/hplc-uplc"
         onAddNew={handleAddNew}
         onSave={handleSave}
         onClear={handleClear}

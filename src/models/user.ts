@@ -302,3 +302,4 @@ export const Company =
 
 // Export types
 export type { IUser, ICompany, ILocation, ICompanyDocument };
+export default User;

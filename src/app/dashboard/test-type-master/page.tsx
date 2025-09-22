@@ -537,7 +537,7 @@ function TypeMaster() {
       }}
     >
       <WindowsToolbar
-        modulePath="/dashboard/type-master"
+        modulePath="/dashboard/test-type-master"
         onAddNew={handleAddNew}
         onSave={handleSave}
         onClear={handleClear}

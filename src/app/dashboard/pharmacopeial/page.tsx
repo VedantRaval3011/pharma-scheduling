@@ -537,7 +537,7 @@ function PharmacopeialMaster() {
       }}
     >
       <WindowsToolbar
-        modulePath="/dashboard/pharmacopeial-master"
+        modulePath="/dashboard/pharmacopeial"
         onAddNew={handleAddNew}
         onSave={handleSave}
         onClear={handleClear}

@@ -1778,7 +1778,7 @@ const exportToExcel = async () => {
     return (
       <div className="min-h-screen" style={{ backgroundColor: "#b9d7ff" }}>
         <WindowsToolbar
-          modulePath="/admin/mfc-master"
+          modulePath="/dashboard/mfc-master"
           onAddNew={handleAddNew}
           onSave={handleSave}
           onClear={handleClear}

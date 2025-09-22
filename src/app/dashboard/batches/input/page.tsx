@@ -1826,13 +1826,11 @@ export default function BatchInputForm() {
                   </thead>
                   <tbody className="divide-y divide-[#a6c8ff]">
                     {batches.map((batch, batchIndex) => {
-                      // Get the tests that should continue (not outsourced)
                       const continueTests =
                         batch.tests?.filter((test) => test.continueTests) || [];
                       const testCount = continueTests.length;
 
                       if (testCount === 0) {
-                        // Show batch info with "No active tests" message
                         return (
                           <tr
                             key={`${batch._id}-empty`}
@@ -1846,27 +1844,22 @@ export default function BatchInputForm() {
                               setCurrentBatchIndex(batchIndex);
                             }}
                           >
-                            {/* SR. NO */}
                             <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
                               {batchIndex + 1}
                             </td>
-                            {/* MFC NUMBER */}
                             <td className="px-1 py-1 border-r border-[#a6c8ff] text-[11px]">
                               <div className="truncate">{batch.mfcNumber}</div>
                             </td>
-                            {/* PRODUCT NAME */}
                             <td className="px-1 py-1 border-r border-[#a6c8ff] text-[11px]">
                               <div className="truncate">
                                 {batch.productName}
                               </div>
                             </td>
-                            {/* GENERIC NAME */}
                             <td className="px-1 py-1 border-r border-[#a6c8ff] text-[11px]">
                               <div className="truncate">
                                 {batch.genericName}
                               </div>
                             </td>
-                            {/* No active tests message spanning remaining columns */}
                             <td
                               className="px-1 py-1 border-r border-[#a6c8ff] text-gray-400 italic text-[11px]"
                               colSpan={33}
@@ -1877,10 +1870,7 @@ export default function BatchInputForm() {
                         );
                       }
 
-                      // Create rows for each test, with batch info spanning multiple rows
                       return continueTests.map((test, testIndex) => {
-                        // Get API name for this test by finding it in the generics structure
-                        // NEW
                         const apiId = getApiIdForRow(
                           batch,
                           test,
@@ -1888,7 +1878,6 @@ export default function BatchInputForm() {
                           continueTests
                         );
                         const resolvedApiName = getApiName(apiId);
-
                         const resolvedColumnName = getColumnName(
                           test.columnCode
                         );
@@ -1898,8 +1887,6 @@ export default function BatchInputForm() {
                         const resolvedPharmacoName = getPharmacopoeialName(
                           test.pharmacopoeialId
                         );
-
-                        // Determine testing location
                         const testingLocation = test.outsourced
                           ? "Outsource"
                           : "On-site";
@@ -1917,7 +1904,6 @@ export default function BatchInputForm() {
                               setCurrentBatchIndex(batchIndex);
                             }}
                           >
-                            {/* SR. NO - Show only for first test of each batch with rowspan */}
                             {testIndex === 0 && (
                               <td
                                 className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px] align-top"
@@ -1928,8 +1914,6 @@ export default function BatchInputForm() {
                                 </div>
                               </td>
                             )}
-
-                            {/* MFC NUMBER - Show only for first test of each batch with rowspan */}
                             {testIndex === 0 && (
                               <td
                                 className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
@@ -1940,8 +1924,6 @@ export default function BatchInputForm() {
                                 </div>
                               </td>
                             )}
-
-                            {/* PRODUCT NAME - Show only for first test of each batch with rowspan */}
                             {testIndex === 0 && (
                               <td
                                 className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
@@ -1952,8 +1934,6 @@ export default function BatchInputForm() {
                                 </div>
                               </td>
                             )}
-
-                            {/* GENERIC NAME - Show only for first test of each batch with rowspan */}
                             {testIndex === 0 && (
                               <td
                                 className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
@@ -1964,8 +1944,6 @@ export default function BatchInputForm() {
                                 </div>
                               </td>
                             )}
-
-                            {/* API NAME - Show for each test (no rowspan) */}
                             <td className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top">
                               <div className="text-blue-600 font-medium truncate">
                                 {resolvedApiName !== "Not defined"
@@ -1973,13 +1951,9 @@ export default function BatchInputForm() {
                                   : `ID: ${apiId}`}
                               </div>
                             </td>
-
-                            {/* TEST TYPE - Show for each test (no rowspan) */}
                             <td className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top">
                               <div className="truncate">{test.testName}</div>
                             </td>
-
-                            {/* TYPE OF SAMPLE - Show only for first test of each batch with rowspan */}
                             {testIndex === 0 && (
                               <td
                                 className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
@@ -1990,11 +1964,9 @@ export default function BatchInputForm() {
                                 </div>
                               </td>
                             )}
-
-                            {/* DEPARTMENT - Show only for first test of each batch with rowspan */}
                             {testIndex === 0 && (
                               <td
-                                className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
+                                className="px-1 py-1 border-r max-w-[80px] border-[#a6c8ff] text-[11px] align-top"
                                 rowSpan={testCount}
                               >
                                 <div className="truncate">
@@ -2002,8 +1974,6 @@ export default function BatchInputForm() {
                                 </div>
                               </td>
                             )}
-
-                            {/* COLUMN - Show for each test (no rowspan) */}
                             <td
                               className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
                               title={resolvedColumnName}
@@ -2012,8 +1982,6 @@ export default function BatchInputForm() {
                                 {resolvedColumnName}
                               </div>
                             </td>
-
-                            {/* Mobile Phase columns MP1-MP4, WASH1-WASH2 - Show for each test */}
                             <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
                               {test.mobilePhaseCodes[0] || "-"}
                             </td>
@@ -2032,8 +2000,6 @@ export default function BatchInputForm() {
                             <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
                               {test.mobilePhaseCodes[5] || "-"}
                             </td>
-
-                            {/* DETECTOR - Show for each test (no rowspan) */}
                             <td
                               className="px-1 py-1 border-r border-[#a6c8ff] text-[11px]"
                               title={resolvedDetectorName}
@@ -2042,8 +2008,6 @@ export default function BatchInputForm() {
                                 {resolvedDetectorName}
                               </div>
                             </td>
-
-                            {/* PHARMACOPOEIAL - Show for each test (no rowspan) */}
                             <td
                               className="px-1 py-1 border-r border-[#a6c8ff] text-[11px]"
                               title={resolvedPharmacoName}
@@ -2052,8 +2016,6 @@ export default function BatchInputForm() {
                                 {resolvedPharmacoName}
                               </div>
                             </td>
-
-                            {/* Injection Counts - Show for each test */}
                             <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
                               {test.blankInjection || 0}
                             </td>
@@ -2084,8 +2046,6 @@ export default function BatchInputForm() {
                             <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
                               {test.washTime || 0}
                             </td>
-
-                            {/* Runtime Values - Show for each test */}
                             <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
                               {test.blankRunTime || 0}
                             </td>
@@ -2110,16 +2070,28 @@ export default function BatchInputForm() {
                             <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
                               {test.reference2RunTime || 0}
                             </td>
-
-                            {/* TESTING LOCATION - Show for each test (no rowspan) */}
-                            <td className="px-1 py-1 border-r border-[#a6c8ff] text-[11px]">
+                            {/* Sticky Testing Location */}
+                            <td
+                              className={`px-1 py-1 border-r border-[#a6c8ff] text-[11px] sticky right-16 z-10 ${
+                                selectedBatch?._id === batch._id
+                                  ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]"
+                                  : batchIndex % 2 === 0
+                                  ? "bg-white"
+                                  : "bg-gray-50"
+                              }`}
+                            >
                               <div className="truncate">{testingLocation}</div>
                             </td>
-
-                            {/* TEST STATUS - Show only for first test of each batch with rowspan */}
+                            {/* Sticky Test Status */}
                             {testIndex === 0 && (
                               <td
-                                className="px-1 py-1 text-[11px] align-top"
+                                className={`px-1 py-1 text-[11px] align-top sticky right-0 z-10 ${
+                                  selectedBatch?._id === batch._id
+                                    ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]"
+                                    : batchIndex % 2 === 0
+                                    ? "bg-white"
+                                    : "bg-gray-50"
+                                }`}
                                 rowSpan={testCount}
                               >
                                 <span
@@ -2149,442 +2121,506 @@ export default function BatchInputForm() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-[11px] leading-tight">
-                  <thead
-                    className="bg-gradient-to-b from-[#f0f0f0] to-[#ffffff] sticky top-0"
-                    style={{ borderBottom: "1px solid #a6c8ff" }}
-                  >
-                    <tr>
-                      <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-8">
-                        SR. NO
-                      </th>
-                      <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-24">
-                        BATCH NAME
-                      </th>
-                      <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-24">
-                        MFC NUMBER
-                      </th>
-                      <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-32">
-                        PRODUCT NAME
-                      </th>
-                      <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-20">
-                        TYPE OF SAMPLE
-                      </th>
-                      <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-28">
-                        API NAME
-                      </th>
-                      <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-16">
-                        TEST TYPE
-                      </th>
-                      <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-24">
-                        DEPARTMENT
-                      </th>
-                      <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-20">
-                        COLUMN
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
-                        MP1
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
-                        MP2
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
-                        MP3
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
-                        MP4
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
-                        WASH1
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
-                        WASH2
-                      </th>
-                      <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-16">
-                        DETECTOR
-                      </th>
-                      <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-16">
-                        PHARMACO
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-10">
-                        BLANK
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-10">
-                        STD
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
-                        SAMPLE
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
-                        SYS SUIT
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-10">
-                        SENS
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
-                        PLACEBO
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-10">
-                        REF1
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-10">
-                        REF2
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
-                        BRACKET
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
-                        WASH TIME
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
-                        BLANK RT
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
-                        STD RT
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
-                        SAMPLE RT
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
-                        SYS RT
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
-                        SENS RT
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
-                        PLACEBO RT
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
-                        REF1 RT
-                      </th>
-                      <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
-                        REF2 RT
-                      </th>
-                      <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-16">
-                        TESTING LOCATION
-                      </th>
-                      <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase w-16">
-                        TEST STATUS
-                      </th>
-                    </tr>
-                  </thead>
+  <table className="w-full text-[11px] leading-tight">
+    <thead
+      className="bg-gradient-to-b from-[#f0f0f0] to-[#ffffff] sticky top-0"
+      style={{ borderBottom: "1px solid #a6c8ff" }}
+    >
+      <tr>
+        <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-8">
+          SR. NO
+        </th>
+        <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-24">
+          BATCH NAME
+        </th>
+        <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-24">
+          MFC NUMBER
+        </th>
+        <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-32">
+          PRODUCT NAME
+        </th>
+        <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-24">
+          MFG DATE
+        </th>
+        <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-24">
+          WITHDRAWAL DATE
+        </th>
+        <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-20">
+          TYPE OF SAMPLE
+        </th>
+        <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-28">
+          API NAME
+        </th>
+        <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-16">
+          TEST TYPE
+        </th>
+        <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-24">
+          DEPARTMENT
+        </th>
+        <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-20">
+          COLUMN
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
+          MP1
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
+          MP2
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
+          MP3
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
+          MP4
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
+          WASH1
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
+          WASH2
+        </th>
+        <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-16">
+          DETECTOR
+        </th>
+        <th className="px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-16">
+          PHARMACO
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-10">
+          BLANK
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-10">
+          STD
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
+          SAMPLE
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
+          SYS SUIT
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-10">
+          SENS
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
+          PLACEBO
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-10">
+          REF1
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-10">
+          REF2
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
+          BRACKET
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
+          WASH TIME
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
+          BLANK RT
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
+          STD RT
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
+          SAMPLE RT
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
+          SYS RT
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
+          SENS RT
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
+          PLACEBO RT
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
+          REF1 RT
+        </th>
+        <th className="px-1 py-1 text-center text-[9px] font-medium text-gray-700 uppercase border-r border-[#a6c8ff] w-12">
+          REF2 RT
+        </th>
+        <th className="sticky right-[80px] min-w-[80px] px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase  border-[#a6c8ff] bg-gradient-to-b from-[#f0f0f0] to-[#ffffff] z-10">
+          TESTING LOCATION
+        </th>
+        <th className="sticky right-0 min-w-[80px] px-1 py-1 text-left text-[9px] font-medium text-gray-700 uppercase bg-gradient-to-b from-[#f0f0f0] to-[#ffffff] z-10">
+          TEST STATUS
+        </th>
+      </tr>
+    </thead>
 
-                  <tbody className="divide-y divide-[#a6c8ff]">
-                    {batches.map((batch, batchIndex) => {
-                      // Get the tests that should continue (not outsourced)
-                      const continueTests =
-                        batch.tests?.filter((test) => test.continueTests) || [];
-                      const testCount = continueTests.length;
+    <tbody className="divide-y divide-[#a6c8ff]">
+      {batches.map((batch, batchIndex) => {
+        // Get the tests that should continue (not outsourced)
+        const continueTests =
+          batch.tests?.filter((test) => test.continueTests) || [];
+        const testCount = continueTests.length;
 
-                      if (testCount === 0) {
-                        // Show batch info with "No active tests" message
-                        return (
-                          <tr
-                            key={`${batch._id}-empty`}
-                            className={`cursor-pointer ${
-                              selectedBatch?._id === batch._id
-                                ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]"
-                                : "hover:bg-[#e6f0fa]"
-                            }`}
-                            onClick={() => {
-                              setSelectedBatch(batch);
-                              setCurrentBatchIndex(batchIndex);
-                            }}
-                          >
-                            {/* SR. NO */}
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {batchIndex + 1}
-                            </td>
-                            {/* BATCH NAME */}
-                            <td className="px-1 py-1 border-r border-[rgb(166,200,255)] text-[11px]">
-                              <div className="truncate">{batch.batchNumber}</div>
-                            </td>
-                            {/* MFC NUMBER */}
-                            <td className="px-1 py-1 border-r border-[#a6c8ff] text-[11px]">
-                              <div className="truncate">{batch.mfcNumber}</div>
-                            </td>
-                            {/* PRODUCT NAME */}
-                            <td className="px-1 py-1 border-r border-[#a6c8ff] text-[11px]">
-                              <div className="truncate">
-                                {batch.productName}
-                              </div>
-                            </td>
-                            {/* No active tests message spanning remaining columns */}
-                            <td
-                              className="px-1 py-1 border-r border-[#a6c8ff] text-gray-400 italic text-[11px]"
-                              colSpan={32}
-                            >
-                              No active tests for this batch
-                            </td>
-                          </tr>
-                        );
-                      }
+        // Format dates helper function
+        interface FormatDate {
+          (dateString: string | undefined | null): string;
+        }
 
-                      // Create rows for each test, with batch info spanning multiple rows
-                      return continueTests.map((test, testIndex) => {
-                        // Get API name for this test by finding it in the generics structure
-                        const apiId = getApiIdForRow(
-                          batch,
-                          test,
-                          testIndex,
-                          continueTests
-                        );
+        const formatDate: FormatDate = (dateString) => {
+          if (!dateString) return "-";
+          try {
+            return new Date(dateString).toLocaleDateString('en-GB', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric'
+            });
+          } catch {
+            return "-";
+          }
+        };
 
-                        const resolvedApiName =
-                          getApiName(apiId) || "Not defined";
-                        const resolvedColumnName = getColumnName(
-                          test.columnCode
-                        );
-                        const resolvedDetectorName = getDetectorTypeName(
-                          test.detectorTypeId
-                        );
-                        const resolvedPharmacoName = getPharmacopoeialName(
-                          test.pharmacopoeialId
-                        );
+        if (testCount === 0) {
+          // Show batch info with "No active tests" message
+          return (
+            <tr
+              key={`${batch._id}-empty`}
+              className={`cursor-pointer ${
+                selectedBatch?._id === batch._id
+                  ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]"
+                  : "hover:bg-[#e6f0fa]"
+              }`}
+              onClick={() => {
+                setSelectedBatch(batch);
+                setCurrentBatchIndex(batchIndex);
+              }}
+            >
+              {/* SR. NO */}
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                {batchIndex + 1}
+              </td>
+              {/* BATCH NAME */}
+              <td className="px-1 py-1 border-r border-[rgb(166,200,255)] text-[11px]">
+                <div className="truncate">
+                  {batch.batchNumber}
+                </div>
+              </td>
+              {/* MFC NUMBER */}
+              <td className="px-1 py-1 border-r border-[#a6c8ff] text-[11px]">
+                <div className="truncate">{batch.mfcNumber}</div>
+              </td>
+              {/* PRODUCT NAME */}
+              <td className="px-1 py-1 border-r border-[#a6c8ff] text-[11px]">
+                <div className="truncate">
+                  {batch.productName}
+                </div>
+              </td>
+              {/* MANUFACTURING DATE */}
+              <td className="px-1 py-1 border-r border-[#a6c8ff] text-[11px]">
+                <div className="truncate">
+                  {formatDate(batch.manufacturingDate)}
+                </div>
+              </td>
+              {/* DATE OF WITHDRAWAL */}
+              <td className="px-1 py-1 border-r border-[#a6c8ff] text-[11px]">
+                <div className="truncate">
+                  {formatDate(batch.withdrawalDate)}
+                </div>
+              </td>
+              {/* No active tests message spanning remaining columns */}
+              <td
+                className="px-1 py-1 border-r border-[#a6c8ff] text-gray-400 italic text-[11px]"
+                colSpan={34}
+              >
+                <div className="truncate">No active tests for this batch</div>
+              </td>
+            </tr>
+          );
+        }
 
-                        // Determine testing location
-                        const testingLocation = test.outsourced
-                          ? "Outsource"
-                          : "On-site";
+        // Create rows for each test, with batch info spanning multiple rows
+        return continueTests.map((test, testIndex) => {
+          // Get API name for this test by finding it in the generics structure
+          const apiId = getApiIdForRow(
+            batch,
+            test,
+            testIndex,
+            continueTests
+          );
 
-                        return (
-                          <tr
-                            key={`${batch._id}-${test.testTypeId}-${test.columnCode}-${testIndex}`}
-                            className={`cursor-pointer ${
-                              selectedBatch?._id === batch._id
-                                ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]"
-                                : "hover:bg-[#e6f0fa]"
-                            }`}
-                            onClick={() => {
-                              setSelectedBatch(batch);
-                              setCurrentBatchIndex(batchIndex);
-                            }}
-                          >
-                            {/* SR. NO - Show only for first test of each batch with rowspan */}
-                            {testIndex === 0 && (
-                              <td
-                                className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px] align-top"
-                                rowSpan={testCount}
-                              >
-                                <div className="font-medium">
-                                  {batchIndex + 1}
-                                </div>
-                              </td>
-                            )}
+          const resolvedApiName =
+            getApiName(apiId) || "Not defined";
+          const resolvedColumnName = getColumnName(
+            test.columnCode
+          );
+          const resolvedDetectorName = getDetectorTypeName(
+            test.detectorTypeId
+          );
+          const resolvedPharmacoName = getPharmacopoeialName(
+            test.pharmacopoeialId
+          );
 
-                            {/* BATCH NAME - Show only for first test of each batch with rowspan */}
-                            {testIndex === 0 && (
-                              <td
-                                className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
-                                rowSpan={testCount}
-                              >
-                                <div className="truncate">
-                                  {batch.batchNumber}
-                                </div>
-                              </td>
-                            )}
+          // Determine testing location
+          const testingLocation = test.outsourced
+            ? "Outsource"
+            : "On-site";
 
-                            {/* MFC NUMBER - Show only for first test of each batch with rowspan */}
-                            {testIndex === 0 && (
-                              <td
-                                className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
-                                rowSpan={testCount}
-                              >
-                                <div className="truncate font-medium">
-                                  {batch.mfcNumber}
-                                </div>
-                              </td>
-                            )}
+          return (
+            <tr
+              key={`${batch._id}-${test.testTypeId}-${test.columnCode}-${testIndex}`}
+              className={`cursor-pointer ${
+                selectedBatch?._id === batch._id
+                  ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]"
+                  : "hover:bg-[#e6f0fa]"
+              }`}
+              onClick={() => {
+                setSelectedBatch(batch);
+                setCurrentBatchIndex(batchIndex);
+              }}
+            >
+              {/* SR. NO - Show only for first test of each batch with rowspan */}
+              {testIndex === 0 && (
+                <td
+                  className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px] align-top"
+                  rowSpan={testCount}
+                >
+                  <div className="font-medium">
+                    {batchIndex + 1}
+                  </div>
+                </td>
+              )}
 
-                            {/* PRODUCT NAME - Show only for first test of each batch with rowspan */}
-                            {testIndex === 0 && (
-                              <td
-                                className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
-                                rowSpan={testCount}
-                              >
-                                <div className="truncate">
-                                  {batch.productName}
-                                </div>
-                              </td>
-                            )}
+              {/* BATCH NAME - Show only for first test of each batch with rowspan */}
+              {testIndex === 0 && (
+                <td
+                  className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
+                  rowSpan={testCount}
+                >
+                  <div className="truncate">
+                    {batch.batchNumber}
+                  </div>
+                </td>
+              )}
 
-                            {/* TYPE OF SAMPLE - Show only for first test of each batch with rowspan */}
-                            {testIndex === 0 && (
-                              <td
-                                className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
-                                rowSpan={testCount}
-                              >
-                                <div className="truncate">
-                                  {batch.typeOfSample}
-                                </div>
-                              </td>
-                            )}
+              {/* MFC NUMBER - Show only for first test of each batch with rowspan */}
+              {testIndex === 0 && (
+                <td
+                  className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
+                  rowSpan={testCount}
+                >
+                  <div className="truncate font-medium">
+                    {batch.mfcNumber}
+                  </div>
+                </td>
+              )}
 
-                            {/* API NAME - Show for each test (no rowspan) */}
-                            <td className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top">
-                              <div className="text-blue-600 font-medium truncate">
-                                {resolvedApiName !== "Not defined"
-                                  ? resolvedApiName
-                                  : `ID: ${apiId}`}
-                              </div>
-                            </td>
+              {/* PRODUCT NAME - Show only for first test of each batch with rowspan */}
+              {testIndex === 0 && (
+                <td
+                  className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
+                  rowSpan={testCount}
+                >
+                  <div className="truncate">
+                    {batch.productName}
+                  </div>
+                </td>
+              )}
 
-                            {/* TEST TYPE - Show for each test (no rowspan) */}
-                            <td className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top">
-                              <div className="truncate">{test.testName}</div>
-                            </td>
+              {/* MANUFACTURING DATE - Show only for first test of each batch with rowspan */}
+              {testIndex === 0 && (
+                <td
+                  className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
+                  rowSpan={testCount}
+                >
+                  <div className="truncate text-gray-600">
+                    {formatDate(batch.manufacturingDate)}
+                  </div>
+                </td>
+              )}
 
-                            {/* DEPARTMENT - Show only for first test of each batch with rowspan */}
-                            {testIndex === 0 && (
-                              <td
-                                className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
-                                rowSpan={testCount}
-                              >
-                                <div className="truncate">
-                                  {batch.departmentName}
-                                </div>
-                              </td>
-                            )}
+              {/* DATE OF WITHDRAWAL - Show only for first test of each batch with rowspan */}
+              {testIndex === 0 && (
+                <td
+                  className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
+                  rowSpan={testCount}
+                >
+                  <div className="truncate text-gray-600">
+                    {formatDate(batch.withdrawalDate)}
+                  </div>
+                </td>
+              )}
 
-                            {/* COLUMN - Show for each test (no rowspan) */}
-                            <td
-                              className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
-                              title={resolvedColumnName}
-                            >
-                              <div className="truncate">
-                                {resolvedColumnName}
-                              </div>
-                            </td>
+              {/* TYPE OF SAMPLE - Show only for first test of each batch with rowspan */}
+              {testIndex === 0 && (
+                <td
+                  className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
+                  rowSpan={testCount}
+                >
+                  <div className="truncate">
+                    {batch.typeOfSample}
+                  </div>
+                </td>
+              )}
 
-                            {/* Mobile Phase columns MP1-MP4, WASH1-WASH2 - Show for each test */}
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.mobilePhaseCodes[0] || "-"}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.mobilePhaseCodes[1] || "-"}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.mobilePhaseCodes[2] || "-"}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.mobilePhaseCodes[3] || "-"}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.mobilePhaseCodes[4] || "-"}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.mobilePhaseCodes[5] || "-"}
-                            </td>
+              {/* API NAME - Show for each test (no rowspan) */}
+              <td className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top">
+                <div className="text-blue-600 font-medium truncate">
+                  {resolvedApiName !== "Not defined"
+                    ? resolvedApiName
+                    : `ID: ${apiId}`}
+                </div>
+              </td>
 
-                            {/* DETECTOR - Show for each test (no rowspan) */}
-                            <td
-                              className="px-1 py-1 border-r border-[#a6c8ff] text-[11px]"
-                              title={resolvedDetectorName}
-                            >
-                              <div className="truncate">
-                                {resolvedDetectorName}
-                              </div>
-                            </td>
+              {/* TEST TYPE - Show for each test (no rowspan) */}
+              <td className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top">
+                <div className="truncate">{test.testName}</div>
+              </td>
 
-                            {/* PHARMACOPOEIAL - Show for each test (no rowspan) */}
-                            <td
-                              className="px-1 py-1 border-r border-[#a6c8ff] text-[11px]"
-                              title={resolvedPharmacoName}
-                            >
-                              <div className="truncate">
-                                {resolvedPharmacoName}
-                              </div>
-                            </td>
+              {/* DEPARTMENT - Show only for first test of each batch with rowspan */}
+              {testIndex === 0 && (
+                <td
+                  className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
+                  rowSpan={testCount}
+                >
+                  <div className="truncate">
+                    {batch.departmentName}
+                  </div>
+                </td>
+              )}
 
-                            {/* Injection Counts - Show for each test */}
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.blankInjection || 0}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.standardInjection || 0}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.sampleInjection || 0}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.systemSuitability || 0}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.sensitivity || 0}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.placebo || 0}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.reference1 || 0}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.reference2 || 0}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.bracketingFrequency || 0}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.washTime || 0}
-                            </td>
+              {/* COLUMN - Show for each test (no rowspan) */}
+              <td
+                className="px-1 py-1 border-r border-[#a6c8ff] text-[11px] align-top"
+                title={resolvedColumnName}
+              >
+                <div className="truncate">
+                  {resolvedColumnName}
+                </div>
+              </td>
 
-                            {/* Runtime Values - Show for each test */}
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.blankRunTime || 0}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.standardRunTime || 0}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.sampleRunTime || 0}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.systemSuitabilityRunTime || 0}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.sensitivityRunTime || 0}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.placeboRunTime || 0}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.reference1RunTime || 0}
-                            </td>
-                            <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
-                              {test.reference2RunTime || 0}
-                            </td>
+              {/* Mobile Phase columns MP1-MP4, WASH1-WASH2 - Show for each test */}
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                <div className="truncate">{test.mobilePhaseCodes[0] || "-"}</div>
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                <div className="truncate">{test.mobilePhaseCodes[1] || "-"}</div>
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                <div className="truncate">{test.mobilePhaseCodes[2] || "-"}</div>
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                <div className="truncate">{test.mobilePhaseCodes[3] || "-"}</div>
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                <div className="truncate">{test.mobilePhaseCodes[4] || "-"}</div>
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                <div className="truncate">{test.mobilePhaseCodes[5] || "-"}</div>
+              </td>
 
-                            {/* TESTING LOCATION - Show for each test (no rowspan) */}
-                            <td className="px-1 py-1 border-r border-[#a6c8ff] text-[11px]">
-                              <div className="truncate">{testingLocation}</div>
-                            </td>
+              {/* DETECTOR - Show for each test (no rowspan) */}
+              <td
+                className="px-1 py-1 border-r border-[#a6c8ff] text-[11px]"
+                title={resolvedDetectorName}
+              >
+                <div className="truncate">
+                  {resolvedDetectorName}
+                </div>
+              </td>
 
-                            {/* TEST STATUS - Show only for first test of each batch with rowspan */}
-                            {testIndex === 0 && (
-                              <td
-                                className="px-1 py-1 text-[11px] align-top"
-                                rowSpan={testCount}
-                              >
-                                <span
-                                  className={`inline-flex px-1 py-0.5 text-[9px] font-semibold rounded-full ${
-                                    batch.batchStatus === "Closed"
-                                      ? "bg-gray-100 text-gray-800"
-                                      : batch.batchStatus === "In Progress"
-                                      ? "bg-blue-100 text-blue-800"
-                                      : "bg-yellow-100 text-yellow-800"
-                                  }`}
-                                >
-                                  {batch.batchStatus}
-                                </span>
-                              </td>
-                            )}
-                          </tr>
-                        );
-                      });
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              {/* PHARMACOPOEIAL - Show for each test (no rowspan) */}
+              <td
+                className="px-1 py-1 border-r border-[#a6c8ff] text-[11px]"
+                title={resolvedPharmacoName}
+              >
+                <div className="truncate">
+                  {resolvedPharmacoName}
+                </div>
+              </td>
+
+              {/* Injection Counts - Show for each test */}
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                {test.blankInjection || 0}
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                {test.standardInjection || 0}
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                {test.sampleInjection || 0}
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                {test.systemSuitability || 0}
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                {test.sensitivity || 0}
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                {test.placebo || 0}
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                {test.reference1 || 0}
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                {test.reference2 || 0}
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                {test.bracketingFrequency || 0}
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                {test.washTime || 0}
+              </td>
+
+              {/* Runtime Values - Show for each test */}
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                {test.blankRunTime || 0}
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                {test.standardRunTime || 0}
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                {test.sampleRunTime || 0}
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                {test.systemSuitabilityRunTime || 0}
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                {test.sensitivityRunTime || 0}
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                {test.placeboRunTime || 0}
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                {test.reference1RunTime || 0}
+              </td>
+              <td className="px-1 py-1 text-center border-r border-[#a6c8ff] text-[11px]">
+                {test.reference2RunTime || 0}
+              </td>
+
+              {/* TESTING LOCATION - Show for each test (sticky) with smaller width and border */}
+              <td className="sticky right-[80px] min-w-[80px] px-1 py-1  border-[#a6c8ff] text-[11px] bg-[#d6e1f1] z-10">
+                <div className="truncate text-xs ">{testingLocation}</div>
+              </td>
+
+              {testIndex === 0 && (
+                <td
+                  className="sticky right-0 min-w-[80px] px-1 py-1 text-[11px] align-top bg-[#d6e1f1] z-10"
+                  rowSpan={testCount}
+                >
+                  <div className="truncate">
+                    <span
+                      className={`inline-flex px-1 py-0.5 text-[8px] font-semibold rounded-full ${
+                        batch.batchStatus === "Closed"
+                          ? "bg-gray-100 text-gray-800"
+                          : batch.batchStatus === "In Progress"
+                          ? "bg-blue-100 text-blue-800"
+                          : "bg-yellow-100 text-yellow-800"
+                      }`}
+                    >
+                      {batch.batchStatus}
+                    </span>
+                  </div>
+                </td>
+              )}
+            </tr>
+          );
+        });
+      })}
+    </tbody>
+  </table>
+</div>
+
             )}
           </div>
         </div>

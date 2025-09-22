@@ -175,7 +175,7 @@ export const adminEmployeeNavData: NavItem[] = [
         path: "/dashboard/prefixAndSuffix",
       },
       {
-        label: "Make Master",
+        label: "Column Make Master",
         path: "/dashboard/make-master",
       },
       {
@@ -194,10 +194,6 @@ export const adminEmployeeNavData: NavItem[] = [
             path: "/dashboard/product/make-master",
           }
         ]
-      },
-      {
-        label: "Raw Material Master",
-        path: "/dashboard/raw-material-master",
       },
     ],
   },

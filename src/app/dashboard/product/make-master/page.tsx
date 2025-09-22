@@ -580,7 +580,7 @@ function ProductMakeMaster() {
       }}
     >
       <WindowsToolbar
-        modulePath="/dashboard/product-make-master"
+        modulePath="/dashboard/product/make-master"
         onAddNew={handleAddNew}
         onSave={handleSave}
         onClear={handleClear}
