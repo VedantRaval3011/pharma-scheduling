@@ -143,9 +143,21 @@ export async function GET(
 
     console.log(`Column found successfully in ${isObsolete ? 'obsolete' : 'regular'} table`);
 
+    // Transform column data to ensure optional fields are properly handled
+    const columnObj = column.toObject();
+    
+    // Process descriptions to ensure new optional fields are included with proper null handling
+    const processedDescriptions = columnObj.descriptions.map((desc: any) => ({
+      ...desc,
+      // NEW optional fields - ensure they're included with null fallback
+      description: desc.description || null,
+      phValue: desc.phValue !== undefined ? desc.phValue : null,
+    }));
+
     // Prepare response data with additional metadata
     const columnData = {
-      ...column.toObject(),
+      ...columnObj,
+      descriptions: processedDescriptions,
       isObsolete,
       status: isObsolete ? 'obsolete' : 'active',
       descriptionsCount: column.descriptions?.length || 0

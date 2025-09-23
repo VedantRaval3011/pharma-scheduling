@@ -24,6 +24,9 @@ interface IDescription {
   usePrefixForNewCode: boolean;
   useSuffixForNewCode: boolean;
   isObsolete: boolean;
+  // NEW optional fields
+  description?: string;
+  phValue?: number;
 }
 
 export async function GET(req: NextRequest) {
@@ -154,6 +157,9 @@ export async function GET(req: NextRequest) {
           usePrefixForNewCode: desc.usePrefixForNewCode,
           useSuffixForNewCode: desc.useSuffixForNewCode,
           isObsolete: desc.isObsolete,
+          // NEW optional fields - handle gracefully with null fallback
+          description: desc.description || null,
+          phValue: desc.phValue || null,
         };
       });
 

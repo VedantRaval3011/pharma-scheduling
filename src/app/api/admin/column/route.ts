@@ -40,6 +40,9 @@ interface IDescription {
   usePrefixForNewCode: boolean;
   useSuffixForNewCode: boolean;
   isObsolete: boolean;
+  // NEW optional fields
+  description?: string;
+  phValue?: number;
 }
 
 export async function GET(req: NextRequest) {
@@ -156,6 +159,9 @@ export async function GET(req: NextRequest) {
         usePrefixForNewCode: description.usePrefixForNewCode,
         useSuffixForNewCode: description.useSuffixForNewCode,
         isObsolete: description.isObsolete,
+        // NEW optional fields
+        description: description.description || null,
+        phValue: description.phValue || null,
       };
 
       return NextResponse.json({ success: true, data: transformedDescription });
@@ -189,7 +195,6 @@ export async function GET(req: NextRequest) {
     ]);
 
     // Create lookup maps for fast access
-    // Alternative approach with better typing
     const makeMap = new Map();
     makes.forEach((make) => {
       makeMap.set(String(make._id), make);
@@ -283,6 +288,9 @@ export async function GET(req: NextRequest) {
           usePrefixForNewCode: desc.usePrefixForNewCode,
           useSuffixForNewCode: desc.useSuffixForNewCode,
           isObsolete: desc.isObsolete,
+          // NEW optional fields
+          description: desc.description || null,
+          phValue: desc.phValue || null,
         };
       });
 
@@ -382,6 +390,10 @@ export async function POST(req: NextRequest) {
           usePrefixForNewCode: !!desc.usePrefixForNewCode,
           useSuffixForNewCode: !!desc.useSuffixForNewCode,
           isObsolete: !!desc.isObsolete,
+          // NEW optional fields - handle with defaults
+          description: desc.description?.trim() || null,
+          phValue: desc.phValue !== undefined && desc.phValue !== null && desc.phValue !== "" 
+            ? Number(desc.phValue) : null,
         };
       }),
       companyId,
@@ -390,7 +402,7 @@ export async function POST(req: NextRequest) {
 
     console.log("Formatted body:", JSON.stringify(formattedBody, null, 2));
 
-    // Validate formatted descriptions
+    // Validate formatted descriptions (no validation needed for optional fields)
     for (let i = 0; i < formattedBody.descriptions.length; i++) {
       const desc = formattedBody.descriptions[i];
       console.log(
@@ -497,6 +509,21 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Optional validation for phValue if provided
+      if (desc.phValue !== null && (isNaN(desc.phValue) || desc.phValue < 0 || desc.phValue > 14)) {
+        console.log(
+          `Validation failed: Invalid pH value for description ${i + 1}:`,
+          desc.phValue
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Invalid pH value for description ${i + 1}. Must be between 0 and 14.`,
+          },
+          { status: 400 }
+        );
+      }
+
       console.log(`Description ${i + 1} validation passed`);
     }
 
@@ -508,7 +535,7 @@ export async function POST(req: NextRequest) {
     const savedColumn = await column.save();
     console.log("Column saved successfully with ID:", savedColumn._id);
 
-    // Create audit log
+    // Create audit log with new fields
     const changes: ChangeLog[] = formattedBody.descriptions
       .flatMap((desc: any, index: number) => [
         {
@@ -517,9 +544,9 @@ export async function POST(req: NextRequest) {
           to: desc.descriptionId,
         },
         {
-          field: `descriptions[${index}].prefix`,
+          field: `descriptions[${index}].prefixId`,
           from: undefined,
-          to: desc.prefix,
+          to: desc.prefixId,
         },
         {
           field: `descriptions[${index}].carbonType`,
@@ -547,14 +574,14 @@ export async function POST(req: NextRequest) {
           to: desc.particleSize,
         },
         {
-          field: `descriptions[${index}].suffix`,
+          field: `descriptions[${index}].suffixId`,
           from: undefined,
-          to: desc.suffix,
+          to: desc.suffixId,
         },
         {
-          field: `descriptions[${index}].make`,
+          field: `descriptions[${index}].makeId`,
           from: undefined,
-          to: desc.make,
+          to: desc.makeId,
         },
         {
           field: `descriptions[${index}].columnId`,
@@ -591,9 +618,20 @@ export async function POST(req: NextRequest) {
           from: undefined,
           to: desc.isObsolete,
         },
+        // NEW optional fields in audit log
+        {
+          field: `descriptions[${index}].description`,
+          from: undefined,
+          to: desc.description,
+        },
+        {
+          field: `descriptions[${index}].phValue`,
+          from: undefined,
+          to: desc.phValue,
+        },
       ])
       .filter(
-        (change: ChangeLog) => change.to !== undefined && change.to !== ""
+        (change: ChangeLog) => change.to !== undefined && change.to !== "" && change.to !== null
       );
 
     const audit = new Audit({
@@ -688,7 +726,7 @@ export async function PUT(req: NextRequest) {
     await mongoose.connect(process.env.MONGODB_URI!);
     console.log("Database connected successfully");
 
-    // Format descriptions
+    // Format descriptions with new optional fields
     formattedDescriptions = body.descriptions.map(
       (desc: any, index: number) => {
         console.log(
@@ -719,11 +757,15 @@ export async function PUT(req: NextRequest) {
           usePrefixForNewCode: !!desc.usePrefixForNewCode,
           useSuffixForNewCode: !!desc.useSuffixForNewCode,
           isObsolete: !!desc.isObsolete,
+          // NEW optional fields with proper handling
+          description: desc.description?.trim() || null,
+          phValue: desc.phValue !== undefined && desc.phValue !== null && desc.phValue !== "" 
+            ? Number(desc.phValue) : null,
         };
       }
     );
 
-    // Validate descriptions
+    // Validate descriptions (including optional field validation)
     for (let i = 0; i < formattedDescriptions.length; i++) {
       const desc = formattedDescriptions[i];
       if (!desc.carbonType) {
@@ -762,6 +804,16 @@ export async function PUT(req: NextRequest) {
           { status: 400 }
         );
       }
+      // Optional validation for phValue if provided
+      if (desc.phValue !== null && (isNaN(desc.phValue) || desc.phValue < 0 || desc.phValue > 14)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Invalid pH value for description ${i + 1}. Must be between 0 and 14.`,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Find and update the column
@@ -786,7 +838,7 @@ export async function PUT(req: NextRequest) {
 
     console.log("Column updated successfully with ID:", updatedColumn._id);
 
-    // Create audit log
+    // Create audit log with new fields
     const changes = formattedDescriptions.flatMap(
       (desc: any, index: number) => [
         {
@@ -828,6 +880,17 @@ export async function PUT(req: NextRequest) {
           field: `descriptions[${index}].useSuffixForNewCode`,
           from: undefined,
           to: desc.useSuffixForNewCode,
+        },
+        // NEW optional fields in audit log
+        {
+          field: `descriptions[${index}].description`,
+          from: undefined,
+          to: desc.description,
+        },
+        {
+          field: `descriptions[${index}].phValue`,
+          from: undefined,
+          to: desc.phValue,
         },
       ]
     );

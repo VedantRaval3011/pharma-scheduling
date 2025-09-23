@@ -143,6 +143,9 @@ export async function GET(req: NextRequest) {
       usePrefixForNewCode: description.usePrefixForNewCode,
       useSuffixForNewCode: description.useSuffixForNewCode,
       isObsolete: description.isObsolete,
+      // NEW optional fields - handle gracefully with null fallback
+      description: description.description || null,
+      phValue: description.phValue !== undefined ? description.phValue : null,
     };
 
     console.log("Final transformed description:", JSON.stringify(transformedDescription, null, 2));

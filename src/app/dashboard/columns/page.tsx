@@ -21,6 +21,9 @@ interface ColumnDescription {
   usePrefixForNewCode: boolean;
   useSuffixForNewCode: boolean;
   isObsolete: boolean;
+  // ADD THESE NEW OPTIONAL FIELDS
+  description?: string;
+  phValue?: number;
 }
 
 interface CoreAttributes {
@@ -321,10 +324,12 @@ export default function MasterColumn() {
         installationDate: "",
         usePrefix: false,
         useSuffix: false,
-        // Add new checkboxes for column code generation
         usePrefixForNewCode: false,
         useSuffixForNewCode: false,
         isObsolete: false,
+        // ADD THESE NEW FIELDS
+        description: "",
+        phValue: undefined as number | undefined,
       },
     ],
   });
@@ -400,12 +405,11 @@ export default function MasterColumn() {
             "Make Specific":
               desc.usePrefixForNewCode || desc.useSuffixForNewCode
                 ? "Yes"
-                : "No", // Add this line
+                : "No",
             Status: desc.isObsolete ? "Obsolete" : "Active",
-            "Use Prefix": desc.usePrefix ? "Yes" : "No",
-            "Use Suffix": desc.useSuffix ? "Yes" : "No",
-            "Use Prefix for New Code": desc.usePrefixForNewCode ? "Yes" : "No",
-            "Use Suffix for New Code": desc.useSuffixForNewCode ? "Yes" : "No",
+            // ADD THESE NEW EXCEL COLUMNS
+            "Description Text": desc.description || "",
+            "pH Value": desc.phValue !== undefined ? desc.phValue : "",
           };
 
           excelData.push(row);
@@ -432,12 +436,13 @@ export default function MasterColumn() {
         { wch: 20 }, // Make
         { wch: 15 }, // Column ID
         { wch: 15 }, // Installation Date
+        { wch: 12 }, // Make Specific
         { wch: 10 }, // Status
-        { wch: 12 }, // Use Prefix
-        { wch: 12 }, // Use Suffix
-        { wch: 18 }, // Use Prefix for New Code
-        { wch: 18 }, // Use Suffix for New Code
+        // ADD THESE NEW COLUMN WIDTHS
+        { wch: 25 }, // Description Text
+        { wch: 10 }, // pH Value
       ];
+
       ws["!cols"] = colWidths;
 
       // Handle merged cells for Column Code and Serial No
@@ -1412,12 +1417,12 @@ export default function MasterColumn() {
   const getPrefixName = (prefixId: PrefixId): string => {
     if (!prefixId) return "-";
     // Handle object with name null (problem case in your DB)
-    if (typeof prefixId === 'object') {
+    if (typeof prefixId === "object") {
       if (prefixId.name) return prefixId.name;
       return "-"; // <--- THIS handles name: null and any object-case
     }
     // Handle string empty
-    if (typeof prefixId === 'string') {
+    if (typeof prefixId === "string") {
       if (prefixId.trim() === "") return "-";
     }
     if (prefixes.length === 0) return "Loading...";
@@ -1427,22 +1432,23 @@ export default function MasterColumn() {
     return prefix?.value || "-";
   };
 
-
- const getSuffixName = (suffixId: SuffixId) => {
-  if (!suffixId) return "-";
-  // Handle object with name null (problem case in your DB)
-  if (typeof suffixId === 'object') {
-    if (suffixId.name) return suffixId.name;
-    return "-"; // Handles name: null and any object-case
-  }
-  // Handle string case, empty
-  if (typeof suffixId === 'string') {
-    if (suffixId.trim() === "") return "-";
-  }
-  if (suffixes.length === 0) return "Loading...";
-  const suffix = suffixes.find(s => s._id.toString().trim() === suffixId.toString().trim());
-  return suffix?.value || "-";
-};
+  const getSuffixName = (suffixId: SuffixId) => {
+    if (!suffixId) return "-";
+    // Handle object with name null (problem case in your DB)
+    if (typeof suffixId === "object") {
+      if (suffixId.name) return suffixId.name;
+      return "-"; // Handles name: null and any object-case
+    }
+    // Handle string case, empty
+    if (typeof suffixId === "string") {
+      if (suffixId.trim() === "") return "-";
+    }
+    if (suffixes.length === 0) return "Loading...";
+    const suffix = suffixes.find(
+      (s) => s._id.toString().trim() === suffixId.toString().trim()
+    );
+    return suffix?.value || "-";
+  };
 
   const handleCarbonTypeKeyDown = (
     e: React.KeyboardEvent,
@@ -1691,20 +1697,57 @@ export default function MasterColumn() {
     const desc = column.descriptions[descIndex];
 
     // Remove series finding logic - just set the form
+    // In handleCloseForm
     setForm({
-      columnCode: column.columnCode,
+      columnCode: "",
       descriptions: [
         {
-          ...desc,
-          innerDiameter: desc.innerDiameter.toString(),
-          length: desc.length.toString(),
-          particleSize: desc.particleSize.toString(),
-          linkedCarbonType: carbonTypeMap[desc.carbonType] || "",
-          usePrefix: desc.usePrefix ?? false,
-          useSuffix: desc.useSuffix ?? false,
-          usePrefixForNewCode: desc.usePrefixForNewCode ?? false,
-          useSuffixForNewCode: desc.useSuffixForNewCode ?? false,
-          isObsolete: desc.isObsolete ?? false,
+          prefix: "",
+          carbonType: "",
+          linkedCarbonType: "",
+          innerDiameter: "",
+          length: "",
+          particleSize: "",
+          suffix: "",
+          make: "",
+          columnId: "",
+          installationDate: "",
+          usePrefix: false,
+          useSuffix: false,
+          usePrefixForNewCode: false,
+          useSuffixForNewCode: false,
+          isObsolete: false,
+          // ADD THESE NEW FIELDS
+          description: "",
+          phValue: undefined,
+        },
+      ],
+    });
+
+    // In onAddNew callback (around line 650)
+    setForm({
+      columnCode:
+        columns.length === 0 && obsoleteColumns.length === 0 ? "CL01" : "",
+      descriptions: [
+        {
+          prefix: "",
+          carbonType: "",
+          linkedCarbonType: "",
+          innerDiameter: "",
+          length: "",
+          particleSize: "",
+          suffix: "",
+          make: "",
+          columnId: "",
+          installationDate: "",
+          usePrefix: false,
+          useSuffix: false,
+          usePrefixForNewCode: false,
+          useSuffixForNewCode: false,
+          isObsolete: false,
+          // ADD THESE NEW FIELDS
+          description: "",
+          phValue: undefined,
         },
       ],
     });
@@ -1740,6 +1783,8 @@ export default function MasterColumn() {
           usePrefixForNewCode: false,
           useSuffixForNewCode: false,
           isObsolete: false,
+          description: "",
+          phValue: undefined,
         },
       ],
     });
@@ -1814,9 +1859,10 @@ export default function MasterColumn() {
       }
 
       // Format description for backend (use finalColumnId)
+      // Format description for backend
       const formattedDesc = {
         ...desc,
-        columnId: desc.columnId, // Use manual entry directly
+        columnId: desc.columnId,
         innerDiameter: Number(desc.innerDiameter),
         length: Number(desc.length),
         particleSize: Number(desc.particleSize),
@@ -1829,6 +1875,12 @@ export default function MasterColumn() {
         makeId: desc.make,
         prefixId: desc.prefix || undefined,
         suffixId: desc.suffix || undefined,
+        // ADD THESE NEW FIELDS
+        description: desc.description?.trim() || undefined,
+        phValue:
+          desc.phValue !== undefined && desc.phValue !== null
+            ? Number(desc.phValue)
+            : undefined,
       };
 
       console.log(
@@ -2350,6 +2402,8 @@ export default function MasterColumn() {
               usePrefixForNewCode: desc.usePrefixForNewCode ?? false,
               useSuffixForNewCode: desc.useSuffixForNewCode ?? false,
               isObsolete: desc.isObsolete ?? false,
+              description: desc.description || "",
+              phValue: desc.phValue !== undefined ? desc.phValue : undefined,
             },
           ],
         });
@@ -2510,6 +2564,16 @@ export default function MasterColumn() {
           length: selectedDesc.length.toString(),
           particleSize: selectedDesc.particleSize.toString(),
           linkedCarbonType: carbonTypeMap[selectedDesc.carbonType] || "",
+          usePrefix: selectedDesc.usePrefix ?? false,
+          useSuffix: selectedDesc.useSuffix ?? false,
+          usePrefixForNewCode: selectedDesc.usePrefixForNewCode ?? false,
+          useSuffixForNewCode: selectedDesc.useSuffixForNewCode ?? false,
+          isObsolete: selectedDesc.isObsolete ?? false,
+          description: selectedDesc.description || "",
+          phValue:
+            selectedDesc.phValue !== undefined
+              ? selectedDesc.phValue
+              : undefined,
         },
       ],
     });
@@ -2535,11 +2599,13 @@ export default function MasterColumn() {
           !searchFilters.make ||
           desc.make.toLowerCase().includes(searchFilters.make.toLowerCase());
 
-        const descString =
-          `${desc.prefix} ${desc.carbonType} ${desc.innerDiameter} x ${desc.length} ${desc.particleSize}µm ${desc.suffix}`.toLowerCase();
+        // ADD DESCRIPTION TEXT SEARCH
         const matchesDescText =
           !searchFilters.description ||
-          descString.includes(searchFilters.description.toLowerCase());
+          (desc.description &&
+            desc.description
+              .toLowerCase()
+              .includes(searchFilters.description.toLowerCase()));
 
         return matchesCarbonType && matchesMake && matchesDescText;
       });
@@ -2612,6 +2678,8 @@ export default function MasterColumn() {
                   usePrefixForNewCode: false,
                   useSuffixForNewCode: false,
                   isObsolete: false,
+                  description: "",
+                  phValue: undefined,
                 },
               ],
             });
@@ -2638,26 +2706,59 @@ export default function MasterColumn() {
             }
           }}
           onPrint={() => {
-            const printContent = `<h1>${
-              showObsoleteTable ? "Obsolete" : "Active"
-            } Column Master</h1>
-    <table border="1"><thead><tr><th>Serial No</th><th>Column Code</th><th>Description</th><th>Make</th><th>Column ID</th><th>Installation Date</th><th>Status</th></tr></thead>
-    <tbody>${currentColumns
-      .flatMap((column, index) =>
-        column.descriptions.map(
-          (desc) =>
-            `<tr><td>${index + 1}</td><td>${column.columnCode}</td><td>${
-              desc.prefix
-            } ${desc.carbonType} ${desc.innerDiameter} x ${desc.length} ${
-              desc.particleSize
-            }µm ${desc.suffix}</td><td>${desc.make}</td><td>${
-              desc.columnId
-            }</td><td>${desc.installationDate}</td><td>${
-              desc.isObsolete ? "Obsolete" : "Active"
-            }</td></tr>`
+            const printContent = `
+  <h1>${showObsoleteTable ? "Obsolete" : "Active"} Column Master</h1>
+  <table border="1">
+    <thead>
+      <tr>
+        <th>Serial No</th>
+        <th>Column Code</th>
+        <th>Description</th>
+        <th>Make</th>
+        <th>Column ID</th>
+        <th>Installation Date</th>
+        <th>Status</th>
+        <!-- ADD THESE NEW PRINT HEADERS -->
+        <th>Description Text</th>
+        <th>pH Value</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${currentColumns
+        .flatMap((column, index) =>
+          column.descriptions.map(
+            (desc, descIndex) =>
+              `<tr>
+                ${
+                  descIndex === 0
+                    ? `<td rowspan="${column.descriptions.length}">${
+                        index + 1
+                      }</td>`
+                    : ""
+                }
+                ${
+                  descIndex === 0
+                    ? `<td rowspan="${column.descriptions.length}">${column.columnCode}</td>`
+                    : ""
+                }
+                <td>${desc.prefix}-${desc.carbonType}-${desc.innerDiameter}x${
+                desc.length
+              }-${desc.particleSize}µm-${desc.suffix}</td>
+                <td>${desc.make}</td>
+                <td>${desc.columnId}</td>
+                <td>${desc.installationDate}</td>
+                <td>${desc.isObsolete ? "Obsolete" : "Active"}</td>
+                <!-- ADD THESE NEW PRINT CELLS -->
+                <td>${desc.description || "-"}</td>
+                <td>${desc.phValue !== undefined ? desc.phValue : "-"}</td>
+              </tr>`
+          )
         )
-      )
-      .join("")}</tbody></table>`;
+        .join("")}
+    </tbody>
+  </table>
+`;
+
             const printWindow = window.open("", "_blank");
             printWindow?.document.write(
               `<html><head><title>Print Column Master</title></head><body>${printContent}</body></html>`
@@ -2735,6 +2836,9 @@ export default function MasterColumn() {
                     "Installation Date",
                     "Make Specific",
                     "Status",
+                    // ADD THESE NEW HEADERS
+                    "Description Text",
+                    "pH Value",
                   ].map((header) => (
                     <th
                       key={header}
@@ -2810,6 +2914,19 @@ export default function MasterColumn() {
                       </td>
                       <td className="border border-gray-300 p-1 text-center">
                         {desc.isObsolete ? "Obsolete" : "Active"}
+                      </td>
+                      <td
+                        className="border border-gray-300 p-1 text-left text-xs max-w-[150px] truncate"
+                        title={desc.description || "-"}
+                      >
+                        {desc.description || "-"}
+                      </td>
+
+                      {/* pH Value Column */}
+                      <td className="border border-gray-300 p-1 text-center text-xs">
+                        {desc.phValue !== undefined && desc.phValue !== null
+                          ? desc.phValue.toFixed(1)
+                          : "-"}
                       </td>
                     </tr>
                   ))
@@ -3003,7 +3120,7 @@ export default function MasterColumn() {
                   form.descriptions[0]?.suffix) && (
                   <div className="mb-3">
                     <label className="block text-xs font-medium text-[#003087]">
-                      Full Description:
+                      Description:
                     </label>
                     <p className="text-xs">
                       {form.descriptions[0]?.prefix}{" "}
@@ -3505,6 +3622,7 @@ export default function MasterColumn() {
 
                     {/* Installation Date and Column Code */}
                     <div className="grid grid-cols-2 gap-2">
+                      {/* Installation Date field (existing) */}
                       <div>
                         <label className="block text-[10px] font-medium text-[#003087] mb-1">
                           Installation Date
@@ -3522,12 +3640,55 @@ export default function MasterColumn() {
                           className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
                           required
                         />
-                        {formErrors[`installationDate_${index}`] && (
-                          <p className="text-red-500 text-[10px] mt-1">
-                            {formErrors[`installationDate_${index}`]}
-                          </p>
-                        )}
                       </div>
+
+                      {/* ADD THESE NEW FIELDS */}
+                      {/* Description Field */}
+                      <div>
+                        <label className="block text-[10px] font-medium text-[#003087] mb-1">
+                          Description (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={desc.description || ""}
+                          onChange={(e) =>
+                            handleDescriptionChange(
+                              index,
+                              "description",
+                              e.target.value
+                            )
+                          }
+                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
+                          placeholder="Enter description"
+                        />
+                      </div>
+
+                      {/* pH Value Field */}
+                      <div>
+                        <label className="block text-[10px] font-medium text-[#003087] mb-1">
+                          pH Value (Optional)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="14"
+                          step="0.1"
+                          value={desc.phValue || ""}
+                          onChange={(e) =>
+                            handleDescriptionChange(
+                              index,
+                              "phValue",
+                              e.target.value ? parseFloat(e.target.value) : ""
+                            )
+                          }
+                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
+                          placeholder="0.0 - 14.0"
+                        />
+                        <p className="text-[10px] text-gray-600 mt-1">
+                          pH scale from 0 (acidic) to 14 (basic)
+                        </p>
+                      </div>
+
                       <div>
                         <label className="block text-[10px] font-medium text-[#003087] mb-1">
                           Column Code
