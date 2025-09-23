@@ -345,6 +345,81 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function DELETE(req: NextRequest) {
+  console.log("=== DELETE /api/admin/obsolete-column START ===");
+
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user) {
+      console.log("Authentication failed - no session");
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const companyId = req.nextUrl.searchParams.get("companyId");
+    const locationId = req.nextUrl.searchParams.get("locationId");
+    const id = req.nextUrl.searchParams.get("id");
+
+    console.log("DELETE Request params - companyId:", companyId, "locationId:", locationId, "id:", id);
+
+    if (!companyId || !locationId || !id) {
+      console.log("Missing required parameters");
+      return NextResponse.json(
+        { success: false, error: "Company ID, Location ID, and ID are required" },
+        { status: 400 }
+      );
+    }
+
+    await mongoose.connect(process.env.MONGODB_URI!);
+    console.log("Database connected successfully");
+
+    // Find the obsolete column to get details for audit
+    const obsoleteColumn = await ObsoleteColumn.findById(id);
+    if (!obsoleteColumn) {
+      console.log("Obsolete column not found");
+      return NextResponse.json(
+        { success: false, error: "Obsolete column not found" },
+        { status: 404 }
+      );
+    }
+
+    // Delete the obsolete column
+    await ObsoleteColumn.findByIdAndDelete(id);
+    console.log("Obsolete column deleted successfully with ID:", id);
+
+    // Create audit log
+    const audit = new Audit({
+      action: "delete",
+      userId: session.user.userId,
+      module: "obsolete_column",
+      companyId,
+      locationId,
+      columnCode: obsoleteColumn.columnCode,
+      changes: [{
+        field: "column",
+        from: obsoleteColumn.columnCode,
+        to: null
+      }]
+    });
+    await audit.save();
+    console.log("Audit log created");
+
+    console.log("=== DELETE /api/admin/obsolete-column SUCCESS ===");
+    return NextResponse.json({ success: true }, { status: 200 });
+
+  } catch (error: any) {
+    console.error("=== DELETE /api/admin/obsolete-column ERROR ===");
+    console.error("Error details:", error);
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+
 export async function PUT(req: NextRequest) {
   console.log("=== PUT /api/admin/obsolete-column START ===");
 

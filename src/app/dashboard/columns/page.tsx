@@ -393,11 +393,7 @@ export default function MasterColumn() {
             "Inner Diameter (mm)": desc.innerDiameter,
             "Length (mm)": desc.length,
             "Particle Size (µm)": desc.particleSize,
-            Description: `${resolvePrefixName(desc.prefix)} ${
-              desc.carbonType
-            } ${desc.innerDiameter} x ${desc.length} ${
-              desc.particleSize
-            }µm ${resolveSuffixName(desc.suffix)}`.trim(),
+            Description: formatAlignedDescription(desc),
             Make: resolveMakeName(desc.make),
             "Column ID": desc.columnId,
             "Installation Date": desc.installationDate,
@@ -505,6 +501,24 @@ export default function MasterColumn() {
       console.error("Error exporting to Excel:", error);
       setError("Failed to export to Excel. Please try again.");
     }
+  };
+  const truncate = (str: string, max: number) =>
+    str.length > max ? str.slice(0, max - 1) + "…" : str;
+
+  const formatAlignedDescription = (desc: ColumnDescription) => {
+    const linkedCarbon =
+      desc.linkedCarbonType || carbonTypeMap[desc.carbonType] || "-";
+    const carbonType = desc.carbonType || "-";
+
+    const parts = [
+      truncate(linkedCarbon, 8).padEnd(8), // Linked Carbon
+      truncate(carbonType, 12).padEnd(12), // Carbon Type
+      `${desc.innerDiameter}mm`.padEnd(5), // Inner Diameter
+      `${desc.length}mm`.padEnd(5),
+      `${desc.particleSize}µm`.padEnd(0),
+    ].filter((part) => part.trim() !== "");
+
+    return parts.join("  ");
   };
 
   // Load auth data from localStorage
@@ -805,27 +819,6 @@ export default function MasterColumn() {
         suffixRes.json(),
       ]);
 
-      console.log("=== RAW API RESPONSES ===");
-      console.log(
-        "Raw columns response:",
-        JSON.stringify(columnsData, null, 2)
-      );
-      console.log(
-        "Raw obsolete columns response:",
-        JSON.stringify(obsoleteColumnsData, null, 2)
-      );
-      console.log("Raw makes response:", JSON.stringify(makesData, null, 2));
-      console.log(
-        "Raw prefixes response:",
-        JSON.stringify(prefixData, null, 2)
-      );
-      console.log(
-        "Raw suffixes response:",
-        JSON.stringify(suffixData, null, 2)
-      );
-
-      // Process MAKES first (highest priority for debugging)
-      console.log("=== PROCESSING MAKES ===");
       if (makesData.success) {
         console.log("Makes data structure:", {
           isArray: Array.isArray(makesData.data),
@@ -846,14 +839,6 @@ export default function MasterColumn() {
           return isValid;
         });
 
-        console.log(
-          "Processed makes:",
-          JSON.stringify(processedMakes, null, 2)
-        );
-        console.log("Makes count:", {
-          original: makesData.data?.length,
-          processed: processedMakes.length,
-        });
         setMakes(processedMakes);
       } else {
         console.error("Makes API failed:", makesData.error);
@@ -861,15 +846,7 @@ export default function MasterColumn() {
       }
 
       // Process PREFIXES
-      console.log("=== PROCESSING PREFIXES ===");
       if (prefixData.success && Array.isArray(prefixData.data)) {
-        console.log("Prefixes data structure:", {
-          isArray: Array.isArray(prefixData.data),
-          length: prefixData.data.length,
-          firstItem: prefixData.data[0],
-          sampleItems: prefixData.data.slice(0, 3),
-        });
-
         const processedPrefixes = prefixData.data
           .filter((item: any) => {
             const isValid = item && item.name?.trim() && item._id;
@@ -887,14 +864,6 @@ export default function MasterColumn() {
             value: item.name,
           }));
 
-        console.log(
-          "Processed prefixes:",
-          JSON.stringify(processedPrefixes, null, 2)
-        );
-        console.log("Prefixes count:", {
-          original: prefixData.data.length,
-          processed: processedPrefixes.length,
-        });
         setPrefixes(processedPrefixes);
       } else {
         console.error("Prefixes API failed or invalid data:", {
@@ -907,7 +876,6 @@ export default function MasterColumn() {
       }
 
       // Process SUFFIXES
-      console.log("=== PROCESSING SUFFIXES ===");
       if (suffixData.success && Array.isArray(suffixData.data)) {
         console.log("Suffixes data structure:", {
           isArray: Array.isArray(suffixData.data),
@@ -933,14 +901,6 @@ export default function MasterColumn() {
             value: item.name,
           }));
 
-        console.log(
-          "Processed suffixes:",
-          JSON.stringify(processedSuffixes, null, 2)
-        );
-        console.log("Suffixes count:", {
-          original: suffixData.data.length,
-          processed: processedSuffixes.length,
-        });
         setSuffixes(processedSuffixes);
       } else {
         console.error("Suffixes API failed or invalid data:", {
@@ -952,15 +912,7 @@ export default function MasterColumn() {
         setSuffixes([]);
       }
 
-      console.log("=== PROCESSING COLUMNS ===");
       if (columnsData.success) {
-        console.log("Columns data structure:", {
-          isArray: Array.isArray(columnsData.data),
-          length: columnsData.data?.length,
-          firstColumn: columnsData.data?.[0],
-          firstColumnDescriptions: columnsData.data?.[0]?.descriptions,
-        });
-
         const processedColumns = columnsData.data.map((col: Column) => {
           const processedCol = {
             ...col,
@@ -1214,6 +1166,7 @@ export default function MasterColumn() {
             }
           })
         );
+
         if (newCoreMatch) {
           console.log(
             "Found existing column with new core spec:",
@@ -1221,7 +1174,22 @@ export default function MasterColumn() {
           );
           return newCoreMatch.columnCode;
         }
-        // No existing column found with new core spec, generate new code
+
+        // NEW LOGIC: If no existing match found AND this is the only description in current column,
+        // keep the same column code instead of generating a new one
+        const currentColumn = [...columns, ...obsoleteColumns].find(
+          (col) => col._id === selectedColumnId
+        );
+
+        if (currentColumn && currentColumn.descriptions.length === 1) {
+          console.log(
+            "Core changed but only description in column, keeping same code:",
+            currentColumn.columnCode
+          );
+          return currentColumn.columnCode;
+        }
+
+        // Only generate new code if there are multiple descriptions or no current column found
         console.log(
           "Core changed, no existing match found, generating new code"
         );
@@ -1419,31 +1387,62 @@ export default function MasterColumn() {
   };
 
   const getMakeName = (makeId: string | undefined) => {
-    if (!makeId) return "-";
+    if (!makeId || makeId.trim() === "") return "-"; // Return dash for empty make
     if (makes.length === 0) return "Loading...";
     const make = makes.find(
       (m) => m._id.toString().trim() === makeId.toString().trim()
     );
-    return make?.make || `Unknown Make (${makeId})`;
+    return make?.make || "Unknown Make (" + makeId + ")";
   };
 
-  const getPrefixName = (prefixId: string | undefined) => {
+  interface PrefixObject {
+    _id?: string;
+    name?: string | null;
+  }
+
+  type PrefixId = string | PrefixObject | undefined | null;
+
+  interface SuffixObject {
+    _id?: string;
+    name?: string | null;
+  }
+
+  type SuffixId = string | SuffixObject | undefined | null;
+
+  const getPrefixName = (prefixId: PrefixId): string => {
     if (!prefixId) return "-";
+    // Handle object with name null (problem case in your DB)
+    if (typeof prefixId === 'object') {
+      if (prefixId.name) return prefixId.name;
+      return "-"; // <--- THIS handles name: null and any object-case
+    }
+    // Handle string empty
+    if (typeof prefixId === 'string') {
+      if (prefixId.trim() === "") return "-";
+    }
     if (prefixes.length === 0) return "Loading...";
     const prefix = prefixes.find(
       (p) => p._id.toString().trim() === prefixId.toString().trim()
     );
-    return prefix?.value || `Unknown Prefix (${prefixId})`;
+    return prefix?.value || "-";
   };
 
-  const getSuffixName = (suffixId: string | undefined) => {
-    if (!suffixId) return "-";
-    if (suffixes.length === 0) return "Loading...";
-    const suffix = suffixes.find(
-      (s) => s._id.toString().trim() === suffixId.toString().trim()
-    );
-    return suffix?.value || `Unknown Suffix (${suffixId})`;
-  };
+
+ const getSuffixName = (suffixId: SuffixId) => {
+  if (!suffixId) return "-";
+  // Handle object with name null (problem case in your DB)
+  if (typeof suffixId === 'object') {
+    if (suffixId.name) return suffixId.name;
+    return "-"; // Handles name: null and any object-case
+  }
+  // Handle string case, empty
+  if (typeof suffixId === 'string') {
+    if (suffixId.trim() === "") return "-";
+  }
+  if (suffixes.length === 0) return "Loading...";
+  const suffix = suffixes.find(s => s._id.toString().trim() === suffixId.toString().trim());
+  return suffix?.value || "-";
+};
 
   const handleCarbonTypeKeyDown = (
     e: React.KeyboardEvent,
@@ -1638,12 +1637,15 @@ export default function MasterColumn() {
       const newDescriptions = [...prev.descriptions];
       newDescriptions[index] = { ...newDescriptions[index], [field]: value };
 
-      // Handle prefix/suffix checkbox clearing logic within the setForm callback
       if (field === "prefix" && !value) {
         newDescriptions[index].usePrefixForNewCode = false;
       }
       if (field === "suffix" && !value) {
         newDescriptions[index].useSuffixForNewCode = false;
+      }
+      if (field === "make" && !value) {
+        // Clear make field when set to empty/none
+        newDescriptions[index].make = "";
       }
 
       return { ...prev, descriptions: newDescriptions };
@@ -1894,10 +1896,17 @@ export default function MasterColumn() {
             });
 
             if (!deleteResponse.ok) {
-              const deleteData = await deleteResponse.json();
-              throw new Error(
-                `Failed to remove old column: ${deleteData.error}`
-              );
+              let errorMessage = `Failed to remove obsolete column (${deleteResponse.status})`;
+              try {
+                const deleteData = await deleteResponse.json();
+                errorMessage = `Failed to remove obsolete column: ${
+                  deleteData.error || deleteResponse.statusText
+                }`;
+              } catch (jsonError) {
+                // Response doesn't contain JSON, use status text
+                errorMessage = `Failed to remove obsolete column: ${deleteResponse.statusText}`;
+              }
+              throw new Error(errorMessage);
             }
           } else {
             // Update current column with remaining descriptions
@@ -2659,7 +2668,7 @@ export default function MasterColumn() {
           onHelp={() => setShowHelpModal(true)}
         />
 
-        <div className="max-w-4xl mx-auto bg-[#f0f0f0] border-2 border-[#3a6ea5] rounded-lg shadow-[0_2px_4px_rgba(0,0,0,0.2)] p-2 backdrop-blur-sm bg-opacity-80">
+        <div className="max-w-7xl mx-auto bg-[#f0f0f0] border-2 border-[#3a6ea5] rounded-lg shadow-[0_2px_4px_rgba(0,0,0,0.2)] p-2 backdrop-blur-sm bg-opacity-80">
           <h1 className="text-xs font-bold mb-3 text-[#003087]">
             Column Master
           </h1>
@@ -2708,7 +2717,7 @@ export default function MasterColumn() {
             </button>
           </div>
 
-          <div className="overflow-x-auto border border-gray-300 max-w-7xl rounded-lg shadow-sm">
+          <div className="overflow-x-auto border border-gray-300 rounded-lg shadow-sm">
             <table
               key={renderKey}
               className="w-full border-collapse border border-gray-300 bg-white text-xs"
@@ -2769,12 +2778,12 @@ export default function MasterColumn() {
                       <td className="border border-gray-300 p-1 text-center">
                         {getPrefixName(desc.prefix) || "-"}
                       </td>
-                      <td className="border border-gray-300 p-1 text-center">
+                      <td className="border border-gray-300 p-1 text-left font-mono text-xs">
                         {getSuffixName(desc.suffix) || "-"}
                       </td>
-                      <td className="border border-gray-300 p-1">
-                        {desc.carbonType} {desc.innerDiameter} x {desc.length}{" "}
-                        {desc.particleSize}µm
+
+                      <td className="border border-gray-300 p-1 font-mono text-xs whitespace-pre">
+                        {formatAlignedDescription(desc)}
                       </td>
                       <td className="border border-gray-300 p-1 text-center">
                         {getMakeName(desc.make)}
@@ -2784,13 +2793,14 @@ export default function MasterColumn() {
                       </td>
                       <td className="border border-gray-300 p-1 text-center">
                         {desc.installationDate
-                          ? new Date(desc.installationDate)
-                              .toLocaleDateString("en-GB", {
+                          ? new Date(desc.installationDate).toLocaleDateString(
+                              "en-GB",
+                              {
                                 day: "2-digit",
                                 month: "2-digit",
                                 year: "2-digit",
-                              })
-                              
+                              }
+                            )
                           : "-"}
                       </td>
                       <td className="border border-gray-300 p-1 text-center">

@@ -12,6 +12,7 @@ import {
 // Helper function to validate Chemical data
 function validateChemicalData(data: any) {
   const errors: string[] = [];
+  
   if (!data.chemicalName) {
     errors.push('Chemical name is required');
   } else if (typeof data.chemicalName !== 'string') {
@@ -21,33 +22,37 @@ function validateChemicalData(data: any) {
   } else if (data.chemicalName.trim().length > 100) {
     errors.push('Chemical name cannot exceed 100 characters');
   }
+  
   if (typeof data.isSolvent !== 'boolean') {
     errors.push('isSolvent must be a boolean');
   }
+  
   if (typeof data.isBuffer !== 'boolean') {
     errors.push('isBuffer must be a boolean');
   }
-  if (data.description && typeof data.description !== 'string') {
-    errors.push('Description must be a string');
-  } else if (data.description && data.description.length > 500) {
-    errors.push('Description cannot exceed 500 characters');
+  
+  // Enhanced desc validation with debugging
+  if (data.desc !== undefined && data.desc !== null) {
+    if (typeof data.desc !== 'string') {
+      errors.push('Description must be a string');
+    } else if (data.desc.length > 500) {
+      errors.push('Description cannot exceed 500 characters');
+    }
   }
+  
   if (!data.companyId) {
     errors.push('Company ID is required');
   } else if (typeof data.companyId !== 'string' || data.companyId.trim().length === 0) {
     errors.push('Company ID must be a non-empty string');
   }
+  
   if (!data.locationId) {
     errors.push('Location ID is required');
   } else if (typeof data.locationId !== 'string' || data.locationId.trim().length === 0) {
     errors.push('Location ID must be a non-empty string');
   }
+  
   return errors;
-}
-
-// Helper function to validate companyId and locationId against session
-function validateCompanyAndLocation(session: any, companyId: string, locationId: string) {
-  return true; // Simplified validation, implement as needed
 }
 
 export async function POST(request: NextRequest) {
@@ -64,11 +69,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    console.log("POST: Received body:", body);
-    const { chemicalName, isSolvent, isBuffer, description, companyId, locationId } = body;
+    console.log("POST: Received body:", JSON.stringify(body, null, 2));
+    
+    const { chemicalName, isSolvent, isBuffer, desc, companyId, locationId } = body;
+    
+    // Enhanced logging for description field
+    console.log("POST: Description field debug:", {
+      desc: desc,
+      descType: typeof desc,
+      descLength: desc ? desc.length : 'null/undefined',
+      descTrimmed: desc ? desc.trim() : 'null/undefined'
+    });
 
     // Validate input data
-    const validationErrors = validateChemicalData({ chemicalName, isSolvent, isBuffer, description, companyId, locationId });
+    const validationErrors = validateChemicalData({ chemicalName, isSolvent, isBuffer, desc, companyId, locationId });
     if (validationErrors.length > 0) {
       console.error("POST: Validation errors:", validationErrors);
       return NextResponse.json(
@@ -78,7 +92,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for existing Chemical
-    const existingChemical = await Chemical.findOne({ chemicalName: chemicalName.trim(), companyId, locationId });
+    const existingChemical = await Chemical.findOne({ 
+      chemicalName: chemicalName.trim(), 
+      companyId, 
+      locationId 
+    });
     if (existingChemical) {
       console.error("POST: Chemical already exists", { chemicalName, companyId, locationId });
       return NextResponse.json(
@@ -87,20 +105,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create new Chemical
-    const newChemical = new Chemical({
+    // Prepare chemical data with explicit desc handling
+    const chemicalData = {
       chemicalName: chemicalName.trim(),
       isSolvent,
       isBuffer,
-      description: description?.trim() || '',
+      desc: desc ? desc.trim() : '', // Ensure desc is always a string
       companyId,
       locationId,
-      createdBy: session.user?.id || "system",
-      updatedBy: session.user?.id || "system",
-    });
+      createdBy: session.user?.id || "system"
+    };
     
-    console.log("POST: Creating Chemical:", newChemical);
+    console.log("POST: Chemical data to be saved:", JSON.stringify(chemicalData, null, 2));
+
+    // Create new Chemical
+    const newChemical = new Chemical(chemicalData);
+    
+    console.log("POST: Chemical object before save:", JSON.stringify(newChemical.toObject(), null, 2));
     const savedChemical = await newChemical.save();
+    console.log("POST: Chemical object after save:", JSON.stringify(savedChemical.toObject(), null, 2));
 
     // Broadcast the create event to SSE clients
     broadcastMasterDataCreate(
@@ -110,7 +133,7 @@ export async function POST(request: NextRequest) {
       locationId
     );
     
-    console.log("POST: Chemical saved successfully:", savedChemical);
+    console.log("POST: Chemical saved successfully with desc:", savedChemical.desc);
     return NextResponse.json({
       success: true,
       data: savedChemical,
@@ -118,46 +141,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("POST: Server error:", error);
-    return NextResponse.json(
-      { success: false, error: error.message || "Internal server error" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function GET(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get("companyId");
-    const locationId = searchParams.get("locationId");
-
-    if (!companyId || !locationId) {
-      return NextResponse.json(
-        { success: false, error: "Company ID and Location ID are required" },
-        { status: 400 }
-      );
-    }
-
-    await connectDB();
-
-    const chemicals = await Chemical.find({ companyId, locationId })
-      .sort({ chemicalName: 1 })
-      .lean();
-
-    return NextResponse.json({
-      success: true,
-      data: chemicals,
-    });
-  } catch (error: any) {
-    console.error("Fetch Chemicals error:", error);
     return NextResponse.json(
       { success: false, error: error.message || "Internal server error" },
       { status: 500 }
@@ -177,8 +160,17 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    console.log("PUT: Received body:", body);
-    const { id, chemicalName, isSolvent, isBuffer, description, companyId, locationId } = body;
+    console.log("PUT: Received body:", JSON.stringify(body, null, 2));
+    
+    const { id, chemicalName, isSolvent, isBuffer, desc, companyId, locationId } = body;
+    
+    // Enhanced logging for description field
+    console.log("PUT: Description field debug:", {
+      desc: desc,
+      descType: typeof desc,
+      descLength: desc ? desc.length : 'null/undefined',
+      descTrimmed: desc ? desc.trim() : 'null/undefined'
+    });
 
     if (!id) {
       return NextResponse.json(
@@ -234,17 +226,22 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Prepare update data with explicit desc handling
+    const updateData = {
+      chemicalName: chemicalName.trim(),
+      isSolvent,
+      isBuffer,
+      desc: desc ? desc.trim() : '', // Ensure desc is always a string
+      updatedBy: session.user?.id || "system",
+      updatedAt: new Date(),
+    };
+    
+    console.log("PUT: Update data:", JSON.stringify(updateData, null, 2));
+
     // Update the Chemical
     const updatedChemical = await Chemical.findByIdAndUpdate(
       id,
-      {
-        chemicalName: chemicalName.trim(),
-        isSolvent,
-        isBuffer,
-        description: description?.trim() || "",
-        updatedBy: session.user?.id || "system",
-        updatedAt: new Date(),
-      },
+      updateData,
       { new: true, runValidators: true }
     );
 
@@ -256,6 +253,8 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    console.log("PUT: Updated chemical with desc:", updatedChemical.desc);
+
     // Broadcast the update event to SSE clients
     broadcastMasterDataUpdate(
       "chemicals",
@@ -264,7 +263,7 @@ export async function PUT(request: NextRequest) {
       locationId
     );
 
-    console.log("PUT: Chemical updated successfully:", updatedChemical);
+    console.log("PUT: Chemical updated successfully:", JSON.stringify(updatedChemical.toObject(), null, 2));
     return NextResponse.json({
       success: true,
       data: updatedChemical,
@@ -272,6 +271,54 @@ export async function PUT(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("PUT: Server error:", error);
+    return NextResponse.json(
+      { success: false, error: error.message || "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+// GET and DELETE methods remain the same...
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const companyId = searchParams.get("companyId");
+    const locationId = searchParams.get("locationId");
+
+    if (!companyId || !locationId) {
+      return NextResponse.json(
+        { success: false, error: "Company ID and Location ID are required" },
+        { status: 400 }
+      );
+    }
+
+    await connectDB();
+
+    const chemicals = await Chemical.find({ companyId, locationId })
+      .sort({ chemicalName: 1 })
+      .lean();
+
+    // Enhanced logging to check desc field in retrieved data
+    console.log("GET: Sample chemical with desc:", chemicals[0] ? {
+      name: chemicals[0].chemicalName,
+      desc: chemicals[0].desc,
+      descType: typeof chemicals[0].desc
+    } : "No chemicals found");
+
+    return NextResponse.json({
+      success: true,
+      data: chemicals,
+    });
+  } catch (error: any) {
+    console.error("Fetch Chemicals error:", error);
     return NextResponse.json(
       { success: false, error: error.message || "Internal server error" },
       { status: 500 }
