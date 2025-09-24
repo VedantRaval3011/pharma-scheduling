@@ -79,13 +79,15 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
     );
   };
 
-  // Sort navigation items with custom priority order
-  const sortNavItems = (navItems: NavItem[]): NavItem[] => {
-    // Define priority order for top-level items
-    const priorityOrder = ['master', 'batch', 'tests', 'analysis'];
+  // Sort navigation items with custom priority order, then alphabetically
+  const sortNavItems = (navItems: NavItem[], isTopLevel: boolean = true): NavItem[] => {
+    // Define priority order for top-level items only
+    const priorityOrder = ['admin', 'master', 'product', 'batch', 'tests', 'analysis'];
     
-    // Helper function to find priority index with flexible matching
+    // Helper function to find priority index with flexible matching (only for top level)
     const getPriorityIndex = (label: string): number => {
+      if (!isTopLevel) return -1; // No priority sorting for nested items
+      
       const lowerLabel = label.toLowerCase();
       
       // First try exact match
@@ -111,12 +113,23 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
     
     return navItems
       .sort((a, b) => {
+        // For nested items, always sort alphabetically
+        if (!isTopLevel) {
+          return a.label.toLowerCase().localeCompare(b.label.toLowerCase());
+        }
+        
+        // For top-level items, use priority + alphabetical sorting
         const aIndex = getPriorityIndex(a.label);
         const bIndex = getPriorityIndex(b.label);
         
-        // If both items are in priority list, sort by their priority index
+        // If both items are in priority list
         if (aIndex !== -1 && bIndex !== -1) {
-          return aIndex - bIndex;
+          // First sort by priority index
+          if (aIndex !== bIndex) {
+            return aIndex - bIndex;
+          }
+          // If same priority, sort alphabetically
+          return a.label.toLowerCase().localeCompare(b.label.toLowerCase());
         }
         
         // If only 'a' is in priority list, it comes first
@@ -134,7 +147,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
       })
       .map(item => ({
         ...item,
-        children: item.children ? sortNavItems(item.children) : undefined
+        children: item.children ? sortNavItems(item.children, false) : undefined
       }));
   };
 
@@ -188,9 +201,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
         baseNavData = [];
     }
 
-    // Filter navigation based on permissions, then sort alphabetically
+    // Filter navigation based on permissions, then sort with priority + alphabetical order
     const filteredNavData = filterNavItems(baseNavData);
-    return sortNavItems(filteredNavData);
+    return sortNavItems(filteredNavData, true);
   };
 
   const handleItemClick = (item: NavItem) => {

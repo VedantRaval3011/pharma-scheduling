@@ -38,6 +38,7 @@ interface Column {
   _id: string;
   columnCode: string;
   descriptions: ColumnDescription[];
+  partNumber: string;
   companyId: string;
   locationId: string;
 }
@@ -318,6 +319,7 @@ export default function MasterColumn() {
 
   const [form, setForm] = useState({
     columnCode: "",
+    partNumber: "",
     descriptions: [
       {
         prefix: "",
@@ -400,6 +402,7 @@ export default function MasterColumn() {
           const row: any = {
             "Serial No": descIndex === 0 ? serialNo : "",
             "Column Code": descIndex === 0 ? column.columnCode : "",
+            "Part Number": descIndex === 0 ? column.partNumber || "" : "",
             Prefix: resolvePrefixName(desc.prefix),
             Suffix: resolveSuffixName(desc.suffix),
             "Carbon Type": desc.carbonType,
@@ -416,7 +419,7 @@ export default function MasterColumn() {
                 ? "Yes"
                 : "No",
             // ADD THESE NEW EXCEL COLUMNS
-            "Remark": desc.description || "",
+            Remark: desc.description || "",
             "pH Min": desc.phMin !== null ? desc.phMin : "",
             "pH Max": desc.phMax !== null ? desc.phMax : "",
             "pH Range":
@@ -438,6 +441,7 @@ export default function MasterColumn() {
       const colWidths = [
         { wch: 10 }, // Serial No
         { wch: 15 }, // Column Code
+        { wch: 15 }, // Part Number
         { wch: 12 }, // Prefix
         { wch: 12 }, // Suffix
         { wch: 15 }, // Carbon Type
@@ -561,6 +565,88 @@ export default function MasterColumn() {
     };
     loadAuthData();
   }, []);
+
+  const resolveAuditValue = (field: string, value: any) => {
+    if (!value || value === null || value === undefined) return "-";
+
+    // Handle different field types
+    switch (field) {
+      case "makeId":
+      case "make":
+        return getMakeName(value);
+
+      case "prefixId":
+      case "prefix":
+        return getPrefixName(value);
+
+      case "suffixId":
+      case "suffix":
+        return getSuffixName(value);
+
+      case "installationDate":
+        if (typeof value === "string" && value.includes("-")) {
+          return new Date(value).toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "2-digit",
+          });
+        }
+        return value;
+
+      case "carbonType":
+      case "linkedCarbonType":
+      case "innerDiameter":
+      case "length":
+      case "particleSize":
+      case "columnId":
+      case "description":
+      case "phMin":
+      case "phMax":
+        return String(value);
+
+      case "usePrefix":
+      case "useSuffix":
+      case "usePrefixForNewCode":
+      case "useSuffixForNewCode":
+      case "isObsolete":
+        return value ? "Yes" : "No";
+
+      default:
+        // For unknown fields, try to resolve as string
+        return typeof value === "object"
+          ? JSON.stringify(value)
+          : String(value);
+    }
+  };
+
+  // Helper function to format field names for display
+  const formatFieldName = (field: string) => {
+    const fieldMap: { [key: string]: string } = {
+      makeId: "Make",
+      make: "Make",
+      prefixId: "Prefix",
+      prefix: "Prefix",
+      suffixId: "Suffix",
+      suffix: "Suffix",
+      carbonType: "Carbon Type",
+      linkedCarbonType: "Linked Carbon Type",
+      innerDiameter: "Inner Diameter",
+      length: "Length",
+      particleSize: "Particle Size",
+      columnId: "Column ID",
+      installationDate: "Installation Date",
+      usePrefix: "Use Prefix",
+      useSuffix: "Use Suffix",
+      usePrefixForNewCode: "Use Prefix for New Code",
+      useSuffixForNewCode: "Use Suffix for New Code",
+      isObsolete: "Is Obsolete",
+      description: "Description",
+      phMin: "pH Min",
+      phMax: "pH Max",
+    };
+
+    return fieldMap[field] || field;
+  };
 
   const scrollToSelectedItem = (
     dropdownRef: HTMLDivElement | null,
@@ -1232,25 +1318,23 @@ export default function MasterColumn() {
     console.log("All existing column codes:", allColumnCodes);
 
     const usedNumbers = allColumnCodes
-  .map(code => {
-    const match = code.match(/^(cl|CL)(\d+)$/i);
-    return match ? parseInt(match[2]) : null;
-  })
-  .filter(num => num !== null)
-  .sort((a, b) => a - b);
+      .map((code) => {
+        const match = code.match(/^(cl|CL)(\d+)$/i);
+        return match ? parseInt(match[2]) : null;
+      })
+      .filter((num) => num !== null)
+      .sort((a, b) => a - b);
 
-let nextNumber = 1;
-for (const num of usedNumbers) {
-  if (num === nextNumber) {
-    nextNumber++;
-  } else if (num > nextNumber) {
-    break; // Found a gap
-  }
-}
+    let nextNumber = 1;
+    for (const num of usedNumbers) {
+      if (num === nextNumber) {
+        nextNumber++;
+      } else if (num > nextNumber) {
+        break; // Found a gap
+      }
+    }
 
-const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
-
-    
+    const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
 
     return newColumnCode;
   };
@@ -1281,8 +1365,8 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
     }
 
     if (desc.phMin !== null && desc.phMax !== null && desc.phMin > desc.phMax) {
-  errors[`phRange${0}`] = 'pH minimum cannot be greater than pH maximum';
-}
+      errors[`phRange${0}`] = "pH minimum cannot be greater than pH maximum";
+    }
 
     if (
       desc.phMax !== null &&
@@ -1731,72 +1815,17 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
     event: React.MouseEvent
   ) => {
     event.preventDefault();
+
+    // Set the selection state first
     setSelectedColumnId(column._id);
     setSelectedDescriptionIndex(descIndex);
-    setSelectedColumnCodeForAudit(column.columnCode); // Add this line
+    setSelectedColumnCodeForAudit(column.columnCode);
 
-    const desc = column.descriptions[descIndex];
-
-    // Remove series finding logic - just set the form
-    // In handleCloseForm
-    setForm({
-      columnCode: "",
-      descriptions: [
-        {
-          prefix: "",
-          carbonType: "",
-          linkedCarbonType: "",
-          innerDiameter: "",
-          length: "",
-          particleSize: "",
-          suffix: "",
-          make: "",
-          columnId: "",
-          installationDate: "",
-          usePrefix: false,
-          useSuffix: false,
-          usePrefixForNewCode: false,
-          useSuffixForNewCode: false,
-          isObsolete: false,
-          // ADD THESE NEW FIELDS
-          description: "",
-          phMin: null,
-          phMax: null,
-        },
-      ],
-    });
-
-    // In onAddNew callback (around line 650)
-    setForm({
-      columnCode:
-        columns.length === 0 && obsoleteColumns.length === 0 ? "CL01" : "",
-      descriptions: [
-        {
-          prefix: "",
-          carbonType: "",
-          linkedCarbonType: "",
-          innerDiameter: "",
-          length: "",
-          particleSize: "",
-          suffix: "",
-          make: "",
-          columnId: "",
-          installationDate: "",
-          usePrefix: false,
-          useSuffix: false,
-          usePrefixForNewCode: false,
-          useSuffixForNewCode: false,
-          isObsolete: false,
-          // ADD THESE NEW FIELDS
-          description: "",
-          phMin: null,
-          phMax: null,
-        },
-      ],
-    });
-
+    // Handle Ctrl+Click for popup - use setTimeout to ensure state is updated first
     if (event.ctrlKey) {
-      setShowDescriptionPopup(true);
+      setTimeout(() => {
+        setShowDescriptionPopup(true);
+      }, 0);
     }
   };
 
@@ -1809,6 +1838,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
     // Reset form to initial state
     setForm({
       columnCode: "",
+      partNumber: "",
       descriptions: [
         {
           prefix: "",
@@ -2042,6 +2072,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
               id: targetColumn._id,
               columnCode: form.columnCode,
               descriptions: [...targetColumn.descriptions, formattedDesc],
+              partNumber: form.partNumber,
               companyId,
               locationId,
             };
@@ -2057,6 +2088,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
               descriptions: [formattedDesc],
               companyId,
               locationId,
+              partNumber: form.partNumber,
             };
           }
         } else if (wasObsolete && !isObsolete) {
@@ -2122,6 +2154,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
               descriptions: [...activeColumn.descriptions, formattedDesc],
               companyId,
               locationId,
+              partNumber: form.partNumber,
             };
           } else {
             url = `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
@@ -2131,6 +2164,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
               descriptions: [formattedDesc],
               companyId,
               locationId,
+              partNumber: form.partNumber,
             };
           }
         } else if (!wasObsolete && isObsolete) {
@@ -2196,6 +2230,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
               descriptions: [...obsoleteColumn.descriptions, formattedDesc],
               companyId,
               locationId,
+              partNumber: form.partNumber,
             };
           } else {
             url = `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`;
@@ -2205,6 +2240,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
               descriptions: [formattedDesc],
               companyId,
               locationId,
+              partNumber: form.partNumber,
             };
           }
         } else {
@@ -2227,6 +2263,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
             descriptions: updatedDescriptions,
             companyId,
             locationId,
+            partNumber: form.partNumber,
           };
         }
       } else {
@@ -2267,6 +2304,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                 descriptions: [...obsoleteColumn.descriptions, formattedDesc],
                 companyId,
                 locationId,
+                partNumber: form.partNumber,
               };
             } else {
               url = `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`;
@@ -2276,6 +2314,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                 descriptions: [formattedDesc],
                 companyId,
                 locationId,
+                partNumber: form.partNumber,
               };
             }
           } else {
@@ -2296,6 +2335,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                 descriptions: [...activeColumn.descriptions, formattedDesc],
                 companyId,
                 locationId,
+                partNumber: form.partNumber,
               };
             } else {
               url = `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
@@ -2305,6 +2345,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                 descriptions: [formattedDesc],
                 companyId,
                 locationId,
+                partNumber: form.partNumber,
               };
             }
           }
@@ -2324,6 +2365,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
             descriptions: [formattedDesc],
             companyId,
             locationId,
+            partNumber: form.partNumber,
           };
         }
       }
@@ -2415,6 +2457,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
       const existingDesc = existingColumn.descriptions[0];
       setForm({
         columnCode: existingColumn.columnCode,
+        partNumber: existingColumn.partNumber || "",
         descriptions: [
           {
             ...existingDesc,
@@ -2484,6 +2527,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
         const desc = column.descriptions[selectedDescriptionIndex];
         setForm({
           columnCode: column.columnCode,
+          partNumber: column.partNumber || "",
           descriptions: [
             {
               ...desc,
@@ -2652,6 +2696,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
     setSelectedDescriptionIndex(newDescIndex);
     setForm({
       columnCode: selectedColumn.columnCode,
+      partNumber: selectedColumn.partNumber || "",
       descriptions: [
         {
           ...selectedDesc,
@@ -2748,8 +2793,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
     <ProtectedRoute allowedRoles={["admin", "employee"]}>
       <div
         className="min-h-screen bg-gradient-to-b from-[#d7e6f5] to-[#a0b7d0] pt-4 p-3"
-        style={{ fontFamily: "Verdana, Arial, sans-serif" }}
-      >
+        style={{ fontFamily: "Verdana, Arial, sans-serif" }}>
         <WindowsToolbar
           modulePath="/dashboard/columns"
           onAddNew={() => {
@@ -2758,6 +2802,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                 columns.length === 0 && obsoleteColumns.length === 0
                   ? "CL01"
                   : "",
+              partNumber: "",
               descriptions: [
                 {
                   prefix: "",
@@ -2893,8 +2938,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                 showObsoleteTable
                   ? "bg-red-600 hover:bg-red-800"
                   : "bg-[#0052cc] hover:bg-[#003087]"
-              }`}
-            >
+              }`}>
               {showObsoleteTable
                 ? "Show Active Columns"
                 : "Show Obsolete Columns"}
@@ -2908,8 +2952,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                   ? obsoleteColumns.length === 0
                   : columns.length === 0)
               }
-              className="px-3 py-1 rounded-lg transition-all shadow-sm text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
-            >
+              className="px-3 py-1 rounded-lg transition-all shadow-sm text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs">
               📊 Export to Excel
             </button>
           </div>
@@ -2917,8 +2960,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
           <div className="overflow-x-auto border border-gray-300 rounded-lg shadow-sm">
             <table
               key={renderKey}
-              className="w-full border-collapse border border-gray-300 bg-white text-xs"
-            >
+              className="w-full border-collapse border border-gray-300 bg-white text-xs">
               <thead>
                 <tr className="bg-gray-100">
                   {[
@@ -2938,8 +2980,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                   ].map((header) => (
                     <th
                       key={header}
-                      className="border border-gray-300 p-1 text-gray-700 font-semibold text-[10px]"
-                    >
+                      className="border border-gray-300 p-1 text-gray-700 font-semibold text-[10px]">
                       {header}
                     </th>
                   ))}
@@ -2957,20 +2998,17 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                           : "hover:bg-gray-100"
                       }`}
                       onClick={(e) => handleTableRowClick(column, descIndex, e)}
-                      title="Click to select, Ctrl+Click for popup"
-                    >
+                      title="Click to select, Ctrl+Click for popup">
                       {descIndex === 0 && (
                         <>
                           <td
                             className="border border-gray-300 p-1 text-center"
-                            rowSpan={column.descriptions.length}
-                          >
+                            rowSpan={column.descriptions.length}>
                             {colIndex + 1}
                           </td>
                           <td
                             className="border border-gray-300 p-1 text-center"
-                            rowSpan={column.descriptions.length}
-                          >
+                            rowSpan={column.descriptions.length}>
                             {column.columnCode}
                           </td>
                         </>
@@ -3011,8 +3049,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
 
                       <td
                         className="border border-gray-300 p-1 text-left text-xs max-w-[150px] truncate"
-                        title={desc.description || "-"}
-                      >
+                        title={desc.description || "-"}>
                         {desc.description || "-"}
                       </td>
 
@@ -3056,187 +3093,146 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
         {/* Description Popup Modal */}
         {showDescriptionPopup &&
           selectedColumnId &&
-          selectedDescriptionIndex >= 0 && (
-            <div className="fixed inset-0 backdrop-blur-md bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-[#f0f0f0] border-2 border-[#3a6ea5] rounded-lg p-2 max-w-xl w-full shadow-[0_2px_4px_rgba(0,0,0,0.2)]">
-                <WindowsToolbar
-                  modulePath="/dashboard/columns"
-                  onAddNew={() => {
-                    setIsFormOpen(true);
-                    setSelectedColumnId("");
-                    setSelectedDescriptionIndex(-1);
-                    handleCloseForm();
-                  }}
-                  onSave={handleSave}
-                  onClear={handleCloseForm}
-                  onExit={() => setShowDescriptionPopup(false)}
-                  onUp={() => navigation("up")}
-                  onDown={() => navigation("down")}
-                  onSearch={() => setShowSearchModal(true)}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                  onAudit={() => {
-                    fetchAudits();
-                    setShowAuditModal(true);
-                  }}
-                />
+          selectedDescriptionIndex >= 0 &&
+          (() => {
+            // Get the selected column and description
+            const selectedColumn = [...columns, ...obsoleteColumns].find(
+              (col) => col._id === selectedColumnId
+            );
+            const selectedDescription =
+              selectedColumn?.descriptions[selectedDescriptionIndex];
 
-                {error && (
-                  <div className="fixed inset-0 backdrop-blur-md bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-[#f0f0f0] border-2 border-red-500 rounded-lg p-2 max-w-sm w-full shadow-[0_2px_4px_rgba(0,0,0,0.2)]">
-                      <div className="flex items-center mb-3">
-                        <div className="bg-red-500 text-white rounded-full p-1.5 mr-2">
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.728-.833-2.498 0L4.316 15.5c-.77.833.192 2.5 1.732 2.5z"
-                            />
-                          </svg>
+            if (!selectedColumn || !selectedDescription) return null;
+
+            return (
+              <div className="fixed inset-0 backdrop-blur-md  bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-f0f0f0 border-2 border-3a6ea5 rounded-lg p-4 max-w-xl w-full shadow-lg">
+                  <h2 className="text-lg font-bold mb-4 text-003087">
+                    Column Description Details
+                  </h2>
+
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    {/* Left Column */}
+                    <div>
+                      <div className="mb-2">
+                        <span className="font-medium text-003087">
+                          Column Code:
+                        </span>
+                        <div>{selectedColumn.columnCode}</div>
+                      </div>
+
+                      <div className="mb-2">
+                        <span className="font-medium text-003087">
+                          Carbon Type:
+                        </span>
+                        <div>{selectedDescription.carbonType || "-"}</div>
+                      </div>
+
+                      <div className="mb-2">
+                        <span className="font-medium text-003087">
+                          Inner Diameter:
+                        </span>
+                        <div>
+                          {selectedDescription.innerDiameter
+                            ? `${selectedDescription.innerDiameter} mm`
+                            : "-"}
                         </div>
-                        <h2 className="text-xs font-bold text-red-600">
-                          Error
-                        </h2>
                       </div>
 
-                      <div className="mb-3">
-                        <p className="text-gray-700 whitespace-pre-wrap text-xs">
-                          {error}
-                        </p>
+                      <div className="mb-2">
+                        <span className="font-medium text-003087">
+                          Particle Size:
+                        </span>
+                        <div>
+                          {selectedDescription.particleSize
+                            ? `${selectedDescription.particleSize} μm`
+                            : "-"}
+                        </div>
                       </div>
 
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => setError("")}
-                          className="bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-600 transition-all text-xs"
-                        >
-                          OK
-                        </button>
+                      <div className="mb-2">
+                        <span className="font-medium text-003087">
+                          Installation Date:
+                        </span>
+                        <div>{selectedDescription.installationDate || "-"}</div>
                       </div>
                     </div>
-                  </div>
-                )}
 
-                <h2 className="text-xs font-bold mt-3 mb-3 text-[#003087]">
-                  Column Description Details
-                </h2>
+                    {/* Right Column */}
+                    <div>
+                      <div className="mb-2">
+                        <span className="font-medium text-003087">Make:</span>
+                        <div>
+                          {getMakeName(selectedDescription.make) || "-"}
+                        </div>
+                      </div>
 
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  <div>
-                    <label className="block text-xs font-medium text-[#003087]">
-                      Column Code:
-                    </label>
-                    <p className="text-xs font-semibold">{form.columnCode}</p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[#003087]">
-                      Make:
-                    </label>
-                    <p className="text-xs">
-                      {getMakeName(form.descriptions[0]?.make)}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[#003087]">
-                      Carbon Type:
-                    </label>
-                    <p className="text-xs">
-                      {form.descriptions[0]?.carbonType}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[#003087]">
-                      Linked Carbon Type:
-                    </label>
-                    <p className="text-xs">
-                      {form.descriptions[0]?.linkedCarbonType}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[#003087]">
-                      Inner Diameter:
-                    </label>
-                    <p className="text-xs">
-                      {form.descriptions[0]?.innerDiameter} mm
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[#003087]">
-                      Length:
-                    </label>
-                    <p className="text-xs">{form.descriptions[0]?.length} mm</p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[#003087]">
-                      Particle Size:
-                    </label>
-                    <p className="text-xs">
-                      {form.descriptions[0]?.particleSize} µm
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[#003087]">
-                      Column ID:
-                    </label>
-                    <p className="text-xs">{form.descriptions[0]?.columnId}</p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[#003087]">
-                      Installation Date:
-                    </label>
-                    <p className="text-xs">
-                      {form.descriptions[0]?.installationDate
-                        ? new Date(
-                            form.descriptions[0].installationDate.replace(
-                              /-/g,
-                              "/"
-                            )
-                          )
-                            .toLocaleDateString("en-GB", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "2-digit",
-                            })
-                            .replace(/\//g, " ")
-                        : "-"}
-                    </p>
-                  </div>
-                </div>
+                      <div className="mb-2">
+                        <span className="font-medium text-003087">
+                          Linked Carbon Type:
+                        </span>
+                        <div>{selectedDescription.linkedCarbonType || "-"}</div>
+                      </div>
 
-                {(form.descriptions[0]?.prefix ||
-                  form.descriptions[0]?.suffix) && (
-                  <div className="mb-3">
-                    <label className="block text-xs font-medium text-[#003087]">
-                      Description:
-                    </label>
-                    <p className="text-xs">
-                      {form.descriptions[0]?.prefix}{" "}
-                      {form.descriptions[0]?.carbonType}{" "}
-                      {form.descriptions[0]?.innerDiameter} x{" "}
-                      {form.descriptions[0]?.length}{" "}
-                      {form.descriptions[0]?.particleSize}µm{" "}
-                      {form.descriptions[0]?.suffix}
-                    </p>
-                  </div>
-                )}
+                      <div className="mb-2">
+                        <span className="font-medium text-003087">Length:</span>
+                        <div>
+                          {selectedDescription.length
+                            ? `${selectedDescription.length} mm`
+                            : "-"}
+                        </div>
+                      </div>
 
-                <div className="flex gap-2 mt-4">
-                  <button
-                    onClick={() => setShowDescriptionPopup(false)}
-                    className="bg-gray-500 text-white px-3 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs"
-                  >
-                    Close
-                  </button>
+                      <div className="mb-2">
+                        <span className="font-medium text-003087">
+                          Column ID:
+                        </span>
+                        <div>{selectedDescription.columnId || "-"}</div>
+                      </div>
+
+                      {/* pH Range (if available) */}
+                      {(selectedDescription.phMin !== null ||
+                        selectedDescription.phMax !== null) && (
+                        <div className="mb-2">
+                          <span className="font-medium text-003087">
+                            pH Range:
+                          </span>
+                          <div>
+                            {selectedDescription.phMin !== null &&
+                            selectedDescription.phMax !== null
+                              ? `${selectedDescription.phMin} - ${selectedDescription.phMax}`
+                              : selectedDescription.phMin !== null
+                              ? `Min: ${selectedDescription.phMin}`
+                              : `Max: ${selectedDescription.phMax}`}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Description field if available */}
+                  {selectedDescription.description && (
+                    <div className="mt-4">
+                      <span className="font-medium text-003087">
+                        Description:
+                      </span>
+                      <div className="mt-1 p-2 bg-gray-50 rounded border text-sm">
+                        {selectedDescription.description}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      onClick={() => setShowDescriptionPopup(false)}
+                      className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-all">
+                      Close
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
         {/* Add/Edit Form Modal */}
         {isFormOpen && (
@@ -3254,8 +3250,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                         <svg
                           className="w-4 h-4 mr-2"
                           fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
+                          viewBox="0 0 20 20">
                           <path
                             fillRule="evenodd"
                             d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
@@ -3295,8 +3290,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                             );
                           }}
                           className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
-                          required
-                        >
+                          required>
                           <option value="">Select Make</option>
                           {makes.map((make) => (
                             <option key={make._id} value={make._id}>
@@ -3323,8 +3317,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                               e.target.value
                             )
                           }
-                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
-                        >
+                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs">
                           <option value="">Select Prefix</option>
                           {prefixes.map((prefix) => (
                             <option key={prefix._id} value={prefix._id}>
@@ -3389,8 +3382,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                             ref={(el) => {
                               carbonTypeDropdownRefs.current[index] = el;
                             }}
-                            className="absolute z-10 w-full bg-[#f8f8f8] border-2 border-[#3a6ea5] rounded-lg mt-1 shadow-lg max-h-28 overflow-y-auto"
-                          >
+                            className="absolute z-10 w-full bg-[#f8f8f8] border-2 border-[#3a6ea5] rounded-lg mt-1 shadow-lg max-h-28 overflow-y-auto">
                             {carbonTypeOptions
                               .filter((option) =>
                                 option
@@ -3428,8 +3420,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                                         carbonType: optIndex,
                                       },
                                     }))
-                                  }
-                                >
+                                  }>
                                   <span>{option}</span>
                                   <span
                                     className={`text-[10px] ${
@@ -3438,8 +3429,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                                         ?.carbonType || 0)
                                         ? "text-gray-200"
                                         : "text-gray-500"
-                                    }`}
-                                  >
+                                    }`}>
                                     → {carbonTypeMap[option] || "N/A"}
                                   </span>
                                 </div>
@@ -3511,8 +3501,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                             ref={(el) => {
                               linkedCarbonTypeDropdownRefs.current[index] = el;
                             }}
-                            className="absolute z-10 w-full bg-[#f8f8f8] border-2 border-[#3a6ea5] rounded-lg mt-1 shadow-lg max-h-28 overflow-y-auto"
-                          >
+                            className="absolute z-10 w-full bg-[#f8f8f8] border-2 border-[#3a6ea5] rounded-lg mt-1 shadow-lg max-h-28 overflow-y-auto">
                             {linkedCarbonTypeOptions
                               .filter((option) =>
                                 option
@@ -3550,8 +3539,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                                         linkedCarbonType: optIndex,
                                       },
                                     }))
-                                  }
-                                >
+                                  }>
                                   <span>{option}</span>
                                   <span
                                     className={`text-[10px] ${
@@ -3560,8 +3548,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                                         ?.linkedCarbonType || 0)
                                         ? "text-gray-200"
                                         : "text-gray-500"
-                                    }`}
-                                  >
+                                    }`}>
                                     → {carbonTypeMap[option] || "N/A"}
                                   </span>
                                 </div>
@@ -3665,8 +3652,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                               e.target.value
                             )
                           }
-                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
-                        >
+                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs">
                           <option value="">Select Suffix</option>
                           {suffixes.map((suffix) => (
                             <option key={suffix._id} value={suffix._id}>
@@ -3815,6 +3801,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                         </p>
                       </div>
 
+                      {/* Column Code */}
                       <div>
                         <label className="block text-[10px] font-medium text-[#003087] mb-1">
                           Column Code
@@ -3828,6 +3815,30 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                         {formErrors.columnCode && (
                           <p className="text-red-500 text-[10px] mt-1">
                             {formErrors.columnCode}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* ✅ ADD THIS PART NUMBER FIELD */}
+                      <div>
+                        <label className="block text-[10px] font-medium text-[#003087] mb-1">
+                          Part Number
+                        </label>
+                        <input
+                          type="text"
+                          value={form.partNumber}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              partNumber: e.target.value,
+                            }))
+                          }
+                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
+                          placeholder="Enter part number"
+                        />
+                        {formErrors.partNumber && (
+                          <p className="text-red-500 text-[10px] mt-1">
+                            {formErrors.partNumber}
                           </p>
                         )}
                       </div>
@@ -3858,8 +3869,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                             <span
                               className={`text-[10px] font-medium ${
                                 desc.prefix ? "text-[#003087]" : "text-gray-400"
-                              }`}
-                            >
+                              }`}>
                               Use prefix to generate a new column code
                               {!desc.prefix && " (Select a prefix first)"}
                             </span>
@@ -3894,8 +3904,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                             <span
                               className={`text-[10px] font-medium ${
                                 desc.suffix ? "text-[#003087]" : "text-gray-400"
-                              }`}
-                            >
+                              }`}>
                               Use suffix to generate a new column code
                               {!desc.suffix && " (Select a suffix first)"}
                             </span>
@@ -3939,15 +3948,13 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                   type="button"
                   onClick={handleSave}
                   disabled={loading}
-                  className="bg-[#0052cc] text-white px-3 py-1 rounded-lg hover:bg-[#003087] transition-all disabled:opacity-50 text-xs"
-                >
+                  className="bg-[#0052cc] text-white px-3 py-1 rounded-lg hover:bg-[#003087] transition-all disabled:opacity-50 text-xs">
                   {loading ? "Saving..." : "Save"}
                 </button>
                 <button
                   type="button"
                   onClick={handleCloseForm}
-                  className="bg-gray-500 text-white px-3 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs"
-                >
+                  className="bg-gray-500 text-white px-3 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs">
                   Cancel
                 </button>
               </div>
@@ -3978,8 +3985,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                     }));
                     setShowSearchModal(false);
                   }}
-                  className="bg-[#0052cc] text-white px-3 py-1 rounded-lg hover:bg-[#003087] transition-all text-xs"
-                >
+                  className="bg-[#0052cc] text-white px-3 py-1 rounded-lg hover:bg-[#003087] transition-all text-xs">
                   Apply
                 </button>
                 <button
@@ -3991,14 +3997,12 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                     }));
                     setShowSearchModal(false);
                   }}
-                  className="bg-gray-500 text-white px-3 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs"
-                >
+                  className="bg-gray-500 text-white px-3 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs">
                   Clear
                 </button>
                 <button
                   onClick={() => setShowSearchModal(false)}
-                  className="bg-gray-500 text-white px-3 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs"
-                >
+                  className="bg-gray-500 text-white px-3 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs">
                   Cancel
                 </button>
               </div>
@@ -4047,8 +4051,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                         action: e.target.value,
                       }))
                     }
-                    className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
-                  >
+                    className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs">
                     <option value="">All Actions</option>
                     <option value="CREATE">CREATE</option>
                     <option value="UPDATE">UPDATE</option>
@@ -4100,8 +4103,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                       setAuditFilters((prev) => ({ ...prev, columnCode: "" }));
                       fetchAudits();
                     }}
-                    className="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600"
-                  >
+                    className="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600">
                     Show All Audits
                   </button>
                   <span className="ml-2 text-xs text-gray-600">
@@ -4163,8 +4165,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                                   : audit.action === "DELETE"
                                   ? "bg-red-100 text-red-800"
                                   : "bg-gray-100 text-gray-800"
-                              }`}
-                            >
+                              }`}>
                               {audit.action}
                             </span>
                           </td>
@@ -4177,16 +4178,19 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                                 New Record
                               </span>
                             ) : audit.changes && audit.changes.length > 0 ? (
-                              <div className="space-y-0.5">
+                              <div className="space-y-0.5 max-w-[200px]">
                                 {audit.changes.map((change, idx) => (
-                                  <div key={idx} className="text-[10px]">
+                                  <div
+                                    key={idx}
+                                    className="text-[10px] break-words">
                                     <span className="font-medium text-gray-700">
-                                      {change.field}:
+                                      {formatFieldName(change.field)}:
                                     </span>{" "}
                                     <span className="text-red-600">
-                                      {typeof change.from === "object"
-                                        ? JSON.stringify(change.from)
-                                        : String(change.from || "null")}
+                                      {resolveAuditValue(
+                                        change.field,
+                                        change.from
+                                      )}
                                     </span>
                                   </div>
                                 ))}
@@ -4205,16 +4209,19 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                                 Column Created
                               </span>
                             ) : audit.changes && audit.changes.length > 0 ? (
-                              <div className="space-y-0.5">
+                              <div className="space-y-0.5 max-w-[200px]">
                                 {audit.changes.map((change, idx) => (
-                                  <div key={idx} className="text-[10px]">
+                                  <div
+                                    key={idx}
+                                    className="text-[10px] break-words">
                                     <span className="font-medium text-gray-700">
-                                      {change.field}:
+                                      {formatFieldName(change.field)}:
                                     </span>{" "}
                                     <span className="text-green-600">
-                                      {typeof change.to === "object"
-                                        ? JSON.stringify(change.to)
-                                        : String(change.to || "null")}
+                                      {resolveAuditValue(
+                                        change.field,
+                                        change.to
+                                      )}
                                     </span>
                                   </div>
                                 ))}
@@ -4229,8 +4236,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
                       <tr>
                         <td
                           colSpan={6}
-                          className="border border-gray-300 p-2 text-center text-gray-500 text-[10px]"
-                        >
+                          className="border border-gray-300 p-2 text-center text-gray-500 text-[10px]">
                           No audit records found
                         </td>
                       </tr>
@@ -4242,8 +4248,7 @@ const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
               <div className="flex justify-end mt-3">
                 <button
                   onClick={() => setShowAuditModal(false)}
-                  className="bg-gray-500 text-white px-4 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs"
-                >
+                  className="bg-gray-500 text-white px-4 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs">
                   Close
                 </button>
               </div>

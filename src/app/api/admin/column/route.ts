@@ -7,13 +7,60 @@ import { authOptions } from "@/lib/auth";
 import Make from "@/models/make";
 import { PrefixSuffix } from "@/models/PrefixSuffix";
 
-const ensureModelsRegistered = () => {
-  // This forces Mongoose to register the models if they haven't been already
-  if (!mongoose.models.Make) {
-    require("@/models/make");
-  }
-  if (!mongoose.models.PrefixSuffix) {
-    require("@/models/PrefixSuffix");
+
+const resolveFieldValue = async (field: string, value: any) => {
+  if (!value || value === null || value === undefined) return null;
+  
+  try {
+    switch (field) {
+      case 'makeId':
+        if (mongoose.Types.ObjectId.isValid(value)) {
+          const make = await Make.findById(value);
+          return make?.make || `Unknown Make (${value})`;
+        }
+        return value;
+        
+      case 'prefixId':
+        if (mongoose.Types.ObjectId.isValid(value)) {
+          const prefix = await PrefixSuffix.findById(value);
+          return prefix?.name || `Unknown Prefix (${value})`;
+        }
+        return value;
+        
+      case 'suffixId':
+        if (mongoose.Types.ObjectId.isValid(value)) {
+          const suffix = await PrefixSuffix.findById(value);
+          return suffix?.name || `Unknown Suffix (${value})`;
+        }
+        return value;
+        
+      case 'installationDate':
+        if (typeof value === 'string' && value.includes('-')) {
+          return new Date(value).toLocaleDateString('en-GB');
+        }
+        return value;
+        
+      case 'usePrefix':
+      case 'useSuffix':
+      case 'usePrefixForNewCode':
+      case 'useSuffixForNewCode':
+      case 'isObsolete':
+        return value ? 'Yes' : 'No';
+        
+      case 'phMin':
+      case 'phMax':
+        return value !== null && value !== undefined ? Number(value).toFixed(1) : null;
+      
+      // ✅ ADD: Handle partNumber field
+      case 'partNumber':
+        return value || 'Not specified';
+        
+      default:
+        return value;
+    }
+  } catch (error) {
+    console.error(`Error resolving field ${field}:`, error);
+    return value;
   }
 };
 
@@ -21,30 +68,6 @@ interface ChangeLog {
   field: string;
   from: any;
   to: any;
-}
-
-// Updated interface with pH range fields
-interface IDescription {
-  descriptionId: mongoose.Types.ObjectId;
-  prefixId?: mongoose.Types.ObjectId | null;
-  carbonType: string;
-  linkedCarbonType: string;
-  innerDiameter: number;
-  length: number;
-  particleSize: number;
-  suffixId?: mongoose.Types.ObjectId | null;
-  makeId: mongoose.Types.ObjectId;
-  columnId: string;
-  installationDate: string;
-  usePrefix: boolean;
-  useSuffix: boolean;
-  usePrefixForNewCode: boolean;
-  useSuffixForNewCode: boolean;
-  isObsolete: boolean;
-  // NEW optional fields - pH range instead of single value
-  description?: string;
-  phMin?: number | null;
-  phMax?: number | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -57,9 +80,11 @@ export async function GET(req: NextRequest) {
       );
     }
 
+
     const companyId = req.nextUrl.searchParams.get("companyId");
     const locationId = req.nextUrl.searchParams.get("locationId");
     const descriptionId = req.nextUrl.searchParams.get("descriptionId");
+
 
     if (!companyId || !locationId) {
       return NextResponse.json(
@@ -68,18 +93,22 @@ export async function GET(req: NextRequest) {
       );
     }
 
+
     await mongoose.connect(process.env.MONGODB_URI!);
+
 
     // If descriptionId is provided, fetch specific description
     if (descriptionId) {
       console.log("Fetching specific description with ID:", descriptionId);
-      
+
+
       // Find the column that contains the description with the given descriptionId
       const column = await Column.findOne({
         companyId,
         locationId,
-        "descriptions.descriptionId": descriptionId
+        "descriptions.descriptionId": descriptionId,
       });
+
 
       if (!column) {
         console.log("Column or description not found");
@@ -89,10 +118,13 @@ export async function GET(req: NextRequest) {
         );
       }
 
+
       // Find the specific description within the column
       const description = column.descriptions.find(
-        (desc: any) => desc.descriptionId && desc.descriptionId.toString() === descriptionId
+        (desc: any) =>
+          desc.descriptionId && desc.descriptionId.toString() === descriptionId
       );
+
 
       if (!description) {
         console.log("Description not found in column");
@@ -102,20 +134,27 @@ export async function GET(req: NextRequest) {
         );
       }
 
+
       // Collect related IDs for batch fetching
       const relatedIds = {
         makeIds: description.makeId ? [description.makeId.toString()] : [],
-        prefixIds: description.prefixId ? [description.prefixId.toString()] : [],
-        suffixIds: description.suffixId ? [description.suffixId.toString()] : []
+        prefixIds: description.prefixId
+          ? [description.prefixId.toString()]
+          : [],
+        suffixIds: description.suffixId
+          ? [description.suffixId.toString()]
+          : [],
       };
+
 
       // Batch fetch all related data
       const [makes, prefixSuffixes] = await Promise.all([
         Make.find({ _id: { $in: relatedIds.makeIds } }).lean(),
         PrefixSuffix.find({
-          _id: { $in: [...relatedIds.prefixIds, ...relatedIds.suffixIds] }
-        }).lean()
+          _id: { $in: [...relatedIds.prefixIds, ...relatedIds.suffixIds] },
+        }).lean(),
       ]);
+
 
       // Create lookup maps for fast access
       const makeMap = new Map();
@@ -123,52 +162,71 @@ export async function GET(req: NextRequest) {
         makeMap.set(String(make._id), make);
       });
 
+
       const prefixSuffixMap = new Map();
       prefixSuffixes.forEach((ps) => {
         prefixSuffixMap.set(String(ps._id), ps);
       });
 
+
       // Manually join related data
-      const make = description.makeId ? makeMap.get(description.makeId.toString()) : null;
-      const prefix = description.prefixId ? prefixSuffixMap.get(description.prefixId.toString()) : null;
-      const suffix = description.suffixId ? prefixSuffixMap.get(description.suffixId.toString()) : null;
+      const make = description.makeId
+        ? makeMap.get(description.makeId.toString())
+        : null;
+      const prefix = description.prefixId
+        ? prefixSuffixMap.get(description.prefixId.toString())
+        : null;
+      const suffix = description.suffixId
+        ? prefixSuffixMap.get(description.suffixId.toString())
+        : null;
+
 
       // Transform the description with joined data
-      const transformedDescription = {
-        descriptionId: description.descriptionId,
-        prefixId: description.prefixId ? {
-          _id: description.prefixId,
-          name: prefix?.name || null,
-        } : null,
-        carbonType: description.carbonType,
-        linkedCarbonType: description.linkedCarbonType,
-        innerDiameter: description.innerDiameter,
-        length: description.length,
-        particleSize: description.particleSize,
-        suffixId: description.suffixId ? {
-          _id: description.suffixId,
-          name: suffix?.name || null,
-        } : null,
-        makeId: description.makeId ? {
-          _id: description.makeId,
-          make: make?.make || null,
-          description: make?.description || null,
-        } : null,
-        columnId: description.columnId,
-        installationDate: description.installationDate,
-        usePrefix: description.usePrefix,
-        useSuffix: description.useSuffix,
-        usePrefixForNewCode: description.usePrefixForNewCode,
-        useSuffixForNewCode: description.useSuffixForNewCode,
-        isObsolete: description.isObsolete,
-        // NEW optional fields - pH range
-        description: description.description || null,
-        phMin: description.phMin || null,
-        phMax: description.phMax || null,
-      };
+     // Transform the description with joined data
+const transformedDescription = {
+  descriptionId: description.descriptionId,
+  partNumber: description.partNumber || null,  // ✅ ADD: Include partNumber
+  prefixId: description.prefixId
+    ? {
+        _id: description.prefixId,
+        name: prefix?.name || null,
+      }
+    : null,
+  carbonType: description.carbonType,
+  linkedCarbonType: description.linkedCarbonType,
+  innerDiameter: description.innerDiameter,
+  length: description.length,
+  particleSize: description.particleSize,
+  suffixId: description.suffixId
+    ? {
+        _id: description.suffixId,
+        name: suffix?.name || null,
+      }
+    : null,
+  makeId: description.makeId
+    ? {
+        _id: description.makeId,
+        make: make?.make || null,
+        description: make?.description || null,
+      }
+    : null,
+  columnId: description.columnId,
+  installationDate: description.installationDate,
+  usePrefix: description.usePrefix,
+  useSuffix: description.useSuffix,
+  usePrefixForNewCode: description.usePrefixForNewCode,
+  useSuffixForNewCode: description.useSuffixForNewCode,
+  isObsolete: description.isObsolete,
+  description: description.description || null,
+  phMin: description.phMin || null,
+  phMax: description.phMax || null,
+};
+
+
 
       return NextResponse.json({ success: true, data: transformedDescription });
     }
+
 
     // Original logic for fetching all columns (when no descriptionId is provided)
     // Fetch columns without population
@@ -176,10 +234,12 @@ export async function GET(req: NextRequest) {
       columnCode: 1,
     });
 
+
     // Collect all unique IDs for batch fetching
     const makeIds = new Set<string>();
     const prefixIds = new Set<string>();
     const suffixIds = new Set<string>();
+
 
     columns.forEach((column) => {
       column.descriptions.forEach((desc: any) => {
@@ -189,6 +249,7 @@ export async function GET(req: NextRequest) {
       });
     });
 
+
     // Batch fetch all related data
     const [makes, prefixSuffixes] = await Promise.all([
       Make.find({ _id: { $in: Array.from(makeIds) } }).lean(),
@@ -197,16 +258,19 @@ export async function GET(req: NextRequest) {
       }).lean(),
     ]);
 
+
     // Create lookup maps for fast access
     const makeMap = new Map();
     makes.forEach((make) => {
       makeMap.set(String(make._id), make);
     });
 
+
     const prefixSuffixMap = new Map();
     prefixSuffixes.forEach((ps) => {
       prefixSuffixMap.set(String(ps._id), ps);
     });
+
 
     // Process columns and manually join data
     const updatedColumns = await Promise.all(
@@ -224,6 +288,7 @@ export async function GET(req: NextRequest) {
           return desc;
         });
 
+
         if (needsUpdate) {
           column.descriptions = updatedDescriptions;
           column.markModified("descriptions");
@@ -233,13 +298,16 @@ export async function GET(req: NextRequest) {
           );
         }
 
+
         return column;
       })
     );
 
+
     // Transform the response with manually joined data
     const transformedColumns = updatedColumns.map((column) => {
       const columnObj = column.toObject();
+
 
       // Transform descriptions with manual data joining
       columnObj.descriptions = columnObj.descriptions.map((desc: any) => {
@@ -249,6 +317,7 @@ export async function GET(req: NextRequest) {
           console.log(`Force generating descriptionId: ${desc.descriptionId}`);
         }
 
+
         // Manually join related data
         const make = desc.makeId ? makeMap.get(desc.makeId.toString()) : null;
         const prefix = desc.prefixId
@@ -257,6 +326,7 @@ export async function GET(req: NextRequest) {
         const suffix = desc.suffixId
           ? prefixSuffixMap.get(desc.suffixId.toString())
           : null;
+
 
         return {
           descriptionId: desc.descriptionId,
@@ -298,8 +368,13 @@ export async function GET(req: NextRequest) {
         };
       });
 
-      return columnObj;
+      // ✅ NEW: Include partNumber in response
+      return {
+        ...columnObj,
+        partNumber: column.partNumber || '', // Include partNumber field
+      };
     });
+
 
     return NextResponse.json({ success: true, data: transformedColumns });
   } catch (error: any) {
@@ -311,8 +386,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
+
 export async function POST(req: NextRequest) {
   console.log("=== POST /api/admin/column START ===");
+
 
   try {
     const session = await getServerSession(authOptions);
@@ -325,6 +402,7 @@ export async function POST(req: NextRequest) {
     }
     console.log("Authentication successful - User:", session.user.userId);
 
+
     const companyId = req.nextUrl.searchParams.get("companyId");
     const locationId = req.nextUrl.searchParams.get("locationId");
     console.log(
@@ -334,6 +412,7 @@ export async function POST(req: NextRequest) {
       locationId
     );
 
+
     if (!companyId || !locationId) {
       console.log("Missing required query params");
       return NextResponse.json(
@@ -342,8 +421,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+
     const body = await req.json();
     console.log("Request body received:", JSON.stringify(body, null, 2));
+
 
     if (
       !body.columnCode ||
@@ -354,17 +435,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "Column code and descriptions are required",
+          error: "Column code and descriptions are required", // ✅ Updated error message
         },
         { status: 400 }
       );
     }
 
+
     await mongoose.connect(process.env.MONGODB_URI!);
     console.log("Database connected successfully");
 
+
     const formattedBody = {
       columnCode: body.columnCode.trim(),
+      partNumber: body.partNumber.trim(), // ✅ NEW: Add partNumber
       descriptions: body.descriptions.map((desc: any, index: number) => {
         console.log(
           `Processing description ${index}:`,
@@ -397,18 +481,24 @@ export async function POST(req: NextRequest) {
           // NEW optional fields - pH range with proper null handling
           description: desc.description?.trim() || null,
           // In your API routes, replace the current pH handling:
-phMin: desc.phMin !== null && desc.phMin !== '' && desc.phMin !== 'null' ? 
-       Number(desc.phMin) : null,
-phMax: desc.phMax !== null && desc.phMax !== '' && desc.phMax !== 'null' ? 
-       Number(desc.phMax) : null,
-
+          phMin:
+            desc.phMin !== null && desc.phMin !== "" && desc.phMin !== "null"
+              ? Number(desc.phMin)
+              : null,
+          phMax:
+            desc.phMax !== null && desc.phMax !== "" && desc.phMax !== "null"
+              ? Number(desc.phMax)
+              : null,
         };
       }),
       companyId,
       locationId,
     };
 
+
     console.log("Formatted body:", JSON.stringify(formattedBody, null, 2));
+
+   
 
     // Validate formatted descriptions with pH range validation
     for (let i = 0; i < formattedBody.descriptions.length; i++) {
@@ -417,6 +507,7 @@ phMax: desc.phMax !== null && desc.phMax !== '' && desc.phMax !== 'null' ?
         `Validating description ${i + 1}:`,
         JSON.stringify(desc, null, 2)
       );
+
 
       if (!desc.carbonType) {
         console.log(
@@ -431,6 +522,7 @@ phMax: desc.phMax !== null && desc.phMax !== '' && desc.phMax !== 'null' ?
         );
       }
 
+
       if (!desc.makeId) {
         console.log(`Validation failed: Make missing for description ${i + 1}`);
         return NextResponse.json(
@@ -441,6 +533,7 @@ phMax: desc.phMax !== null && desc.phMax !== '' && desc.phMax !== 'null' ?
           { status: 400 }
         );
       }
+
 
       if (!desc.columnId) {
         console.log(
@@ -460,6 +553,7 @@ phMax: desc.phMax !== null && desc.phMax !== '' && desc.phMax !== 'null' ?
         );
       }
 
+
       if (!desc.installationDate) {
         console.log(
           `Validation failed: Installation Date missing for description ${
@@ -475,6 +569,7 @@ phMax: desc.phMax !== null && desc.phMax !== '' && desc.phMax !== 'null' ?
         );
       }
 
+
       if (isNaN(desc.innerDiameter) || desc.innerDiameter < 0) {
         console.log(
           `Validation failed: Invalid inner diameter for description ${i + 1}:`,
@@ -488,6 +583,7 @@ phMax: desc.phMax !== null && desc.phMax !== '' && desc.phMax !== 'null' ?
           { status: 400 }
         );
       }
+
 
       if (isNaN(desc.length) || desc.length < 0) {
         console.log(
@@ -503,6 +599,7 @@ phMax: desc.phMax !== null && desc.phMax !== '' && desc.phMax !== 'null' ?
         );
       }
 
+
       if (isNaN(desc.particleSize) || desc.particleSize < 0) {
         console.log(
           `Validation failed: Invalid particle size for description ${i + 1}:`,
@@ -517,8 +614,12 @@ phMax: desc.phMax !== null && desc.phMax !== '' && desc.phMax !== 'null' ?
         );
       }
 
+
       // NEW: pH range validation
-      if (desc.phMin != null && (isNaN(desc.phMin) || desc.phMin < 0 || desc.phMin > 14)) {
+      if (
+        desc.phMin != null &&
+        (isNaN(desc.phMin) || desc.phMin < 0 || desc.phMin > 14)
+      ) {
         console.log(
           `Validation failed: Invalid pH minimum for description ${i + 1}:`,
           desc.phMin
@@ -526,13 +627,19 @@ phMax: desc.phMax !== null && desc.phMax !== '' && desc.phMax !== 'null' ?
         return NextResponse.json(
           {
             success: false,
-            error: `Invalid pH minimum for description ${i + 1}. Must be between 0 and 14.`,
+            error: `Invalid pH minimum for description ${
+              i + 1
+            }. Must be between 0 and 14.`,
           },
           { status: 400 }
         );
       }
 
-      if (desc.phMax != null && (isNaN(desc.phMax) || desc.phMax < 0 || desc.phMax > 14)) {
+
+      if (
+        desc.phMax != null &&
+        (isNaN(desc.phMax) || desc.phMax < 0 || desc.phMax > 14)
+      ) {
         console.log(
           `Validation failed: Invalid pH maximum for description ${i + 1}:`,
           desc.phMax
@@ -540,53 +647,83 @@ phMax: desc.phMax !== null && desc.phMax !== '' && desc.phMax !== 'null' ?
         return NextResponse.json(
           {
             success: false,
-            error: `Invalid pH maximum for description ${i + 1}. Must be between 0 and 14.`,
+            error: `Invalid pH maximum for description ${
+              i + 1
+            }. Must be between 0 and 14.`,
           },
           { status: 400 }
         );
       }
 
+
       if (desc.phMin != null && desc.phMax != null && desc.phMin > desc.phMax) {
         console.log(
-          `Validation failed: Invalid pH range for description ${i + 1}: min=${desc.phMin}, max=${desc.phMax}`
+          `Validation failed: Invalid pH range for description ${i + 1}: min=${
+            desc.phMin
+          }, max=${desc.phMax}`
         );
         return NextResponse.json(
           {
             success: false,
-            error: `Invalid pH range for description ${i + 1}. Minimum (${desc.phMin}) cannot be greater than maximum (${desc.phMax}).`,
+            error: `Invalid pH range for description ${i + 1}. Minimum (${
+              desc.phMin
+            }) cannot be greater than maximum (${desc.phMax}).`,
           },
           { status: 400 }
         );
       }
 
+
       // Optional: Ensure both pH values are provided together
-      if ((desc.phMin != null && desc.phMax == null) || (desc.phMin == null && desc.phMax != null)) {
+      if (
+        (desc.phMin != null && desc.phMax == null) ||
+        (desc.phMin == null && desc.phMax != null)
+      ) {
         console.log(
           `Validation failed: Incomplete pH range for description ${i + 1}`
         );
         return NextResponse.json(
           {
             success: false,
-            error: `Both pH minimum and maximum must be provided for description ${i + 1}, or neither.`,
+            error: `Both pH minimum and maximum must be provided for description ${
+              i + 1
+            }, or neither.`,
           },
           { status: 400 }
         );
       }
 
+
       console.log(`Description ${i + 1} validation passed`);
     }
 
+
     console.log("All validations passed, proceeding to save");
+
 
     const column = new Column(formattedBody);
     console.log("Created model instance");
 
+
     const savedColumn = await column.save();
     console.log("Column saved successfully with ID:", savedColumn._id);
 
-    // Create audit log with pH range fields
-    const changes: ChangeLog[] = formattedBody.descriptions
-      .flatMap((desc: any, index: number) => [
+
+    // Create audit log with pH range fields and partNumber
+    const resolvedChanges: ChangeLog[] = [];
+
+    // ✅ NEW: Add partNumber to audit log
+    resolvedChanges.push({
+      field: "partNumber",
+      from: undefined,
+      to: formattedBody.partNumber,
+    });
+
+    for (let index = 0; index < formattedBody.descriptions.length; index++) {
+      const desc = formattedBody.descriptions[index];
+
+
+      const fieldChanges = [
         {
           field: `descriptions[${index}].descriptionId`,
           from: undefined,
@@ -667,7 +804,6 @@ phMax: desc.phMax !== null && desc.phMax !== '' && desc.phMax !== 'null' ?
           from: undefined,
           to: desc.isObsolete,
         },
-        // NEW pH range fields in audit log
         {
           field: `descriptions[${index}].description`,
           from: undefined,
@@ -683,10 +819,25 @@ phMax: desc.phMax !== null && desc.phMax !== '' && desc.phMax !== 'null' ?
           from: undefined,
           to: desc.phMax,
         },
-      ])
-      .filter(
-        (change: ChangeLog) => change.to !== undefined && change.to !== "" && change.to !== null
-      );
+      ];
+
+
+      // Resolve each field value
+      for (const change of fieldChanges) {
+        if (change.to !== undefined && change.to !== "" && change.to !== null) {
+          const resolvedTo = await resolveFieldValue(
+            change.field.split(".").pop() || "",
+            change.to
+          );
+          resolvedChanges.push({
+            field: change.field,
+            from: change.from,
+            to: resolvedTo,
+          });
+        }
+      }
+    }
+
 
     const audit = new Audit({
       action: "create",
@@ -695,10 +846,11 @@ phMax: desc.phMax !== null && desc.phMax !== '' && desc.phMax !== 'null' ?
       companyId,
       locationId,
       columnCode: formattedBody.columnCode,
-      changes,
+      changes: resolvedChanges,
     });
     await audit.save();
-    console.log("Audit log created");
+    console.log("Audit log created with resolved values");
+
 
     console.log("=== POST /api/admin/column SUCCESS ===");
     return NextResponse.json(
@@ -709,6 +861,7 @@ phMax: desc.phMax !== null && desc.phMax !== '' && desc.phMax !== 'null' ?
     console.error("=== POST /api/admin/column ERROR ===");
     console.error("Error details:", error);
     console.error("Error stack:", error.stack);
+
 
     if (error.name === "ValidationError") {
       console.log("Mongoose validation error:", error.errors);
@@ -724,6 +877,7 @@ phMax: desc.phMax !== null && desc.phMax !== '' && desc.phMax !== 'null' ?
       );
     }
 
+
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
@@ -731,13 +885,19 @@ phMax: desc.phMax !== null && desc.phMax !== '' && desc.phMax !== 'null' ?
   }
 }
 
+
+
+
+// Replace your entire PUT function with this:
 export async function PUT(req: NextRequest) {
   console.log("=== PUT /api/admin/column START ===");
+
 
   let body;
   let formattedDescriptions: any[] = [];
   const companyId = req.nextUrl.searchParams.get("companyId");
   const locationId = req.nextUrl.searchParams.get("locationId");
+
 
   try {
     const session = await getServerSession(authOptions);
@@ -749,7 +909,9 @@ export async function PUT(req: NextRequest) {
       );
     }
 
+
     body = await req.json();
+
 
     console.log(
       "Request params - companyId:",
@@ -758,6 +920,7 @@ export async function PUT(req: NextRequest) {
       locationId
     );
     console.log("Request body:", JSON.stringify(body, null, 2));
+
 
     if (
       !companyId ||
@@ -771,14 +934,36 @@ export async function PUT(req: NextRequest) {
         {
           success: false,
           error:
-            "Company ID, Location ID, column ID, column code, and descriptions are required",
+            "Company ID, Location ID, column ID, column code, and descriptions are required", // ✅ Updated error
         },
         { status: 400 }
       );
     }
 
+
     await mongoose.connect(process.env.MONGODB_URI!);
     console.log("Database connected successfully");
+
+
+    // Get the original column BEFORE making changes for audit comparison
+    const originalColumn = await Column.findOne({
+      _id: body.id,
+      companyId,
+      locationId
+    });
+
+
+    if (!originalColumn) {
+      console.log("Original column not found for update");
+      return NextResponse.json(
+        { success: false, error: "Column not found" },
+        { status: 404 }
+      );
+    }
+
+
+    console.log("Found original column:", originalColumn.columnCode, "with partNumber:", originalColumn.partNumber, "and", originalColumn.descriptions.length, "descriptions");
+
 
     // Format descriptions with pH range fields
     formattedDescriptions = body.descriptions.map(
@@ -813,9 +998,9 @@ export async function PUT(req: NextRequest) {
           isObsolete: !!desc.isObsolete,
           // NEW pH range fields with proper null handling
           description: desc.description?.trim() || null,
-          phMin: desc.phMin != null && desc.phMin !== "" 
+          phMin: desc.phMin != null && desc.phMin !== "" && desc.phMin !== 'null'
             ? Number(desc.phMin) : null,
-          phMax: desc.phMax != null && desc.phMax !== "" 
+          phMax: desc.phMax != null && desc.phMax !== "" && desc.phMax !== 'null'
             ? Number(desc.phMax) : null,
         };
       }
@@ -861,6 +1046,7 @@ export async function PUT(req: NextRequest) {
         );
       }
 
+
       // NEW: pH range validation for PUT
       if (desc.phMin != null && (isNaN(desc.phMin) || desc.phMin < 0 || desc.phMin > 14)) {
         return NextResponse.json(
@@ -872,6 +1058,7 @@ export async function PUT(req: NextRequest) {
         );
       }
 
+
       if (desc.phMax != null && (isNaN(desc.phMax) || desc.phMax < 0 || desc.phMax > 14)) {
         return NextResponse.json(
           {
@@ -882,6 +1069,7 @@ export async function PUT(req: NextRequest) {
         );
       }
 
+
       if (desc.phMin != null && desc.phMax != null && desc.phMin > desc.phMax) {
         return NextResponse.json(
           {
@@ -891,6 +1079,7 @@ export async function PUT(req: NextRequest) {
           { status: 400 }
         );
       }
+
 
       // Optional: Ensure both pH values are provided together
       if ((desc.phMin != null && desc.phMax == null) || (desc.phMin == null && desc.phMax != null)) {
@@ -904,17 +1093,20 @@ export async function PUT(req: NextRequest) {
       }
     }
 
+
     // Find and update the column
     const updatedColumn = await Column.findByIdAndUpdate(
       body.id,
       {
         columnCode: body.columnCode.trim(),
+        partNumber: body.partNumber.trim(), // ✅ NEW: Update partNumber
         descriptions: formattedDescriptions,
         companyId,
         locationId,
       },
       { new: true, runValidators: true }
     );
+
 
     if (!updatedColumn) {
       console.log("Column not found for update");
@@ -924,81 +1116,128 @@ export async function PUT(req: NextRequest) {
       );
     }
 
+
     console.log("Column updated successfully with ID:", updatedColumn._id);
 
-    // Create audit log with pH range fields
-    const changes = formattedDescriptions.flatMap(
-      (desc: any, index: number) => [
-        {
-          field: `descriptions[${index}].descriptionId`,
-          from: undefined, // Could track previous values if needed
-          to: desc.descriptionId,
-        },
-        {
-          field: `descriptions[${index}].carbonType`,
-          from: undefined, // Could track previous values if needed
-          to: desc.carbonType,
-        },
-        {
-          field: `descriptions[${index}].makeId`,
-          from: undefined,
-          to: desc.makeId,
-        },
-        {
-          field: `descriptions[${index}].columnId`,
-          from: undefined,
-          to: desc.columnId,
-        },
-        {
-          field: `descriptions[${index}].installationDate`,
-          from: undefined,
-          to: desc.installationDate,
-        },
-        {
-          field: `descriptions[${index}].isObsolete`,
-          from: undefined,
-          to: desc.isObsolete,
-        },
-        {
-          field: `descriptions[${index}].usePrefixForNewCode`,
-          from: undefined,
-          to: desc.usePrefixForNewCode,
-        },
-        {
-          field: `descriptions[${index}].useSuffixForNewCode`,
-          from: undefined,
-          to: desc.useSuffixForNewCode,
-        },
-        // NEW pH range fields in audit log
-        {
-          field: `descriptions[${index}].description`,
-          from: undefined,
-          to: desc.description,
-        },
-        {
-          field: `descriptions[${index}].phMin`,
-          from: undefined,
-          to: desc.phMin,
-        },
-        {
-          field: `descriptions[${index}].phMax`,
-          from: undefined,
-          to: desc.phMax,
-        },
-      ]
-    );
 
-    const audit = new Audit({
-      action: "update",
-      userId: session.user.userId,
-      module: "column",
-      companyId,
-      locationId,
-      columnCode: body.columnCode,
-      changes,
-    });
-    await audit.save();
-    console.log("Audit log created");
+    // Create audit log with resolved values - Compare old vs new
+    const resolvedChanges: ChangeLog[] = [];
+
+
+    // Track column code change
+    if (originalColumn.columnCode !== body.columnCode.trim()) {
+      resolvedChanges.push({
+        field: "columnCode",
+        from: originalColumn.columnCode,
+        to: body.columnCode.trim()
+      });
+    }
+
+    // ✅ NEW: Track partNumber change
+    if (originalColumn.partNumber !== body.partNumber.trim()) {
+      resolvedChanges.push({
+        field: "partNumber",
+        from: originalColumn.partNumber,
+        to: body.partNumber.trim()
+      });
+    }
+
+    // Compare descriptions
+    const maxDescriptions = Math.max(originalColumn.descriptions.length, formattedDescriptions.length);
+
+
+    for (let index = 0; index < maxDescriptions; index++) {
+      const newDesc = formattedDescriptions[index];
+      const oldDesc = originalColumn.descriptions[index];
+
+
+      if (!oldDesc && newDesc) {
+        // New description added
+        const resolvedMake = await resolveFieldValue('makeId', newDesc.makeId);
+        const resolvedPrefix = await resolveFieldValue('prefixId', newDesc.prefixId);
+        const resolvedSuffix = await resolveFieldValue('suffixId', newDesc.suffixId);
+        
+        resolvedChanges.push({
+          field: `descriptions[${index}]`,
+          from: undefined,
+          to: `Added: ${resolvedPrefix || ''} ${newDesc.carbonType} ${newDesc.innerDiameter}x${newDesc.length} ${newDesc.particleSize}µm ${resolvedSuffix || ''} (${resolvedMake})`
+        });
+        continue;
+      }
+
+
+      if (oldDesc && !newDesc) {
+        // Description removed
+        const resolvedMake = await resolveFieldValue('makeId', oldDesc.makeId);
+        const resolvedPrefix = await resolveFieldValue('prefixId', oldDesc.prefixId);
+        const resolvedSuffix = await resolveFieldValue('suffixId', oldDesc.suffixId);
+        
+        resolvedChanges.push({
+          field: `descriptions[${index}]`,
+          from: `${resolvedPrefix || ''} ${oldDesc.carbonType} ${oldDesc.innerDiameter}x${oldDesc.length} ${oldDesc.particleSize}µm ${resolvedSuffix || ''} (${resolvedMake})`,
+          to: "Removed"
+        });
+        continue;
+      }
+
+
+      if (oldDesc && newDesc) {
+        // Compare each field for changes
+        const fieldsToTrack = [
+          'descriptionId', 'prefixId', 'carbonType', 'linkedCarbonType',
+          'innerDiameter', 'length', 'particleSize', 'suffixId', 'makeId',
+          'columnId', 'installationDate', 'usePrefix', 'useSuffix',
+          'usePrefixForNewCode', 'useSuffixForNewCode', 'isObsolete',
+          'description', 'phMin', 'phMax'
+        ];
+
+
+        for (const fieldName of fieldsToTrack) {
+          const oldValue = oldDesc[fieldName as keyof typeof oldDesc];
+          const newValue = newDesc[fieldName as keyof typeof newDesc];
+
+
+          // Convert to string for comparison to handle type differences
+          const oldStr = oldValue === null || oldValue === undefined ? 'null' : String(oldValue);
+          const newStr = newValue === null || newValue === undefined ? 'null' : String(newValue);
+
+
+          // Only log if there's actually a change
+          if (oldStr !== newStr) {
+            const resolvedOldValue = await resolveFieldValue(fieldName, oldValue);
+            const resolvedNewValue = await resolveFieldValue(fieldName, newValue);
+
+
+            resolvedChanges.push({
+              field: `descriptions[${index}].${fieldName}`,
+              from: resolvedOldValue,
+              to: resolvedNewValue
+            });
+          }
+        }
+      }
+    }
+
+
+    // Only create audit log if there are actual changes
+    if (resolvedChanges.length > 0) {
+      console.log("Creating audit log with", resolvedChanges.length, "changes");
+      
+      const audit = new Audit({
+        action: "update",
+        userId: session.user.userId,
+        module: "column",
+        companyId,
+        locationId,
+        columnCode: body.columnCode.trim(),
+        changes: resolvedChanges,
+      });
+      await audit.save();
+      console.log("Audit log created with resolved values");
+    } else {
+      console.log("No changes detected, skipping audit log creation");
+    }
+
 
     console.log("=== PUT /api/admin/column SUCCESS ===");
     return NextResponse.json(
@@ -1008,12 +1247,31 @@ export async function PUT(req: NextRequest) {
   } catch (error: any) {
     console.error("=== PUT /api/admin/column ERROR ===");
     console.error("Error details:", error);
+    console.error("Error stack:", error.stack);
+
+
+    if (error.name === "ValidationError") {
+      console.log("Mongoose validation error:", error.errors);
+      const validationErrors = Object.values(error.errors).map(
+        (err: any) => err.message
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Validation error: ${validationErrors.join(", ")}`,
+        },
+        { status: 400 }
+      );
+    }
+
+
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
     );
   }
 }
+
 
 export async function DELETE(req: NextRequest) {
   try {
@@ -1025,9 +1283,11 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
+
     const companyId = req.nextUrl.searchParams.get("companyId");
     const locationId = req.nextUrl.searchParams.get("locationId");
     const id = req.nextUrl.searchParams.get("id");
+
 
     if (!companyId || !locationId || !id) {
       return NextResponse.json(
@@ -1039,7 +1299,9 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
+
     await mongoose.connect(process.env.MONGODB_URI!);
+
 
     const column = await Column.findOneAndDelete({
       _id: id,
@@ -1047,12 +1309,14 @@ export async function DELETE(req: NextRequest) {
       locationId,
     });
 
+
     if (!column) {
       return NextResponse.json(
         { success: false, error: "Column not found" },
         { status: 404 }
       );
     }
+
 
     // Create audit log
     const audit = new Audit({
@@ -1065,6 +1329,7 @@ export async function DELETE(req: NextRequest) {
       changes: [{ field: "column", from: column.columnCode, to: "deleted" }],
     });
     await audit.save();
+
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

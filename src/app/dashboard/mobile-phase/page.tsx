@@ -94,12 +94,12 @@ function MobilePhaseMaster() {
   const chemicalDropdownRefs = useRef<(HTMLDivElement | null)[]>([]);
   const chemicalDescDropdownRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [dropdownSelectedIndex, setDropdownSelectedIndex] =
-  useState<DropdownSelectedIndex>({
-    bufferName: -1,
-    solventName: -1,
-    chemicals: [-1, -1, -1, -1, -1],
-    search: -1,
-  });
+    useState<DropdownSelectedIndex>({
+      bufferName: -1,
+      solventName: -1,
+      chemicals: [-1, -1, -1, -1, -1],
+      search: -1,
+    });
 
   const [descDropdownSelectedIndex, setDescDropdownSelectedIndex] = useState({
     bufferDesc: -1,
@@ -108,6 +108,13 @@ function MobilePhaseMaster() {
   });
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [auditLogs, setAuditLogs] = useState([]);
+  const [chemicalInputValues, setChemicalInputValues] = useState([
+    "",
+    "",
+    "",
+    "",
+    "",
+  ]);
   const [auditSearchTerm, setAuditSearchTerm] = useState("");
   const [auditActionFilter, setAuditActionFilter] = useState("");
   const [auditStartDate, setAuditStartDate] = useState("");
@@ -133,8 +140,6 @@ function MobilePhaseMaster() {
     useRef<HTMLInputElement>(null),
   ];
 
-
-
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/auth/signin");
@@ -152,38 +157,40 @@ function MobilePhaseMaster() {
   }, [status, router]);
 
   useEffect(() => {
-  // Reset selected indices when dropdowns are closed
-  if (!showDropdown.bufferName) {
-    setDropdownSelectedIndex(prev => ({ ...prev, bufferName: -1 }));
-  }
-  if (!showDropdown.solventName) {
-    setDropdownSelectedIndex(prev => ({ ...prev, solventName: -1 }));
-  }
-  showDropdown.chemicals.forEach((isOpen, index) => {
-    if (!isOpen) {
-      setDropdownSelectedIndex(prev => ({
-        ...prev,
-        chemicals: prev.chemicals.map((v, i) => i === index ? -1 : v)
-      }));
+    // Reset selected indices when dropdowns are closed
+    if (!showDropdown.bufferName) {
+      setDropdownSelectedIndex((prev) => ({ ...prev, bufferName: -1 }));
     }
-  });
-  
-  // Also reset desc dropdown indices
-  if (!showDescDropdown.bufferDesc) {
-    setDescDropdownSelectedIndex(prev => ({ ...prev, bufferDesc: -1 }));
-  }
-  if (!showDescDropdown.solventDesc) {
-    setDescDropdownSelectedIndex(prev => ({ ...prev, solventDesc: -1 }));
-  }
-  showDescDropdown.chemicalsDesc.forEach((isOpen, index) => {
-    if (!isOpen) {
-      setDescDropdownSelectedIndex(prev => ({
-        ...prev,
-        chemicalsDesc: prev.chemicalsDesc.map((v, i) => i === index ? -1 : v)
-      }));
+    if (!showDropdown.solventName) {
+      setDropdownSelectedIndex((prev) => ({ ...prev, solventName: -1 }));
     }
-  });
-}, [showDropdown, showDescDropdown]);
+    showDropdown.chemicals.forEach((isOpen, index) => {
+      if (!isOpen) {
+        setDropdownSelectedIndex((prev) => ({
+          ...prev,
+          chemicals: prev.chemicals.map((v, i) => (i === index ? -1 : v)),
+        }));
+      }
+    });
+
+    // Also reset desc dropdown indices
+    if (!showDescDropdown.bufferDesc) {
+      setDescDropdownSelectedIndex((prev) => ({ ...prev, bufferDesc: -1 }));
+    }
+    if (!showDescDropdown.solventDesc) {
+      setDescDropdownSelectedIndex((prev) => ({ ...prev, solventDesc: -1 }));
+    }
+    showDescDropdown.chemicalsDesc.forEach((isOpen, index) => {
+      if (!isOpen) {
+        setDescDropdownSelectedIndex((prev) => ({
+          ...prev,
+          chemicalsDesc: prev.chemicalsDesc.map((v, i) =>
+            i === index ? -1 : v
+          ),
+        }));
+      }
+    });
+  }, [showDropdown, showDescDropdown]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -286,7 +293,6 @@ function MobilePhaseMaster() {
 
     return options;
   };
-  
 
   // Helper function to get all chemical display options
   const getAllChemicalOptions = (chemicalsList: Chemical[]) => {
@@ -732,6 +738,7 @@ function MobilePhaseMaster() {
       solventDesc: -1,
       chemicalsDesc: [-1, -1, -1, -1, -1],
     });
+    setChemicalInputValues(["", "", "", "", ""]);
   };
 
   const handleExit = () => {
@@ -764,6 +771,13 @@ function MobilePhaseMaster() {
         bufferDesc: mp.bufferDesc || "",
         solventDesc: mp.solventDesc || "",
       });
+      setChemicalInputValues([
+        chemicals.find((c) => c._id === mp.chemicals[0])?.chemicalName || "",
+        chemicals.find((c) => c._id === mp.chemicals[1])?.chemicalName || "",
+        chemicals.find((c) => c._id === mp.chemicals[2])?.chemicalName || "",
+        chemicals.find((c) => c._id === mp.chemicals[3])?.chemicalName || "",
+        chemicals.find((c) => c._id === mp.chemicals[4])?.chemicalName || "",
+      ]);
     }
   };
 
@@ -793,6 +807,13 @@ function MobilePhaseMaster() {
         solventDesc: mp.solventDesc || "",
         bufferDesc: mp.bufferDesc || "",
       });
+      setChemicalInputValues([
+        chemicals.find((c) => c._id === mp.chemicals[0])?.chemicalName || "",
+        chemicals.find((c) => c._id === mp.chemicals[1])?.chemicalName || "",
+        chemicals.find((c) => c._id === mp.chemicals[2])?.chemicalName || "",
+        chemicals.find((c) => c._id === mp.chemicals[3])?.chemicalName || "",
+        chemicals.find((c) => c._id === mp.chemicals[4])?.chemicalName || "",
+      ]);
     } else if (
       currentMobilePhaseIndex === -1 &&
       displayedMobilePhases.length > 0
@@ -856,6 +877,18 @@ function MobilePhaseMaster() {
       });
       setShowFormModal(true);
       setTimeout(() => inputRef.current?.focus(), 100);
+      setChemicalInputValues([
+        chemicals.find((c) => c._id === selectedMobilePhase.chemicals[0])
+          ?.chemicalName || "",
+        chemicals.find((c) => c._id === selectedMobilePhase.chemicals[1])
+          ?.chemicalName || "",
+        chemicals.find((c) => c._id === selectedMobilePhase.chemicals[2])
+          ?.chemicalName || "",
+        chemicals.find((c) => c._id === selectedMobilePhase.chemicals[3])
+          ?.chemicalName || "",
+        chemicals.find((c) => c._id === selectedMobilePhase.chemicals[4])
+          ?.chemicalName || "",
+      ]);
     }
   };
 
@@ -964,7 +997,7 @@ function MobilePhaseMaster() {
                     mp.pHValue || "—"
                   }</td><td>${mp.description || "—"}</td><td>${new Date(
                     mp.createdAt
-                  ).toLocaleDateString()}</td></tr>`
+                  ).toLocaleDateString("en-GB")}</td></tr>`
               )
               .join("")}
           </table>
@@ -983,214 +1016,289 @@ function MobilePhaseMaster() {
   };
 
   const handleInputKeyDown = (
-  e: React.KeyboardEvent,
-  field: string,
-  index?: number
-) => {
-  // Only handle special keys, allow normal typing
-  if (!["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(e.key)) {
-    return; // Allow normal typing behavior
-  }
-
-  e.preventDefault(); // Prevent default only for navigation keys
-
-  // Determine the options based on field type
-  const getOptions = () => {
-    if (field === "bufferName") {
-      const searchValue = formData.bufferName.toLowerCase();
-      return chemicals.filter(
-        (c) =>
-          c.isBuffer &&
-          (searchValue === "" ||
-            c.chemicalName.toLowerCase().includes(searchValue))
-      );
-    } else if (field === "solventName") {
-      const searchValue = formData.solventName.toLowerCase();
-      return chemicals.filter(
-        (c) =>
-          c.isSolvent &&
-          (searchValue === "" ||
-            c.chemicalName.toLowerCase().includes(searchValue))
-      );
-    } else if (field === "chemicals") {
-      const currentValue =
-        chemicals.find((c) => c._id === formData.chemicals[index || 0])
-          ?.chemicalName || "";
-      return chemicals.filter(
-        (c) =>
-          currentValue === "" ||
-          c.chemicalName.toLowerCase().includes(currentValue.toLowerCase())
-      );
-    } else if (field === "bufferDesc") {
-      return chemicals.filter(
-        (c) =>
-          c.isBuffer &&
-          c.desc &&
-          c.desc.trim() !== "" &&
-          (formData.bufferDesc === "" ||
-            c.desc.toLowerCase().includes(formData.bufferDesc.toLowerCase()))
-      );
-    } else if (field === "solventDesc") {
-      return chemicals.filter(
-        (c) =>
-          c.isSolvent &&
-          c.desc &&
-          c.desc.trim() !== "" &&
-          (formData.solventDesc === "" ||
-            c.desc.toLowerCase().includes(formData.solventDesc.toLowerCase()))
-      );
-    } else if (field === "chemicalsDesc") {
-      const currentDesc = formData.chemicalsDesc[index || 0] || "";
-      return chemicals.filter(
-        (c) =>
-          c.desc &&
-          c.desc.trim() !== "" &&
-          (currentDesc === "" ||
-            c.desc.toLowerCase().includes(currentDesc.toLowerCase()))
-      );
+    e: React.KeyboardEvent,
+    field: string,
+    index?: number
+  ) => {
+    // Only handle special keys, allow normal typing
+    if (!["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(e.key)) {
+      return; // Allow normal typing behavior
     }
-    return [];
-  };
 
-  const options = getOptions();
-  if (options.length === 0) return; // No options to navigate
+    e.preventDefault(); // Prevent default only for navigation keys
 
-  // Get current selected index
-  const getCurrentSelectedIndex = () => {
-    if (field.includes("Desc")) {
-      if (field === "bufferDesc") return descDropdownSelectedIndex.bufferDesc;
-      if (field === "solventDesc") return descDropdownSelectedIndex.solventDesc;
-      if (field === "chemicalsDesc")
-        return descDropdownSelectedIndex.chemicalsDesc[index || 0];
-    } else {
-      if (field === "bufferName") return dropdownSelectedIndex.bufferName;
-      if (field === "solventName") return dropdownSelectedIndex.solventName;
-      if (field === "chemicals")
-        return dropdownSelectedIndex.chemicals[index || 0];
-    }
-    return -1;
-  };
-
-  // Set selected index with scrolling
-  const setSelectedIndexWithScroll = (newIndex: number) => {
-    if (field.includes("Desc")) {
-      if (field === "bufferDesc") {
-        setDescDropdownSelectedIndex((prev) => ({
-          ...prev,
-          bufferDesc: newIndex,
-        }));
-      } else if (field === "solventDesc") {
-        setDescDropdownSelectedIndex((prev) => ({
-          ...prev,
-          solventDesc: newIndex,
-        }));
-      } else if (field === "chemicalsDesc" && typeof index === "number") {
-        setDescDropdownSelectedIndex((prev) => ({
-          ...prev,
-          chemicalsDesc: prev.chemicalsDesc.map((v, i) =>
-            i === index ? newIndex : v
-          ),
-        }));
-      }
-    } else {
+    // Determine the options based on field type
+    const getOptions = () => {
       if (field === "bufferName") {
-        setDropdownSelectedIndex((prev) => ({
-          ...prev,
-          bufferName: newIndex,
-        }));
+        const searchValue = formData.bufferName.toLowerCase();
+        return chemicals.filter(
+          (c) =>
+            c.isBuffer &&
+            (searchValue === "" ||
+              c.chemicalName.toLowerCase().includes(searchValue))
+        );
       } else if (field === "solventName") {
-        setDropdownSelectedIndex((prev) => ({
-          ...prev,
-          solventName: newIndex,
-        }));
-      } else if (field === "chemicals" && typeof index === "number") {
-        setDropdownSelectedIndex((prev) => ({
-          ...prev,
-          chemicals: prev.chemicals.map((v, i) => (i === index ? newIndex : v)),
-        }));
+        const searchValue = formData.solventName.toLowerCase();
+        return chemicals.filter(
+          (c) =>
+            c.isSolvent &&
+            (searchValue === "" ||
+              c.chemicalName.toLowerCase().includes(searchValue))
+        );
+      } else if (field === "chemicals") {
+        const currentValue =
+          chemicals.find((c) => c._id === formData.chemicals[index || 0])
+            ?.chemicalName || "";
+        return chemicals.filter(
+          (c) =>
+            currentValue === "" ||
+            c.chemicalName.toLowerCase().includes(currentValue.toLowerCase())
+        );
+      } else if (field === "bufferDesc") {
+        return chemicals.filter(
+          (c) =>
+            c.isBuffer &&
+            c.desc &&
+            c.desc.trim() !== "" &&
+            (formData.bufferDesc === "" ||
+              c.desc.toLowerCase().includes(formData.bufferDesc.toLowerCase()))
+        );
+      } else if (field === "solventDesc") {
+        return chemicals.filter(
+          (c) =>
+            c.isSolvent &&
+            c.desc &&
+            c.desc.trim() !== "" &&
+            (formData.solventDesc === "" ||
+              c.desc.toLowerCase().includes(formData.solventDesc.toLowerCase()))
+        );
+      } else if (field === "chemicalsDesc") {
+        const currentDesc = formData.chemicalsDesc[index || 0] || "";
+        return chemicals.filter(
+          (c) =>
+            c.desc &&
+            c.desc.trim() !== "" &&
+            (currentDesc === "" ||
+              c.desc.toLowerCase().includes(currentDesc.toLowerCase()))
+        );
       }
-    }
+      return [];
+    };
 
-    // Auto-scroll the selected item into view - FIXED VERSION
-    setTimeout(() => {
-      // Find the dropdown container
-      const dropdownContainers = document.querySelectorAll('.dropdown-active, .absolute.z-30');
-      
-      // For each dropdown, check if it has the selected item
-      dropdownContainers.forEach(dropdown => {
-        const items = dropdown.querySelectorAll('[class*="cursor-pointer"][class*="border-b"]');
-        if (items.length > newIndex && newIndex >= 0) {
-          const selectedItem = items[newIndex];
-          if (selectedItem && (
-            selectedItem.classList.contains('bg-green-100') ||
-            selectedItem.classList.contains('bg-yellow-100') ||
-            selectedItem.classList.contains('bg-purple-100')
-          )) {
-            selectedItem.scrollIntoView({
-              block: "nearest",
-              behavior: "smooth",
-            });
+    const options = getOptions();
+    if (options.length === 0) return; // No options to navigate
+
+    // Get current selected index
+    const getCurrentSelectedIndex = () => {
+      if (field.includes("Desc")) {
+        if (field === "bufferDesc") return descDropdownSelectedIndex.bufferDesc;
+        if (field === "solventDesc")
+          return descDropdownSelectedIndex.solventDesc;
+        if (field === "chemicalsDesc")
+          return descDropdownSelectedIndex.chemicalsDesc[index || 0];
+      } else {
+        if (field === "bufferName") return dropdownSelectedIndex.bufferName;
+        if (field === "solventName") return dropdownSelectedIndex.solventName;
+        if (field === "chemicals")
+          return dropdownSelectedIndex.chemicals[index || 0];
+      }
+      return -1;
+    };
+
+    // Set selected index with scrolling
+    const setSelectedIndexWithScroll = (newIndex: number) => {
+      if (field.includes("Desc")) {
+        if (field === "bufferDesc") {
+          setDescDropdownSelectedIndex((prev) => ({
+            ...prev,
+            bufferDesc: newIndex,
+          }));
+        } else if (field === "solventDesc") {
+          setDescDropdownSelectedIndex((prev) => ({
+            ...prev,
+            solventDesc: newIndex,
+          }));
+        } else if (field === "chemicalsDesc" && typeof index === "number") {
+          setDescDropdownSelectedIndex((prev) => ({
+            ...prev,
+            chemicalsDesc: prev.chemicalsDesc.map((v, i) =>
+              i === index ? newIndex : v
+            ),
+          }));
+        }
+      } else {
+        if (field === "bufferName") {
+          setDropdownSelectedIndex((prev) => ({
+            ...prev,
+            bufferName: newIndex,
+          }));
+        } else if (field === "solventName") {
+          setDropdownSelectedIndex((prev) => ({
+            ...prev,
+            solventName: newIndex,
+          }));
+        } else if (field === "chemicals" && typeof index === "number") {
+          setDropdownSelectedIndex((prev) => ({
+            ...prev,
+            chemicals: prev.chemicals.map((v, i) =>
+              i === index ? newIndex : v
+            ),
+          }));
+        }
+      }
+
+      // Auto-scroll the selected item into view - FIXED VERSION
+      setTimeout(() => {
+        // Find the dropdown container
+        const dropdownContainers = document.querySelectorAll(
+          ".dropdown-active, .absolute.z-30"
+        );
+
+        // For each dropdown, check if it has the selected item
+        dropdownContainers.forEach((dropdown) => {
+          const items = dropdown.querySelectorAll(
+            '[class*="cursor-pointer"][class*="border-b"]'
+          );
+          if (items.length > newIndex && newIndex >= 0) {
+            const selectedItem = items[newIndex];
+            if (
+              selectedItem &&
+              (selectedItem.classList.contains("bg-green-100") ||
+                selectedItem.classList.contains("bg-yellow-100") ||
+                selectedItem.classList.contains("bg-purple-100"))
+            ) {
+              selectedItem.scrollIntoView({
+                block: "nearest",
+                behavior: "smooth",
+              });
+            }
+          }
+        });
+      }, 50);
+    };
+
+    const currentSelectedIndex = getCurrentSelectedIndex();
+
+    switch (e.key) {
+      case "ArrowDown":
+        const nextIndex =
+          currentSelectedIndex < options.length - 1
+            ? currentSelectedIndex + 1
+            : 0; // Wrap to top
+        setSelectedIndexWithScroll(nextIndex);
+        break;
+
+      case "ArrowUp":
+        const prevIndex =
+          currentSelectedIndex > 0
+            ? currentSelectedIndex - 1
+            : options.length - 1; // Wrap to bottom
+        setSelectedIndexWithScroll(prevIndex);
+        break;
+
+      case "Enter":
+        if (currentSelectedIndex >= 0 && options[currentSelectedIndex]) {
+          const selectedOption = options[currentSelectedIndex];
+
+          if (field.includes("Desc")) {
+            // Handle description field selection
+            if (field === "bufferDesc") {
+              setFormData((prev) => ({
+                ...prev,
+                bufferDesc: selectedOption.desc || "",
+                bufferName: selectedOption.chemicalName,
+              }));
+              setShowDescDropdown((prev) => ({ ...prev, bufferDesc: false }));
+              setDescDropdownSelectedIndex((prev) => ({
+                ...prev,
+                bufferDesc: -1,
+              }));
+            } else if (field === "solventDesc") {
+              setFormData((prev) => ({
+                ...prev,
+                solventDesc: selectedOption.desc || "",
+                solventName: selectedOption.chemicalName,
+              }));
+              setShowDescDropdown((prev) => ({ ...prev, solventDesc: false }));
+              setDescDropdownSelectedIndex((prev) => ({
+                ...prev,
+                solventDesc: -1,
+              }));
+            } else if (field === "chemicalsDesc" && typeof index === "number") {
+              const newChemicals = [...formData.chemicals];
+              const newChemicalsDesc = [...formData.chemicalsDesc];
+              newChemicals[index] = selectedOption._id;
+              newChemicalsDesc[index] = selectedOption.desc || "";
+              setFormData((prev) => ({
+                ...prev,
+                chemicals: newChemicals,
+                chemicalsDesc: newChemicalsDesc,
+              }));
+              setShowDescDropdown((prev) => ({
+                ...prev,
+                chemicalsDesc: prev.chemicalsDesc.map((v, i) =>
+                  i === index ? false : v
+                ),
+              }));
+            }
+          } else {
+            // Handle name field selection
+            if (field === "bufferName") {
+              setFormData((prev) => ({
+                ...prev,
+                bufferName: selectedOption.chemicalName,
+                bufferDesc: selectedOption.desc || "",
+              }));
+              setShowDropdown((prev) => ({ ...prev, bufferName: false }));
+              setDropdownSelectedIndex((prev) => ({ ...prev, bufferName: -1 }));
+            } else if (field === "solventName") {
+              setFormData((prev) => ({
+                ...prev,
+                solventName: selectedOption.chemicalName,
+                solventDesc: selectedOption.desc || "",
+              }));
+              setShowDropdown((prev) => ({ ...prev, solventName: false }));
+              setDropdownSelectedIndex((prev) => ({
+                ...prev,
+                solventName: -1,
+              }));
+            } else if (field === "chemicals" && typeof index === "number") {
+              const newChemicals = [...formData.chemicals];
+              const newChemicalsDesc = [...formData.chemicalsDesc];
+              newChemicals[index] = selectedOption._id;
+              newChemicalsDesc[index] = selectedOption.desc || "";
+              setFormData((prev) => ({
+                ...prev,
+                chemicals: newChemicals,
+                chemicalsDesc: newChemicalsDesc,
+              }));
+              setShowDropdown((prev) => ({
+                ...prev,
+                chemicals: prev.chemicals.map((v, i) =>
+                  i === index ? false : v
+                ),
+              }));
+            }
           }
         }
-      });
-    }, 50);
-  };
+        break;
 
-  const currentSelectedIndex = getCurrentSelectedIndex();
-
-  switch (e.key) {
-    case "ArrowDown":
-      const nextIndex = currentSelectedIndex < options.length - 1 
-        ? currentSelectedIndex + 1 
-        : 0; // Wrap to top
-      setSelectedIndexWithScroll(nextIndex);
-      break;
-
-    case "ArrowUp":
-      const prevIndex = currentSelectedIndex > 0 
-        ? currentSelectedIndex - 1 
-        : options.length - 1; // Wrap to bottom
-      setSelectedIndexWithScroll(prevIndex);
-      break;
-
-    case "Enter":
-      if (currentSelectedIndex >= 0 && options[currentSelectedIndex]) {
-        const selectedOption = options[currentSelectedIndex];
-
+      case "Escape":
+        // Close all dropdowns for this field
         if (field.includes("Desc")) {
-          // Handle description field selection
           if (field === "bufferDesc") {
-            setFormData((prev) => ({
-              ...prev,
-              bufferDesc: selectedOption.desc || "",
-              bufferName: selectedOption.chemicalName,
-            }));
             setShowDescDropdown((prev) => ({ ...prev, bufferDesc: false }));
             setDescDropdownSelectedIndex((prev) => ({
               ...prev,
               bufferDesc: -1,
             }));
           } else if (field === "solventDesc") {
-            setFormData((prev) => ({
-              ...prev,
-              solventDesc: selectedOption.desc || "",
-              solventName: selectedOption.chemicalName,
-            }));
             setShowDescDropdown((prev) => ({ ...prev, solventDesc: false }));
             setDescDropdownSelectedIndex((prev) => ({
               ...prev,
               solventDesc: -1,
             }));
           } else if (field === "chemicalsDesc" && typeof index === "number") {
-            const newChemicals = [...formData.chemicals];
-            const newChemicalsDesc = [...formData.chemicalsDesc];
-            newChemicals[index] = selectedOption._id;
-            newChemicalsDesc[index] = selectedOption.desc || "";
-            setFormData((prev) => ({
-              ...prev,
-              chemicals: newChemicals,
-              chemicalsDesc: newChemicalsDesc,
-            }));
             setShowDescDropdown((prev) => ({
               ...prev,
               chemicalsDesc: prev.chemicalsDesc.map((v, i) =>
@@ -1199,33 +1307,13 @@ function MobilePhaseMaster() {
             }));
           }
         } else {
-          // Handle name field selection
           if (field === "bufferName") {
-            setFormData((prev) => ({
-              ...prev,
-              bufferName: selectedOption.chemicalName,
-              bufferDesc: selectedOption.desc || "",
-            }));
             setShowDropdown((prev) => ({ ...prev, bufferName: false }));
             setDropdownSelectedIndex((prev) => ({ ...prev, bufferName: -1 }));
           } else if (field === "solventName") {
-            setFormData((prev) => ({
-              ...prev,
-              solventName: selectedOption.chemicalName,
-              solventDesc: selectedOption.desc || "",
-            }));
             setShowDropdown((prev) => ({ ...prev, solventName: false }));
             setDropdownSelectedIndex((prev) => ({ ...prev, solventName: -1 }));
           } else if (field === "chemicals" && typeof index === "number") {
-            const newChemicals = [...formData.chemicals];
-            const newChemicalsDesc = [...formData.chemicalsDesc];
-            newChemicals[index] = selectedOption._id;
-            newChemicalsDesc[index] = selectedOption.desc || "";
-            setFormData((prev) => ({
-              ...prev,
-              chemicals: newChemicals,
-              chemicalsDesc: newChemicalsDesc,
-            }));
             setShowDropdown((prev) => ({
               ...prev,
               chemicals: prev.chemicals.map((v, i) =>
@@ -1234,137 +1322,106 @@ function MobilePhaseMaster() {
             }));
           }
         }
-      }
-      break;
-
-    case "Escape":
-      // Close all dropdowns for this field
-      if (field.includes("Desc")) {
-        if (field === "bufferDesc") {
-          setShowDescDropdown((prev) => ({ ...prev, bufferDesc: false }));
-          setDescDropdownSelectedIndex((prev) => ({ ...prev, bufferDesc: -1 }));
-        } else if (field === "solventDesc") {
-          setShowDescDropdown((prev) => ({ ...prev, solventDesc: false }));
-          setDescDropdownSelectedIndex((prev) => ({ ...prev, solventDesc: -1 }));
-        } else if (field === "chemicalsDesc" && typeof index === "number") {
-          setShowDescDropdown((prev) => ({
-            ...prev,
-            chemicalsDesc: prev.chemicalsDesc.map((v, i) =>
-              i === index ? false : v
-            ),
-          }));
-        }
-      } else {
-        if (field === "bufferName") {
-          setShowDropdown((prev) => ({ ...prev, bufferName: false }));
-          setDropdownSelectedIndex((prev) => ({ ...prev, bufferName: -1 }));
-        } else if (field === "solventName") {
-          setShowDropdown((prev) => ({ ...prev, solventName: false }));
-          setDropdownSelectedIndex((prev) => ({ ...prev, solventName: -1 }));
-        } else if (field === "chemicals" && typeof index === "number") {
-          setShowDropdown((prev) => ({
-            ...prev,
-            chemicals: prev.chemicals.map((v, i) => (i === index ? false : v)),
-          }));
-        }
-      }
-      break;
-  }
-};
+        break;
+    }
+  };
 
   const handleSearchKeyDown = (e: React.KeyboardEvent) => {
-  // Use searchResults instead of filtering again
-  const results = searchResults;
+    // Use searchResults instead of filtering again
+    const results = searchResults;
 
-  switch (e.key) {
-    case "ArrowDown":
-      e.preventDefault();
-      setSearchSelectedIndex((prev) => {
-        const newIndex = prev < results.length - 1 ? prev + 1 : 0;
-        
-        // Scroll the selected item into view
-        setTimeout(() => {
-          const searchContainer = document.querySelector('.max-h-80.overflow-y-auto');
-          if (searchContainer) {
-            const items = searchContainer.querySelectorAll('.cursor-pointer');
-            if (items[newIndex]) {
-              items[newIndex].scrollIntoView({
-                block: "nearest",
-                behavior: "smooth",
-              });
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setSearchSelectedIndex((prev) => {
+          const newIndex = prev < results.length - 1 ? prev + 1 : 0;
+
+          // Scroll the selected item into view
+          setTimeout(() => {
+            const searchContainer = document.querySelector(
+              ".max-h-80.overflow-y-auto"
+            );
+            if (searchContainer) {
+              const items = searchContainer.querySelectorAll(".cursor-pointer");
+              if (items[newIndex]) {
+                items[newIndex].scrollIntoView({
+                  block: "nearest",
+                  behavior: "smooth",
+                });
+              }
             }
-          }
-        }, 0);
-        
-        return newIndex;
-      });
-      break;
-      
-    case "ArrowUp":
-      e.preventDefault();
-      setSearchSelectedIndex((prev) => {
-        const newIndex = prev > 0 ? prev - 1 : results.length - 1;
-        
-        // Scroll the selected item into view
-        setTimeout(() => {
-          const searchContainer = document.querySelector('.max-h-80.overflow-y-auto');
-          if (searchContainer) {
-            const items = searchContainer.querySelectorAll('.cursor-pointer');
-            if (items[newIndex]) {
-              items[newIndex].scrollIntoView({
-                block: "nearest",
-                behavior: "smooth",
-              });
-            }
-          }
-        }, 0);
-        
-        return newIndex;
-      });
-      break;
-      
-    case "Enter":
-      e.preventDefault();
-      if (searchSelectedIndex >= 0 && results[searchSelectedIndex]) {
-        const mp = results[searchSelectedIndex];
-        setFormData({
-          mobilePhaseId: mp.mobilePhaseId,
-          mobilePhaseCode: mp.mobilePhaseCode,
-          isSolvent: mp.isSolvent,
-          isBuffer: mp.isBuffer,
-          bufferName: mp.bufferName || "",
-          solventName: mp.solventName || "",
-          chemicals: [
-            ...mp.chemicals,
-            ...Array(5 - mp.chemicals.length).fill(""),
-          ],
-          dilutionFactor: mp.dilutionFactor?.toString() || "",
-          pHValue: mp.pHValue?.toString() || "",
-          description: mp.description || "",
-          chemicalsDesc: mp.chemicals
-            .map((id) => chemicals.find((c) => c._id === id)?.desc || "")
-            .concat(Array(5 - mp.chemicals.length).fill("")),
-          solventDesc: mp.solventDesc || "",
-          bufferDesc: mp.bufferDesc || "",
+          }, 0);
+
+          return newIndex;
         });
-        setSelectedMobilePhase(mp);
-        setCurrentMobilePhaseIndex(
-          displayedMobilePhases.findIndex((c) => c._id === mp._id)
-        );
+        break;
+
+      case "ArrowUp":
+        e.preventDefault();
+        setSearchSelectedIndex((prev) => {
+          const newIndex = prev > 0 ? prev - 1 : results.length - 1;
+
+          // Scroll the selected item into view
+          setTimeout(() => {
+            const searchContainer = document.querySelector(
+              ".max-h-80.overflow-y-auto"
+            );
+            if (searchContainer) {
+              const items = searchContainer.querySelectorAll(".cursor-pointer");
+              if (items[newIndex]) {
+                items[newIndex].scrollIntoView({
+                  block: "nearest",
+                  behavior: "smooth",
+                });
+              }
+            }
+          }, 0);
+
+          return newIndex;
+        });
+        break;
+
+      case "Enter":
+        e.preventDefault();
+        if (searchSelectedIndex >= 0 && results[searchSelectedIndex]) {
+          const mp = results[searchSelectedIndex];
+          setFormData({
+            mobilePhaseId: mp.mobilePhaseId,
+            mobilePhaseCode: mp.mobilePhaseCode,
+            isSolvent: mp.isSolvent,
+            isBuffer: mp.isBuffer,
+            bufferName: mp.bufferName || "",
+            solventName: mp.solventName || "",
+            chemicals: [
+              ...mp.chemicals,
+              ...Array(5 - mp.chemicals.length).fill(""),
+            ],
+            dilutionFactor: mp.dilutionFactor?.toString() || "",
+            pHValue: mp.pHValue?.toString() || "",
+            description: mp.description || "",
+            chemicalsDesc: mp.chemicals
+              .map((id) => chemicals.find((c) => c._id === id)?.desc || "")
+              .concat(Array(5 - mp.chemicals.length).fill("")),
+            solventDesc: mp.solventDesc || "",
+            bufferDesc: mp.bufferDesc || "",
+          });
+          setSelectedMobilePhase(mp);
+          setCurrentMobilePhaseIndex(
+            displayedMobilePhases.findIndex((c) => c._id === mp._id)
+          );
+          setShowSearchModal(false);
+          setSearchSelectedIndex(-1);
+          setSearchTerm("");
+        }
+        break;
+
+      case "Escape":
         setShowSearchModal(false);
         setSearchSelectedIndex(-1);
         setSearchTerm("");
-      }
-      break;
-      
-    case "Escape":
-      setShowSearchModal(false);
-      setSearchSelectedIndex(-1);
-      setSearchTerm("");
-      break;
-  }
-};
-
+        break;
+    }
+  };
 
   if (status === "loading") {
     return (
@@ -1567,96 +1624,159 @@ function MobilePhaseMaster() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full border-collapse">
                   <thead
                     className="bg-gradient-to-b from-[#f0f0f0] to-[#ffffff]"
                     style={{ borderBottom: "1px solid #a6c8ff" }}
                   >
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
                         Mobile Phase Code
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
                         Type
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
                         Name
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                        Chemicals
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                        Chemical Name
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                        Chemical Description
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
                         pH Value
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
                         Description
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
                         Created
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#a6c8ff]">
-                    {displayedMobilePhases.map((mp, index) => (
-                      <tr
-                        key={mp._id}
-                        className={`cursor-pointer ${
-                          selectedMobilePhase?._id === mp._id
-                            ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]"
-                            : "hover:bg-[#e6f0fa]"
-                        }`}
-                        onClick={() => {
-                          if (!isFormEnabled) {
-                            setSelectedMobilePhase(mp);
-                            setCurrentMobilePhaseIndex(index);
-                          }
-                        }}
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="font-medium text-gray-800">
-                            {mp.mobilePhaseCode}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-gray-600">
-                            {mp.isSolvent
-                              ? "Solvent"
-                              : mp.isBuffer
-                              ? "Buffer"
-                              : "—"}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-gray-600">
-                            {mp.bufferName || mp.solventName || "—"}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-gray-600 max-w-xs truncate">
-                            {mp.chemicals
-                              .map(
-                                (id) =>
-                                  chemicals.find((c) => c._id === id)
-                                    ?.chemicalName || "—"
-                              )
-                              .join(", ")}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-gray-600">
-                            {mp.pHValue || "—"}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-gray-600 max-w-xs truncate">
-                            {mp.description || "—"}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(mp.createdAt).toLocaleDateString()}
-                        </td>
-                      </tr>
-                    ))}
+                  <tbody>
+                    {sortedMobilePhases.map((mp, index) => {
+                      const chemicalEntries = mp.chemicals.map((chemId) => {
+                        const chemical = chemicals.find(
+                          (c) => c._id === chemId
+                        );
+                        return {
+                          name: chemical?.chemicalName || "—",
+                          description: chemical?.desc || "—",
+                        };
+                      });
+
+                      // If no chemicals, show at least one row
+                      const displayEntries =
+                        chemicalEntries.length > 0
+                          ? chemicalEntries
+                          : [{ name: "—", description: "—" }];
+
+                      return displayEntries.map((entry, chemIndex) => (
+                        <tr
+                          key={`${mp._id}-${chemIndex}`}
+                          className={`cursor-pointer border ${
+                            selectedMobilePhase?._id === mp._id
+                              ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]"
+                              : "hover:bg-[#e6f0fa]"
+                          }`}
+                          onClick={() => {
+                            if (!isFormEnabled) {
+                              setSelectedMobilePhase(mp);
+                              setCurrentMobilePhaseIndex(index);
+                            }
+                          }}
+                        >
+                          {/* Mobile Phase Code - only show on first row */}
+                          {chemIndex === 0 && (
+                            <td
+                              className="px-4 py-3 whitespace-nowrap border border-gray-300 bg-gray-50"
+                              rowSpan={displayEntries.length}
+                            >
+                              <div className="font-medium text-gray-800">
+                                {mp.mobilePhaseCode}
+                              </div>
+                            </td>
+                          )}
+
+                          {/* Type - only show on first row */}
+                          {chemIndex === 0 && (
+                            <td
+                              className="px-4 py-3 whitespace-nowrap border border-gray-300 bg-gray-50"
+                              rowSpan={displayEntries.length}
+                            >
+                              <div className="text-gray-600">
+                                {mp.isSolvent
+                                  ? "Solvent"
+                                  : mp.isBuffer
+                                  ? "Buffer"
+                                  : "—"}
+                              </div>
+                            </td>
+                          )}
+
+                          {/* Name - only show on first row */}
+                          {chemIndex === 0 && (
+                            <td
+                              className="px-4 py-3 whitespace-nowrap border border-gray-300 bg-gray-50"
+                              rowSpan={displayEntries.length}
+                            >
+                              <div className="text-gray-600">
+                                {mp.bufferName || mp.solventName || "—"}
+                              </div>
+                            </td>
+                          )}
+
+                          {/* Chemical Name - show on each row */}
+                          <td className="px-4 py-3 border border-gray-300">
+                            <div className="text-gray-600">{entry.name}</div>
+                          </td>
+
+                          {/* Chemical Description - show on each row */}
+                          <td className="px-4 py-3 border border-gray-300">
+                            <div className="text-gray-500 text-sm">
+                              {entry.description}
+                            </div>
+                          </td>
+
+                          {/* pH Value - only show on first row */}
+                          {chemIndex === 0 && (
+                            <td
+                              className="px-4 py-3 whitespace-nowrap border border-gray-300 bg-gray-50"
+                              rowSpan={displayEntries.length}
+                            >
+                              <div className="text-gray-600">
+                                {mp.pHValue || "—"}
+                              </div>
+                            </td>
+                          )}
+
+                          {/* Description - only show on first row */}
+                          {chemIndex === 0 && (
+                            <td
+                              className="px-4 py-3 border border-gray-300 bg-gray-50"
+                              rowSpan={displayEntries.length}
+                            >
+                              <div className="text-gray-600 max-w-xs truncate">
+                                {mp.description || "—"}
+                              </div>
+                            </td>
+                          )}
+
+                          {/* Created - only show on first row */}
+                          {chemIndex === 0 && (
+                            <td
+                              className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 border border-gray-300 bg-gray-50"
+                              rowSpan={displayEntries.length}
+                            >
+                              {new Date(mp.createdAt).toLocaleDateString()}
+                            </td>
+                          )}
+                        </tr>
+                      ));
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1802,7 +1922,7 @@ function MobilePhaseMaster() {
                     className="relative bg-green-50 p-3 rounded-lg border border-green-200"
                   >
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Buffer Name * <span className="text-green-600">🧪</span>
+                      Buffer Name *
                     </label>
                     <input
                       ref={bufferNameRef}
@@ -1855,76 +1975,69 @@ function MobilePhaseMaster() {
 
                     {/* Enhanced Buffer Name Dropdown */}
                     {showDropdown.bufferName && isFormEnabled && (
-  <div className="absolute z-30 mt-1 w-full bg-white border-2 border-green-300 rounded-lg shadow-xl max-h-60 overflow-y-auto dropdown-active">
-    <div className="sticky top-0 p-3 bg-green-50 border-b border-green-200">
-      <span className="text-sm font-medium text-green-700">
-        📋 Available Buffer Chemicals
-      </span>
-    </div>
-    {chemicals
-      .filter((c) => c.isBuffer)
-      .filter(
-        (c) =>
-          formData.bufferName === "" ||
-          c.chemicalName
-            .toLowerCase()
-            .includes(formData.bufferName.toLowerCase())
-      )
-      .map((chemical, index) => (
-        <div
-          key={chemical._id}
-          className={`px-4 py-3 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors ${
-            index === dropdownSelectedIndex.bufferName
-              ? "bg-green-100 border-l-4 border-l-green-500 dropdown-selected"
-              : "hover:bg-green-50"
-          }`}
-          onClick={() => {
-            setFormData({
-              ...formData,
-              bufferName: chemical.chemicalName,
-              bufferDesc: chemical.desc || "",
-            });
-            setShowDropdown({
-              ...showDropdown,
-              bufferName: false,
-            });
-            setDropdownSelectedIndex({
-              ...dropdownSelectedIndex,
-              bufferName: -1,
-            });
-          }}
-        >
-          <div className="font-semibold text-gray-800 text-sm">
-            {chemical.chemicalName}
-          </div>
-          <div className="text-xs text-gray-500 mt-1 flex items-center">
-            <span className="mr-2">📝</span>
-            Description: {chemical.desc || "No description available"}
-          </div>
-          <div className="text-xs text-green-600 mt-2 flex items-center justify-between">
-            <span>Click to select • Use ↑↓ keys</span>
-            <span className="bg-green-100 px-2 py-1 rounded-full">
-              Buffer
-            </span>
-          </div>
-        </div>
-      ))}
-    {chemicals.filter(
-      (c) =>
-        c.isBuffer &&
-        (formData.bufferName === "" ||
-          c.chemicalName
-            .toLowerCase()
-            .includes(formData.bufferName.toLowerCase()))
-    ).length === 0 && (
-      <div className="px-4 py-6 text-center text-gray-500">
-        <div className="text-lg mb-2">🔍</div>
-        <div className="font-medium">No matching buffer chemicals found</div>
-        <div className="text-xs mt-1">Try different search terms</div>
-      </div>
-    )}
-  </div>
-)}
+                      <div className="absolute z-30 mt-1 w-full bg-white border-2 border-green-300 rounded-lg shadow-xl max-h-60 overflow-y-auto dropdown-active">
+                        {chemicals
+                          .filter((c) => c.isBuffer)
+                          .filter(
+                            (c) =>
+                              formData.bufferName === "" ||
+                              c.chemicalName
+                                .toLowerCase()
+                                .includes(formData.bufferName.toLowerCase())
+                          )
+                          .map((chemical, index) => (
+                            <div
+                              key={chemical._id}
+                              className={`px-4 py-3 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors ${
+                                index === dropdownSelectedIndex.bufferName
+                                  ? "bg-green-100 border-l-4 border-l-green-500 dropdown-selected"
+                                  : "hover:bg-green-50"
+                              }`}
+                              onClick={() => {
+                                setFormData({
+                                  ...formData,
+                                  bufferName: chemical.chemicalName,
+                                  bufferDesc: chemical.desc || "",
+                                });
+                                setShowDropdown({
+                                  ...showDropdown,
+                                  bufferName: false,
+                                });
+                                setDropdownSelectedIndex({
+                                  ...dropdownSelectedIndex,
+                                  bufferName: -1,
+                                });
+                              }}
+                            >
+                              <div className="font-semibold text-gray-800 text-sm">
+                                {chemical.chemicalName}
+                              </div>
+                              <div className="text-xs text-gray-500 mt-1 flex items-center">
+                                Description:{" "}
+                                {chemical.desc || "No description available"}
+                              </div>
+                            </div>
+                          ))}
+                        {chemicals.filter(
+                          (c) =>
+                            c.isBuffer &&
+                            (formData.bufferName === "" ||
+                              c.chemicalName
+                                .toLowerCase()
+                                .includes(formData.bufferName.toLowerCase()))
+                        ).length === 0 && (
+                          <div className="px-4 py-6 text-center text-gray-500">
+                            <div className="text-lg mb-2">🔍</div>
+                            <div className="font-medium">
+                              No matching buffer chemicals found
+                            </div>
+                            <div className="text-xs mt-1">
+                              Try different search terms
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Buffer Description with Enhanced Dropdown */}
@@ -1934,7 +2047,6 @@ function MobilePhaseMaster() {
                   >
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Buffer Description{" "}
-                      <span className="text-green-600">📝</span>
                     </label>
                     <input
                       type="text"
@@ -1987,11 +2099,6 @@ function MobilePhaseMaster() {
                     {/* Enhanced Buffer Description Dropdown */}
                     {showDescDropdown.bufferDesc && isFormEnabled && (
                       <div className="absolute z-30 mt-1 w-full bg-white border-2 border-green-300 rounded-lg shadow-xl max-h-60 overflow-y-auto">
-                        <div className="sticky top-0 p-3 bg-green-50 border-b border-green-200">
-                          <span className="text-sm font-medium text-green-700">
-                            📝 Available Buffer Descriptions
-                          </span>
-                        </div>
                         {(() => {
                           const availableDescs = chemicals
                             .filter(
@@ -2035,14 +2142,7 @@ function MobilePhaseMaster() {
                                   {chemical.desc}
                                 </div>
                                 <div className="text-xs text-gray-500 mt-1 flex items-center">
-                                  <span className="mr-2">🧪</span>
                                   Chemical: {chemical.chemicalName}
-                                </div>
-                                <div className="text-xs text-green-600 mt-2 flex items-center justify-between">
-                                  <span>Click to select • Use ↑↓ keys</span>
-                                  <span className="bg-green-100 px-2 py-1 rounded-full">
-                                    Buffer
-                                  </span>
                                 </div>
                               </div>
                             ))
@@ -2079,7 +2179,7 @@ function MobilePhaseMaster() {
                     className="relative bg-yellow-50 p-3 rounded-lg border border-yellow-200"
                   >
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Solvent Name * <span className="text-yellow-600">🧪</span>
+                      Solvent Name *
                     </label>
                     <input
                       ref={solventNameRef}
@@ -2133,12 +2233,6 @@ function MobilePhaseMaster() {
                     {/* Enhanced Solvent Name Dropdown */}
                     {showDropdown.solventName && isFormEnabled && (
                       <div className="absolute z-30 mt-1 w-full bg-white border-2 border-yellow-300 rounded-lg shadow-xl max-h-60 overflow-y-auto">
-                        <div className="sticky top-0 p-3 bg-yellow-50 border-b border-yellow-200">
-                          <span className="text-sm font-medium text-yellow-700">
-                            📋 Available Solvent Chemicals (
-                            {chemicals.filter((c) => c.isSolvent).length})
-                          </span>
-                        </div>
                         {chemicals
                           .filter((c) => c.isSolvent)
                           .filter(
@@ -2176,15 +2270,8 @@ function MobilePhaseMaster() {
                                 {chemical.chemicalName}
                               </div>
                               <div className="text-xs text-gray-500 mt-1 flex items-center">
-                                <span className="mr-2">📝</span>
                                 Description:{" "}
                                 {chemical.desc || "No description available"}
-                              </div>
-                              <div className="text-xs text-yellow-600 mt-2 flex items-center justify-between">
-                                <span>Click to select • Use ↑↓ keys</span>
-                                <span className="bg-yellow-100 px-2 py-1 rounded-full">
-                                  Solvent
-                                </span>
                               </div>
                             </div>
                           ))}
@@ -2199,7 +2286,6 @@ function MobilePhaseMaster() {
                   >
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Solvent Description{" "}
-                      <span className="text-yellow-600">📝</span>
                     </label>
                     <input
                       type="text"
@@ -2252,11 +2338,6 @@ function MobilePhaseMaster() {
                     {/* Enhanced Solvent Description Dropdown */}
                     {showDescDropdown.solventDesc && isFormEnabled && (
                       <div className="absolute z-30 mt-1 w-full bg-white border-2 border-yellow-300 rounded-lg shadow-xl max-h-60 overflow-y-auto">
-                        <div className="sticky top-0 p-3 bg-yellow-50 border-b border-yellow-200">
-                          <span className="text-sm font-medium text-yellow-700">
-                            📝 Available Solvent Descriptions
-                          </span>
-                        </div>
                         {(() => {
                           const availableDescs = chemicals
                             .filter(
@@ -2301,14 +2382,7 @@ function MobilePhaseMaster() {
                                   {chemical.desc}
                                 </div>
                                 <div className="text-xs text-gray-500 mt-1 flex items-center">
-                                  <span className="mr-2">🧪</span>
                                   Chemical: {chemical.chemicalName}
-                                </div>
-                                <div className="text-xs text-yellow-600 mt-2 flex items-center justify-between">
-                                  <span>Click to select • Use ↑↓ keys</span>
-                                  <span className="bg-yellow-100 px-2 py-1 rounded-full">
-                                    Solvent
-                                  </span>
                                 </div>
                               </div>
                             ))
@@ -2340,8 +2414,7 @@ function MobilePhaseMaster() {
               {formData.isBuffer && (
                 <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
                   <label className="text-lg font-medium text-gray-700 mb-3 flex items-center">
-                    <span className="mr-2">🧪</span>
-                    Chemicals * (At least first chemical is required)
+                    Chemicals *
                   </label>
                   <div className="grid grid-cols-5 gap-3">
                     {formData.chemicals.slice(0, 5).map((chemicalId, index) => (
@@ -2360,44 +2433,53 @@ function MobilePhaseMaster() {
                           <input
                             ref={chemicalRefs[index]}
                             type="text"
-                            value={
-                              chemicals.find((c) => c._id === chemicalId)
-                                ?.chemicalName || ""
-                            }
+                            value={chemicalInputValues[index] || ""}
                             disabled={!isFormEnabled}
                             onChange={(e) => {
                               const typedValue = e.target.value;
+
+                              // Update the input display value immediately
+                              const newInputValues = [...chemicalInputValues];
+                              newInputValues[index] = typedValue;
+                              setChemicalInputValues(newInputValues);
+
+                              // Check for exact match to update the actual chemical ID
                               const exactMatch = chemicals.find(
                                 (c) =>
                                   c.chemicalName.toLowerCase() ===
                                   typedValue.toLowerCase()
                               );
 
-                              const newChemicals = [...formData.chemicals];
-                              const newChemicalsDesc = [
-                                ...formData.chemicalsDesc,
-                              ];
-
-                              if (typedValue === "") {
-                                newChemicals[index] = "";
-                                newChemicalsDesc[index] = "";
-                              } else if (exactMatch) {
+                              if (exactMatch) {
+                                const newChemicals = [...formData.chemicals];
+                                const newChemicalsDesc = [
+                                  ...formData.chemicalsDesc,
+                                ];
                                 newChemicals[index] = exactMatch._id;
                                 newChemicalsDesc[index] = exactMatch.desc || "";
+
+                                setFormData({
+                                  ...formData,
+                                  chemicals: newChemicals,
+                                  chemicalsDesc: newChemicalsDesc,
+                                });
+                              } else if (typedValue === "") {
+                                const newChemicals = [...formData.chemicals];
+                                newChemicals[index] = "";
+                                setFormData({
+                                  ...formData,
+                                  chemicals: newChemicals,
+                                });
                               }
 
-                              setFormData({
-                                ...formData,
-                                chemicals: newChemicals,
-                                chemicalsDesc: newChemicalsDesc,
-                              });
-
+                              // Show dropdown when typing
                               setShowDropdown({
                                 ...showDropdown,
                                 chemicals: showDropdown.chemicals.map((v, i) =>
-                                  i === index ? true : v
+                                  i === index ? typedValue !== "" : v
                                 ),
                               });
+
                               setDropdownSelectedIndex({
                                 ...dropdownSelectedIndex,
                                 chemicals: dropdownSelectedIndex.chemicals.map(
@@ -2426,18 +2508,11 @@ function MobilePhaseMaster() {
                           {/* Enhanced Chemical Dropdown */}
                           {showDropdown.chemicals[index] && isFormEnabled && (
                             <div className="absolute z-30 w-full mt-1 bg-white border-2 border-purple-300 rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                              <div className="sticky top-0 p-2 bg-purple-50 border-b border-purple-200">
-                                <span className="text-xs font-medium text-purple-700">
-                                  Available Chemicals
-                                </span>
-                              </div>
                               {(() => {
                                 const currentValue =
-                                  chemicals.find((c) => c._id === chemicalId)
-                                    ?.chemicalName || "";
+                                  chemicalInputValues[index] || "";
                                 const filteredChemicals = chemicals.filter(
                                   (c) =>
-                                    currentValue === "" ||
                                     c.chemicalName
                                       .toLowerCase()
                                       .includes(currentValue.toLowerCase())
@@ -2460,14 +2535,23 @@ function MobilePhaseMaster() {
                                         const newChemicalsDesc = [
                                           ...formData.chemicalsDesc,
                                         ];
+                                        const newInputValues = [
+                                          ...chemicalInputValues,
+                                        ];
+
                                         newChemicals[index] = chemical._id;
                                         newChemicalsDesc[index] =
                                           chemical.desc || "";
+                                        newInputValues[index] =
+                                          chemical.chemicalName; // Sync the display value
+
                                         setFormData({
                                           ...formData,
                                           chemicals: newChemicals,
                                           chemicalsDesc: newChemicalsDesc,
                                         });
+                                        setChemicalInputValues(newInputValues);
+
                                         setShowDropdown({
                                           ...showDropdown,
                                           chemicals: showDropdown.chemicals.map(
@@ -2576,11 +2660,6 @@ function MobilePhaseMaster() {
                           {showDescDropdown.chemicalsDesc[index] &&
                             isFormEnabled && (
                               <div className="absolute z-30 w-full mt-1 bg-white border-2 border-purple-300 rounded-lg shadow-xl max-h-36 overflow-y-auto">
-                                <div className="sticky top-0 p-2 bg-purple-50 border-b border-purple-200">
-                                  <span className="text-xs font-medium text-purple-700">
-                                    Available Descriptions
-                                  </span>
-                                </div>
                                 {(() => {
                                   const availableDescs = chemicals
                                     .filter(
@@ -2661,7 +2740,6 @@ function MobilePhaseMaster() {
               {formData.isBuffer && (
                 <div className="bg-orange-50 p-3 rounded-lg border border-orange-200">
                   <label className=" text-sm font-medium text-gray-700 mb-2 flex items-center">
-                    <span className="mr-2">🧪</span>
                     pH Value *
                   </label>
                   <input
@@ -2685,7 +2763,6 @@ function MobilePhaseMaster() {
               {/* Description */}
               <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
                 <label className="text-sm font-medium text-gray-700 mb-2 flex items-center">
-                  <span className="mr-2">📝</span>
                   Description
                 </label>
                 <textarea
@@ -2785,53 +2862,53 @@ function MobilePhaseMaster() {
               </div>
 
               {searchResults.length > 0 && (
-  <div className="max-h-80 overflow-y-auto border-2 border-gray-200 rounded-lg">
-    <div className="sticky top-0 bg-blue-50 p-3 border-b border-blue-200">
-      <span className="text-sm font-medium text-blue-700">
-        Search Results ({searchResults.length})
-      </span>
-    </div>
-    {searchResults.map((mp, index) => (
-      <div
-        key={mp._id}
-        className={`p-4 border-b border-gray-100 cursor-pointer last:border-b-0 ${
-          index === searchSelectedIndex
-            ? "bg-blue-100 border-l-4 border-l-blue-500"
-            : "hover:bg-gray-50"
-        }`}
-        onClick={() => {
-          setSelectedMobilePhase(mp);
-          const originalIndex = displayedMobilePhases.findIndex(
-            (phase) => phase._id === mp._id
-          );
-          setCurrentMobilePhaseIndex(originalIndex);
-          setShowSearchModal(false);
-          setSearchTerm("");
-          setSearchResults([]);
-          setSearchSelectedIndex(-1);
-        }}
-      >
-        <div className="font-semibold text-gray-800">
-          {mp.mobilePhaseCode}
-        </div>
-        <div className="text-sm text-gray-600 mt-1">
-          Type:{" "}
-          {mp.isSolvent
-            ? "Solvent"
-            : mp.isBuffer
-            ? "Buffer"
-            : "—"}{" "}
-          | Name: {mp.bufferName || mp.solventName || "—"}
-        </div>
-        {mp.description && (
-          <div className="text-xs text-gray-500 mt-1">
-            Description: {mp.description}
-          </div>
-        )}
-      </div>
-    ))}
-  </div>
-)}
+                <div className="max-h-80 overflow-y-auto border-2 border-gray-200 rounded-lg">
+                  <div className="sticky top-0 bg-blue-50 p-3 border-b border-blue-200">
+                    <span className="text-sm font-medium text-blue-700">
+                      Search Results ({searchResults.length})
+                    </span>
+                  </div>
+                  {searchResults.map((mp, index) => (
+                    <div
+                      key={mp._id}
+                      className={`p-4 border-b border-gray-100 cursor-pointer last:border-b-0 ${
+                        index === searchSelectedIndex
+                          ? "bg-blue-100 border-l-4 border-l-blue-500"
+                          : "hover:bg-gray-50"
+                      }`}
+                      onClick={() => {
+                        setSelectedMobilePhase(mp);
+                        const originalIndex = displayedMobilePhases.findIndex(
+                          (phase) => phase._id === mp._id
+                        );
+                        setCurrentMobilePhaseIndex(originalIndex);
+                        setShowSearchModal(false);
+                        setSearchTerm("");
+                        setSearchResults([]);
+                        setSearchSelectedIndex(-1);
+                      }}
+                    >
+                      <div className="font-semibold text-gray-800">
+                        {mp.mobilePhaseCode}
+                      </div>
+                      <div className="text-sm text-gray-600 mt-1">
+                        Type:{" "}
+                        {mp.isSolvent
+                          ? "Solvent"
+                          : mp.isBuffer
+                          ? "Buffer"
+                          : "—"}{" "}
+                        | Name: {mp.bufferName || mp.solventName || "—"}
+                      </div>
+                      {mp.description && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          Description: {mp.description}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {searchTerm && searchResults.length === 0 && (
                 <div className="text-center py-8 text-gray-500">

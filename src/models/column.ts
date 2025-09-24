@@ -2,6 +2,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 interface IColumnDescription {
   descriptionId: mongoose.Types.ObjectId; // ✅ Unique per description
+  partNumber?: string;      // ✅ MOVED: Part Number is now inside description
   prefixId?: mongoose.Types.ObjectId;
   carbonType: string;
   linkedCarbonType: string;
@@ -32,6 +33,11 @@ interface IColumn extends Document {
 const ColumnDescriptionSchema = new Schema(
   {
     descriptionId: { type: mongoose.Schema.Types.ObjectId, required: true }, // ✅ new field
+    partNumber: {              // ✅ MOVED: Part Number is now inside description
+      type: String,
+      required: false,         // ✅ Optional field
+      trim: true,
+    },
     prefixId: { type: mongoose.Schema.Types.ObjectId, ref: 'PrefixSuffix', required: false },
     carbonType: { type: String, required: true, trim: true },
     linkedCarbonType: { type: String, required: false, default: '', trim: true },
@@ -77,12 +83,23 @@ const ColumnSchema = new Schema(
     descriptions: {
       type: [ColumnDescriptionSchema],
       required: true,
-      validate: {
-        validator: function (descriptions: IColumnDescription[]) {
-          return descriptions.length > 0;
+      validate: [
+        {
+          validator: function (descriptions: IColumnDescription[]) {
+            return descriptions.length > 0;
+          },
+          message: 'At least one description is required'
         },
-        message: 'At least one description is required'
-      }
+        {
+          // ✅ Custom validator to ensure unique columnId within descriptions array
+          validator: function (descriptions: IColumnDescription[]) {
+            const columnIds = descriptions.map(desc => desc.columnId);
+            const uniqueColumnIds = new Set(columnIds);
+            return columnIds.length === uniqueColumnIds.size;
+          },
+          message: 'Column IDs must be unique within descriptions array'
+        }
+      ]
     },
     companyId: { type: String, required: true },
     locationId: { type: String, required: true },
@@ -94,7 +111,6 @@ const ColumnSchema = new Schema(
   }
 );
 
-
 ColumnSchema.pre('save', function (next) {
   if (this.columnCode) {
     this.columnCode = this.columnCode.trim();
@@ -104,12 +120,24 @@ ColumnSchema.pre('save', function (next) {
     return next(new Error('At least one description is required'));
   }
   
+  // ✅ Check for duplicate columnIds within descriptions array
+  const columnIds = this.descriptions.map(desc => desc.columnId);
+  const uniqueColumnIds = new Set(columnIds);
+  if (columnIds.length !== uniqueColumnIds.size) {
+    return next(new Error('Column IDs must be unique within descriptions array'));
+  }
+  
   for (let i = 0; i < this.descriptions.length; i++) {
     const desc = this.descriptions[i];
     
     // ✅ Assign unique descriptionId if missing
     if (!desc.descriptionId) {
       desc.descriptionId = new mongoose.Types.ObjectId();
+    }
+    
+    // ✅ UPDATED: Trim partNumber if provided (now inside description)
+    if (desc.partNumber) {
+      desc.partNumber = desc.partNumber.trim();
     }
     
     // Existing validations
@@ -135,7 +163,7 @@ ColumnSchema.pre('save', function (next) {
       return next(new Error(`Invalid particle size for description ${i + 1}`));
     }
     
-    // NEW: pH range validation
+    // pH range validation
     if (desc.phMin != null && (desc.phMin < 0 || desc.phMin > 14)) {
       return next(new Error(`Invalid pH minimum for description ${i + 1}: must be between 0 and 14`));
     }
@@ -145,13 +173,6 @@ ColumnSchema.pre('save', function (next) {
     if (desc.phMin !== undefined && desc.phMin !== null && desc.phMax !== undefined && desc.phMax !== null && desc.phMin > desc.phMax) {
       return next(new Error(`Invalid pH range for description ${i + 1}: minimum (${desc.phMin}) cannot be greater than maximum (${desc.phMax})`));
     }
-    
-    // Optional: Validate that if one pH value is provided, both should be provided
-    if (desc.phMin !== undefined && desc.phMin !== null && 
-    desc.phMax !== undefined && desc.phMax !== null && 
-    desc.phMin > desc.phMax) {
-  return next(new Error(`Invalid pH range for description ${i + 1}: minimum (${desc.phMin}) cannot be greater than maximum (${desc.phMax})`));
-}
   }
   
   next();
