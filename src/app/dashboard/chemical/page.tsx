@@ -612,7 +612,7 @@ function ChemicalMaster() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {formData.isBuffer ? "Buffer Name" : formData.isSolvent ? "Solvent Name" : "Chemical Name"}
+                  Chemical Name
                 </label>
                 <input
                   ref={inputRef}
@@ -641,14 +641,10 @@ function ChemicalMaster() {
                     borderStyle: "inset",
                     boxShadow: isFormEnabled ? "inset 1px 1px 2px rgba(0,0,0,0.1)" : "none",
                   }}
-                  placeholder={
-                    formData.isBuffer ? "Enter or select buffer name" : 
-                    formData.isSolvent ? "Enter or select solvent name" : 
-                    "Enter chemical name"
-                  }
+                  placeholder="Enter or select chemical name"
                 />
 
-                {/* Dynamic dropdown based on checkbox state */}
+                {/* Dropdown for chemical selection */}
                 {showDropdown && filteredChemicals.length > 0 && isFormEnabled && !isEditMode && (
                   <div
                     className="absolute z-10 w-full mt-1 bg-white border border-[#a6c8ff] rounded-md shadow-lg max-h-48 overflow-y-auto"
@@ -715,16 +711,11 @@ function ChemicalMaster() {
                   checked={formData.isSolvent}
                   disabled={!isFormEnabled}
                   onChange={(e) => {
-                    const isChecked = e.target.checked;
                     setFormData({ 
                       ...formData, 
-                      isSolvent: isChecked,
-                      chemicalName: (!isChecked && formData.isSolvent && !formData.isBuffer) ? "" : formData.chemicalName
+                      isSolvent: e.target.checked
                     });
                     setShowDropdown(false);
-                    if (isChecked) {
-                      setTimeout(() => inputRef.current?.focus(), 100);
-                    }
                   }}
                   className="h-5 w-5 text-[#0055a4] border-[#a6c8ff] rounded focus:ring-[#66a3ff]"
                 />
@@ -739,16 +730,11 @@ function ChemicalMaster() {
                   checked={formData.isBuffer}
                   disabled={!isFormEnabled}
                   onChange={(e) => {
-                    const isChecked = e.target.checked;
                     setFormData({ 
                       ...formData, 
-                      isBuffer: isChecked,
-                      chemicalName: (!isChecked && formData.isBuffer && !formData.isSolvent) ? "" : formData.chemicalName
+                      isBuffer: e.target.checked
                     });
                     setShowDropdown(false);
-                    if (isChecked) {
-                      setTimeout(() => inputRef.current?.focus(), 100);
-                    }
                   }}
                   className="h-5 w-5 text-[#0055a4] border-[#a6c8ff] rounded focus:ring-[#66a3ff]"
                 />
@@ -1275,20 +1261,18 @@ function ChemicalMaster() {
                   <li>• Use <b>Print (F12)</b> to generate chemical report</li>
                   <li>• Use <b>Exit (F4)</b> to return to dashboard</li>
                   <li>• Use <b>Filter Checkboxes</b> to show only Solvents, Buffers, or both</li>
-                  <li>• <b>Dynamic Field Label</b> - Changes to "Buffer Name" or "Solvent Name" based on checkboxes</li>
-                  <li>• <b>Smart Dropdown</b> - Shows filtered chemicals based on selected type</li>
                 </ul>
               </div>
 
               <div>
                 <h4 className="font-semibold text-[#0055a4]">Field Behavior:</h4>
                 <ul className="ml-4 mt-2 space-y-1">
-                  <li>• <b>Chemical Name</b> - Shows all chemicals when neither checkbox is selected</li>
-                  <li>• <b>Solvent Name</b> - When "Is Solvent" is checked, shows only solvent chemicals</li>
-                  <li>• <b>Buffer Name</b> - When "Is Buffer" is checked, shows only buffer chemicals</li>
-                  <li>• <b>Smart Focus</b> - Cursor automatically moves to name field when checking boxes</li>
-                  <li>• <b>Contextual Dropdown</b> - Dropdown content changes based on selected chemical type</li>
-                  <li>• <b>Auto-selection</b> - Selecting from dropdown automatically sets all properties</li>
+                  <li>• <b>Chemical Name</b> - Enter any chemical name</li>
+                  <li>• <b>Is Solvent</b> - Check if the chemical is a solvent</li>
+                  <li>• <b>Is Buffer</b> - Check if the chemical is a buffer</li>
+                  <li>• <b>Description</b> - Optional field for additional information</li>
+                  <li>• <b>Dropdown</b> - Shows matching chemicals while typing (add mode only)</li>
+                  <li>• <b>Auto-selection</b> - Selecting from dropdown sets all properties</li>
                 </ul>
               </div>
 
@@ -1320,8 +1304,7 @@ function ChemicalMaster() {
                   <li>• Use arrow keys in dropdowns for quick navigation</li>
                   <li>• Type to filter dropdown options in real-time</li>
                   <li>• Escape key closes any open dropdown</li>
-                  <li>• Field label changes dynamically based on chemical type</li>
-                  <li>• Dropdown shows only relevant chemicals for selected type</li>
+                  <li>• Chemical name field always shows "Chemical Name" label</li>
                   <li>• All actions are logged in audit trail</li>
                   <li>• Contact support at support@company.com for issues</li>
                 </ul>
