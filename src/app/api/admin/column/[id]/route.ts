@@ -146,12 +146,13 @@ export async function GET(
     // Transform column data to ensure optional fields are properly handled
     const columnObj = column.toObject();
     
-    // Process descriptions to ensure new optional fields are included with proper null handling
+    // Process descriptions to ensure new pH range fields are included with proper null handling
     const processedDescriptions = columnObj.descriptions.map((desc: any) => ({
       ...desc,
-      // NEW optional fields - ensure they're included with null fallback
+      // NEW optional fields - pH range with proper null fallback
       description: desc.description || null,
-      phValue: desc.phValue !== undefined ? desc.phValue : null,
+      phMin: desc.phMin !== undefined ? desc.phMin : null,
+      phMax: desc.phMax !== undefined ? desc.phMax : null,
     }));
 
     // Prepare response data with additional metadata

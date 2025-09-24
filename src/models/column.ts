@@ -18,7 +18,8 @@ interface IColumnDescription {
   useSuffixForNewCode: boolean;
   isObsolete: boolean;
   description?: string;     // optional
-  phValue?: number;         // optional
+  phMin?: number;          // pH range minimum (optional)
+  phMax?: number;          // pH range maximum (optional)
 }
 
 interface IColumn extends Document {
@@ -49,8 +50,19 @@ const ColumnDescriptionSchema = new Schema(
 
     // NEW optional fields
     description: { type: String, required: false, trim: true, default: '' },
-    // If you want a soft range validator without making it required:
-    phValue: { type: Number, required: false, min: 0, max: 14 },
+    // pH range fields with proper validation
+    phMin: { 
+      type: Number, 
+      required: false, 
+      min: [0, 'pH minimum must be at least 0'], 
+      max: [14, 'pH minimum cannot exceed 14'] 
+    },
+    phMax: { 
+      type: Number, 
+      required: false, 
+      min: [0, 'pH maximum must be at least 0'], 
+      max: [14, 'pH maximum cannot exceed 14'] 
+    },
   },
   { _id: false }
 ); // still no auto _id, we manage descriptionId ourselves
@@ -82,23 +94,25 @@ const ColumnSchema = new Schema(
   }
 );
 
-// Index
-// ColumnSchema.index({ columnCode: 1, companyId: 1, locationId: 1 }, { unique: false });
 
-// Pre-save hook
 ColumnSchema.pre('save', function (next) {
   if (this.columnCode) {
     this.columnCode = this.columnCode.trim();
   }
+  
   if (!this.descriptions || this.descriptions.length === 0) {
     return next(new Error('At least one description is required'));
   }
+  
   for (let i = 0; i < this.descriptions.length; i++) {
     const desc = this.descriptions[i];
+    
     // ✅ Assign unique descriptionId if missing
     if (!desc.descriptionId) {
       desc.descriptionId = new mongoose.Types.ObjectId();
     }
+    
+    // Existing validations
     if (!desc.carbonType || desc.carbonType.trim() === '') {
       return next(new Error(`Carbon Type is required for description ${i + 1}`));
     }
@@ -120,8 +134,26 @@ ColumnSchema.pre('save', function (next) {
     if (isNaN(desc.particleSize) || desc.particleSize < 0) {
       return next(new Error(`Invalid particle size for description ${i + 1}`));
     }
-    // No required validation for description/phValue because both are optional
+    
+    // NEW: pH range validation
+    if (desc.phMin != null && (desc.phMin < 0 || desc.phMin > 14)) {
+      return next(new Error(`Invalid pH minimum for description ${i + 1}: must be between 0 and 14`));
+    }
+    if (desc.phMax != null && (desc.phMax < 0 || desc.phMax > 14)) {
+      return next(new Error(`Invalid pH maximum for description ${i + 1}: must be between 0 and 14`));
+    }
+    if (desc.phMin !== undefined && desc.phMin !== null && desc.phMax !== undefined && desc.phMax !== null && desc.phMin > desc.phMax) {
+      return next(new Error(`Invalid pH range for description ${i + 1}: minimum (${desc.phMin}) cannot be greater than maximum (${desc.phMax})`));
+    }
+    
+    // Optional: Validate that if one pH value is provided, both should be provided
+    if (desc.phMin !== undefined && desc.phMin !== null && 
+    desc.phMax !== undefined && desc.phMax !== null && 
+    desc.phMin > desc.phMax) {
+  return next(new Error(`Invalid pH range for description ${i + 1}: minimum (${desc.phMin}) cannot be greater than maximum (${desc.phMax})`));
+}
   }
+  
   next();
 });
 

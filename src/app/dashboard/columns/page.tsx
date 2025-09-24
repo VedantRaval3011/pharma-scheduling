@@ -21,9 +21,10 @@ interface ColumnDescription {
   usePrefixForNewCode: boolean;
   useSuffixForNewCode: boolean;
   isObsolete: boolean;
-  // ADD THESE NEW OPTIONAL FIELDS
+  // UPDATED OPTIONAL FIELDS - pH range
   description?: string;
-  phValue?: number;
+  phMin?: number | null;
+  phMax?: number | null;
 }
 
 interface CoreAttributes {
@@ -82,6 +83,7 @@ const carbonTypeMap: { [key: string]: string } = {
   L13: "C1",
   L14: "SAX",
   L15: "C6",
+  L16: "C2",
   L17: "SCX resin H⁺ form",
   L19: "SCX resin Ca²⁺ form",
   L20: "Diol",
@@ -94,9 +96,10 @@ const carbonTypeMap: { [key: string]: string } = {
   L33: "Dextran-SEC",
   L34: "SCX resin Pb²⁺ form",
   L37: "PM-Protein SEC",
-  L38: "PM-Water SEC",
+  L38: "SEC(GFC) AQUEOUS",
   L39: "PH-PM resin",
   L43: "PFP",
+  L51: "CHIRALPAK AD-H",
   L55: "SCX polybutadiene-maleic acid",
   L59: "Protein silica hydrophilic",
   L68: "Amide HILIC",
@@ -135,9 +138,10 @@ const carbonTypeMap: { [key: string]: string } = {
   "Dextran-SEC": "L33",
   "SCX resin Pb²⁺ form": "L34",
   "PM-Protein SEC": "L37",
-  "PM-Water SEC": "L38",
+  "SEC(GFC) AQUEOUS": "L38",
   "PH-PM resin": "L39",
   PFP: "L43",
+  "CHIRALPAK AD-H": "L51",
   "SCX polybutadiene-maleic acid": "L55",
   "Protein silica hydrophilic": "L59",
   "Amide HILIC": "L68",
@@ -164,6 +168,7 @@ const carbonTypeOptions = [
   "Phenyl",
   "SAX",
   "C1",
+  "C2",
   "C6",
   "SCX resin H⁺ form",
   "SCX resin Ca²⁺ form",
@@ -177,10 +182,11 @@ const carbonTypeOptions = [
   "Dextran-SEC",
   "SCX resin Pb²⁺ form",
   "PM-Protein SEC",
-  "PM-Water SEC",
+  "SEC(GFC) AQUEOUS",
   "PH-PM resin",
   "PFP",
   "SCX polybutadiene-maleic acid",
+  "CHIRALPAK AD-H",
   "Protein silica hydrophilic",
   "Amide HILIC",
   "RP + WAX",
@@ -208,6 +214,7 @@ const linkedCarbonTypeOptions = [
   "L13",
   "L14",
   "L15",
+  "L16",
   "L17",
   "L19",
   "L20",
@@ -223,6 +230,7 @@ const linkedCarbonTypeOptions = [
   "L38",
   "L39",
   "L43",
+  "L51",
   "L55",
   "L59",
   "L68",
@@ -329,7 +337,8 @@ export default function MasterColumn() {
         isObsolete: false,
         // ADD THESE NEW FIELDS
         description: "",
-        phValue: undefined as number | undefined,
+        phMin: null as number | null,
+        phMax: null as number | null,
       },
     ],
   });
@@ -406,10 +415,14 @@ export default function MasterColumn() {
               desc.usePrefixForNewCode || desc.useSuffixForNewCode
                 ? "Yes"
                 : "No",
-            Status: desc.isObsolete ? "Obsolete" : "Active",
             // ADD THESE NEW EXCEL COLUMNS
-            "Description Text": desc.description || "",
-            "pH Value": desc.phValue !== undefined ? desc.phValue : "",
+            "Remark": desc.description || "",
+            "pH Min": desc.phMin !== null ? desc.phMin : "",
+            "pH Max": desc.phMax !== null ? desc.phMax : "",
+            "pH Range":
+              desc.phMin !== null && desc.phMax !== null
+                ? `${desc.phMin} - ${desc.phMax}`
+                : "",
           };
 
           excelData.push(row);
@@ -437,10 +450,11 @@ export default function MasterColumn() {
         { wch: 15 }, // Column ID
         { wch: 15 }, // Installation Date
         { wch: 12 }, // Make Specific
-        { wch: 10 }, // Status
         // ADD THESE NEW COLUMN WIDTHS
-        { wch: 25 }, // Description Text
-        { wch: 10 }, // pH Value
+        { wch: 25 }, // Remark
+        { wch: 10 }, // pH Min
+        { wch: 10 }, // pH Max
+        { wch: 15 }, // pH Range
       ];
 
       ws["!cols"] = colWidths;
@@ -1217,23 +1231,26 @@ export default function MasterColumn() {
     );
     console.log("All existing column codes:", allColumnCodes);
 
-    const maxNum = allColumnCodes.reduce((max, code) => {
-      const match = code.match(/^(cl|CL)(\d+)$/i);
-      if (match) {
-        const num = parseInt(match[2]) || 0;
-        console.log(`Parsed ${code} -> ${num}`);
-        return Math.max(max, num);
-      }
-      return max;
-    }, 0);
+    const usedNumbers = allColumnCodes
+  .map(code => {
+    const match = code.match(/^(cl|CL)(\d+)$/i);
+    return match ? parseInt(match[2]) : null;
+  })
+  .filter(num => num !== null)
+  .sort((a, b) => a - b);
 
-    const newColumnCode = `CL${(maxNum + 1).toString().padStart(2, "0")}`;
-    console.log(
-      "Generated new column code:",
-      newColumnCode,
-      "Max found:",
-      maxNum
-    );
+let nextNumber = 1;
+for (const num of usedNumbers) {
+  if (num === nextNumber) {
+    nextNumber++;
+  } else if (num > nextNumber) {
+    break; // Found a gap
+  }
+}
+
+const newColumnCode = `CL${nextNumber.toString().padStart(2, "0")}`;
+
+    
 
     return newColumnCode;
   };
@@ -1261,6 +1278,30 @@ export default function MasterColumn() {
 
     if (!desc.installationDate) {
       errors[`installationDate_0`] = "Installation Date is required";
+    }
+
+    if (desc.phMin !== null && desc.phMax !== null && desc.phMin > desc.phMax) {
+  errors[`phRange${0}`] = 'pH minimum cannot be greater than pH maximum';
+}
+
+    if (
+      desc.phMax !== null &&
+      (isNaN(desc.phMax) || desc.phMax < 0 || desc.phMax > 14)
+    ) {
+      errors[`phMax_0`] = "pH maximum must be between 0 and 14";
+    }
+
+    if (desc.phMin !== null && desc.phMax !== null && desc.phMin > desc.phMax) {
+      errors[`phRange_0`] = "pH minimum cannot be greater than pH maximum";
+    }
+
+    // Optional: Both or neither validation
+    if (
+      (desc.phMin !== null && desc.phMax === null) ||
+      (desc.phMin === null && desc.phMax !== null)
+    ) {
+      errors[`phRange_0`] =
+        "Please provide both pH minimum and maximum, or neither";
     }
 
     // Numeric field validations
@@ -1719,7 +1760,8 @@ export default function MasterColumn() {
           isObsolete: false,
           // ADD THESE NEW FIELDS
           description: "",
-          phValue: undefined,
+          phMin: null,
+          phMax: null,
         },
       ],
     });
@@ -1747,7 +1789,8 @@ export default function MasterColumn() {
           isObsolete: false,
           // ADD THESE NEW FIELDS
           description: "",
-          phValue: undefined,
+          phMin: null,
+          phMax: null,
         },
       ],
     });
@@ -1784,7 +1827,8 @@ export default function MasterColumn() {
           useSuffixForNewCode: false,
           isObsolete: false,
           description: "",
-          phValue: undefined,
+          phMin: null,
+          phMax: null,
         },
       ],
     });
@@ -1877,10 +1921,8 @@ export default function MasterColumn() {
         suffixId: desc.suffix || undefined,
         // ADD THESE NEW FIELDS
         description: desc.description?.trim() || undefined,
-        phValue:
-          desc.phValue !== undefined && desc.phValue !== null
-            ? Number(desc.phValue)
-            : undefined,
+        phMin: desc.phMin !== null ? Number(desc.phMin) : null,
+        phMax: desc.phMax !== null ? Number(desc.phMax) : null,
       };
 
       console.log(
@@ -2310,11 +2352,6 @@ export default function MasterColumn() {
         credentials: "include",
       });
 
-      console.log("API Response:", {
-        status: response.status,
-        statusText: response.statusText,
-      });
-
       const data = await response.text();
       console.log("Raw response data:", data);
 
@@ -2359,6 +2396,56 @@ export default function MasterColumn() {
     }
   };
 
+  const selectOrCreateColumn = (desc: ColumnDescription) => {
+    const allColumns = [...columns, ...obsoleteColumns];
+    const newColumnCode = generateColumnCode(desc, columns, obsoleteColumns);
+
+    // Find if a column with the new code already exists
+    const existingColumn = allColumns.find(
+      (col) => col.columnCode === newColumnCode
+    );
+
+    if (existingColumn) {
+      // Select the existing column
+      setSelectedColumnId(existingColumn._id);
+      setSelectedDescriptionIndex(0); // Select first description
+      setSelectedColumnCodeForAudit(existingColumn.columnCode);
+
+      // Update form with the existing column data
+      const existingDesc = existingColumn.descriptions[0];
+      setForm({
+        columnCode: existingColumn.columnCode,
+        descriptions: [
+          {
+            ...existingDesc,
+            innerDiameter: existingDesc.innerDiameter.toString(),
+            length: existingDesc.length.toString(),
+            particleSize: existingDesc.particleSize.toString(),
+            linkedCarbonType: carbonTypeMap[existingDesc.carbonType] || "",
+            usePrefix: existingDesc.usePrefix ?? false,
+            useSuffix: existingDesc.useSuffix ?? false,
+            usePrefixForNewCode: desc.usePrefixForNewCode,
+            useSuffixForNewCode: desc.useSuffixForNewCode,
+            isObsolete: existingDesc.isObsolete ?? false,
+            description: existingDesc.description || "",
+            phMin: desc.phMin !== undefined ? desc.phMin : null,
+            phMax: desc.phMax !== undefined ? desc.phMax : null,
+          },
+        ],
+      });
+
+      console.log("Selected existing column:", existingColumn.columnCode);
+    } else {
+      // Keep current form but with the new column code (will create new column on save)
+      setForm((prev) => ({
+        ...prev,
+        columnCode: newColumnCode,
+      }));
+
+      console.log("Will create new column:", newColumnCode);
+    }
+  };
+
   const handleCodeGenerationCheckboxChange = (
     index: number,
     field: "usePrefixForNewCode" | "useSuffixForNewCode",
@@ -2375,10 +2462,17 @@ export default function MasterColumn() {
     // Clear any related errors
     setFormErrors((prev) => ({ ...prev, [`${field}_${index}`]: "" }));
 
-    // FIXED: Let updateColumnCode handle the original core attributes internally
+    // Generate new column code and select appropriate column
     setTimeout(() => {
-      updateColumnCode(index, false); // Remove the third parameter
-    }, 50);
+      updateColumnCode(index, false, true); // Force update
+
+      // After column code is updated, check if we should select an existing column
+      // or create a new one based on the new specifications
+      const desc = form.descriptions[index];
+      if (checked && (desc.prefix || desc.suffix)) {
+        selectOrCreateColumn(desc);
+      }
+    }, 100);
   };
 
   const handleEdit = () => {
@@ -2403,7 +2497,8 @@ export default function MasterColumn() {
               useSuffixForNewCode: desc.useSuffixForNewCode ?? false,
               isObsolete: desc.isObsolete ?? false,
               description: desc.description || "",
-              phValue: desc.phValue !== undefined ? desc.phValue : undefined,
+              phMin: desc.phMin !== undefined ? desc.phMin : null,
+              phMax: desc.phMax !== undefined ? desc.phMax : null,
             },
           ],
         });
@@ -2570,10 +2665,8 @@ export default function MasterColumn() {
           useSuffixForNewCode: selectedDesc.useSuffixForNewCode ?? false,
           isObsolete: selectedDesc.isObsolete ?? false,
           description: selectedDesc.description || "",
-          phValue:
-            selectedDesc.phValue !== undefined
-              ? selectedDesc.phValue
-              : undefined,
+          phMin: selectedDesc.phMin !== undefined ? selectedDesc.phMin : null,
+          phMax: selectedDesc.phMax !== undefined ? selectedDesc.phMax : null,
         },
       ],
     });
@@ -2599,13 +2692,17 @@ export default function MasterColumn() {
           !searchFilters.make ||
           desc.make.toLowerCase().includes(searchFilters.make.toLowerCase());
 
-        // ADD DESCRIPTION TEXT SEARCH
         const matchesDescText =
           !searchFilters.description ||
           (desc.description &&
             desc.description
               .toLowerCase()
               .includes(searchFilters.description.toLowerCase()));
+
+        // OPTIONAL: Add pH range search
+        // const matchesPhRange = !searchFilters.phRange ||
+        //   (desc.phMin && desc.phMax &&
+        //    `${desc.phMin}-${desc.phMax}`.includes(searchFilters.phRange));
 
         return matchesCarbonType && matchesMake && matchesDescText;
       });
@@ -2679,7 +2776,8 @@ export default function MasterColumn() {
                   useSuffixForNewCode: false,
                   isObsolete: false,
                   description: "",
-                  phValue: undefined,
+                  phMin: null,
+                  phMax: null,
                 },
               ],
             });
@@ -2717,9 +2815,8 @@ export default function MasterColumn() {
         <th>Make</th>
         <th>Column ID</th>
         <th>Installation Date</th>
-        <th>Status</th>
         <!-- ADD THESE NEW PRINT HEADERS -->
-        <th>Description Text</th>
+        <th>Remark</th>
         <th>pH Value</th>
       </tr>
     </thead>
@@ -2747,10 +2844,9 @@ export default function MasterColumn() {
                 <td>${desc.make}</td>
                 <td>${desc.columnId}</td>
                 <td>${desc.installationDate}</td>
-                <td>${desc.isObsolete ? "Obsolete" : "Active"}</td>
                 <!-- ADD THESE NEW PRINT CELLS -->
                 <td>${desc.description || "-"}</td>
-                <td>${desc.phValue !== undefined ? desc.phValue : "-"}</td>
+               
               </tr>`
           )
         )
@@ -2835,10 +2931,10 @@ export default function MasterColumn() {
                     "Column ID",
                     "Installation Date",
                     "Make Specific",
-                    "Status",
-                    // ADD THESE NEW HEADERS
-                    "Description Text",
-                    "pH Value",
+                    // UPDATED NEW HEADERS - pH range instead of single value
+                    "Remark",
+                    "pH Min",
+                    "pH Max",
                   ].map((header) => (
                     <th
                       key={header}
@@ -2912,9 +3008,7 @@ export default function MasterColumn() {
                           ? "Yes"
                           : "No"}
                       </td>
-                      <td className="border border-gray-300 p-1 text-center">
-                        {desc.isObsolete ? "Obsolete" : "Active"}
-                      </td>
+
                       <td
                         className="border border-gray-300 p-1 text-left text-xs max-w-[150px] truncate"
                         title={desc.description || "-"}
@@ -2924,8 +3018,15 @@ export default function MasterColumn() {
 
                       {/* pH Value Column */}
                       <td className="border border-gray-300 p-1 text-center text-xs">
-                        {desc.phValue !== undefined && desc.phValue !== null
-                          ? desc.phValue.toFixed(1)
+                        {desc.phMin !== undefined && desc.phMin !== null
+                          ? desc.phMin.toFixed(1)
+                          : "-"}
+                      </td>
+
+                      {/* pH Max Column */}
+                      <td className="border border-gray-300 p-1 text-center text-xs">
+                        {desc.phMax !== undefined && desc.phMax !== null
+                          ? desc.phMax.toFixed(1)
                           : "-"}
                       </td>
                     </tr>
@@ -3104,14 +3205,6 @@ export default function MasterColumn() {
                             })
                             .replace(/\//g, " ")
                         : "-"}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[#003087]">
-                      Status:
-                    </label>
-                    <p className="text-xs">
-                      {form.descriptions[0]?.isObsolete ? "Obsolete" : "Active"}
                     </p>
                   </div>
                 </div>
@@ -3664,20 +3757,45 @@ export default function MasterColumn() {
                       </div>
 
                       {/* pH Value Field */}
+                      {/* Replace the existing pH Value field with these two fields */}
+                      {/* pH Min Field */}
                       <div>
                         <label className="block text-[10px] font-medium text-[#003087] mb-1">
-                          pH Value (Optional)
+                          pH Min (Optional)
                         </label>
                         <input
                           type="number"
                           min="0"
                           max="14"
                           step="0.1"
-                          value={desc.phValue || ""}
+                          value={desc.phMin || ""}
                           onChange={(e) =>
                             handleDescriptionChange(
                               index,
-                              "phValue",
+                              "phMin",
+                              e.target.value ? parseFloat(e.target.value) : ""
+                            )
+                          }
+                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
+                          placeholder="0.0 - 14.0"
+                        />
+                      </div>
+
+                      {/* pH Max Field */}
+                      <div>
+                        <label className="block text-[10px] font-medium text-[#003087] mb-1">
+                          pH Max (Optional)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="14"
+                          step="0.1"
+                          value={desc.phMax || ""}
+                          onChange={(e) =>
+                            handleDescriptionChange(
+                              index,
+                              "phMax",
                               e.target.value ? parseFloat(e.target.value) : ""
                             )
                           }
@@ -3685,7 +3803,15 @@ export default function MasterColumn() {
                           placeholder="0.0 - 14.0"
                         />
                         <p className="text-[10px] text-gray-600 mt-1">
-                          pH scale from 0 (acidic) to 14 (basic)
+                          pH range: Min {desc.phMin || "?"} - Max{" "}
+                          {desc.phMax || "?"}
+                          {desc.phMin && desc.phMax && desc.phMin <= desc.phMax
+                            ? " ✓"
+                            : desc.phMin &&
+                              desc.phMax &&
+                              desc.phMin > desc.phMax
+                            ? " ✗ Min > Max"
+                            : ""}
                         </p>
                       </div>
 

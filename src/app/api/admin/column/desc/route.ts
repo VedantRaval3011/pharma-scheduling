@@ -143,9 +143,10 @@ export async function GET(req: NextRequest) {
       usePrefixForNewCode: description.usePrefixForNewCode,
       useSuffixForNewCode: description.useSuffixForNewCode,
       isObsolete: description.isObsolete,
-      // NEW optional fields - handle gracefully with null fallback
+      // NEW optional fields - pH range with proper null handling
       description: description.description || null,
-      phValue: description.phValue !== undefined ? description.phValue : null,
+      phMin: description.phMin !== undefined ? description.phMin : null,
+      phMax: description.phMax !== undefined ? description.phMax : null,
     };
 
     console.log("Final transformed description:", JSON.stringify(transformedDescription, null, 2));

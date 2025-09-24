@@ -23,6 +23,7 @@ interface ChangeLog {
   to: any;
 }
 
+// Updated interface with pH range fields
 interface IDescription {
   descriptionId: mongoose.Types.ObjectId;
   prefixId?: mongoose.Types.ObjectId | null;
@@ -40,9 +41,10 @@ interface IDescription {
   usePrefixForNewCode: boolean;
   useSuffixForNewCode: boolean;
   isObsolete: boolean;
-  // NEW optional fields
+  // NEW optional fields - pH range instead of single value
   description?: string;
-  phValue?: number;
+  phMin?: number | null;
+  phMax?: number | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -159,9 +161,10 @@ export async function GET(req: NextRequest) {
         usePrefixForNewCode: description.usePrefixForNewCode,
         useSuffixForNewCode: description.useSuffixForNewCode,
         isObsolete: description.isObsolete,
-        // NEW optional fields
+        // NEW optional fields - pH range
         description: description.description || null,
-        phValue: description.phValue || null,
+        phMin: description.phMin || null,
+        phMax: description.phMax || null,
       };
 
       return NextResponse.json({ success: true, data: transformedDescription });
@@ -288,9 +291,10 @@ export async function GET(req: NextRequest) {
           usePrefixForNewCode: desc.usePrefixForNewCode,
           useSuffixForNewCode: desc.useSuffixForNewCode,
           isObsolete: desc.isObsolete,
-          // NEW optional fields
+          // NEW optional fields - pH range
           description: desc.description || null,
-          phValue: desc.phValue || null,
+          phMin: desc.phMin || null,
+          phMax: desc.phMax || null,
         };
       });
 
@@ -390,10 +394,14 @@ export async function POST(req: NextRequest) {
           usePrefixForNewCode: !!desc.usePrefixForNewCode,
           useSuffixForNewCode: !!desc.useSuffixForNewCode,
           isObsolete: !!desc.isObsolete,
-          // NEW optional fields - handle with defaults
+          // NEW optional fields - pH range with proper null handling
           description: desc.description?.trim() || null,
-          phValue: desc.phValue !== undefined && desc.phValue !== null && desc.phValue !== "" 
-            ? Number(desc.phValue) : null,
+          // In your API routes, replace the current pH handling:
+phMin: desc.phMin !== null && desc.phMin !== '' && desc.phMin !== 'null' ? 
+       Number(desc.phMin) : null,
+phMax: desc.phMax !== null && desc.phMax !== '' && desc.phMax !== 'null' ? 
+       Number(desc.phMax) : null,
+
         };
       }),
       companyId,
@@ -402,7 +410,7 @@ export async function POST(req: NextRequest) {
 
     console.log("Formatted body:", JSON.stringify(formattedBody, null, 2));
 
-    // Validate formatted descriptions (no validation needed for optional fields)
+    // Validate formatted descriptions with pH range validation
     for (let i = 0; i < formattedBody.descriptions.length; i++) {
       const desc = formattedBody.descriptions[i];
       console.log(
@@ -509,16 +517,57 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Optional validation for phValue if provided
-      if (desc.phValue !== null && (isNaN(desc.phValue) || desc.phValue < 0 || desc.phValue > 14)) {
+      // NEW: pH range validation
+      if (desc.phMin != null && (isNaN(desc.phMin) || desc.phMin < 0 || desc.phMin > 14)) {
         console.log(
-          `Validation failed: Invalid pH value for description ${i + 1}:`,
-          desc.phValue
+          `Validation failed: Invalid pH minimum for description ${i + 1}:`,
+          desc.phMin
         );
         return NextResponse.json(
           {
             success: false,
-            error: `Invalid pH value for description ${i + 1}. Must be between 0 and 14.`,
+            error: `Invalid pH minimum for description ${i + 1}. Must be between 0 and 14.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      if (desc.phMax != null && (isNaN(desc.phMax) || desc.phMax < 0 || desc.phMax > 14)) {
+        console.log(
+          `Validation failed: Invalid pH maximum for description ${i + 1}:`,
+          desc.phMax
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Invalid pH maximum for description ${i + 1}. Must be between 0 and 14.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      if (desc.phMin != null && desc.phMax != null && desc.phMin > desc.phMax) {
+        console.log(
+          `Validation failed: Invalid pH range for description ${i + 1}: min=${desc.phMin}, max=${desc.phMax}`
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Invalid pH range for description ${i + 1}. Minimum (${desc.phMin}) cannot be greater than maximum (${desc.phMax}).`,
+          },
+          { status: 400 }
+        );
+      }
+
+      // Optional: Ensure both pH values are provided together
+      if ((desc.phMin != null && desc.phMax == null) || (desc.phMin == null && desc.phMax != null)) {
+        console.log(
+          `Validation failed: Incomplete pH range for description ${i + 1}`
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Both pH minimum and maximum must be provided for description ${i + 1}, or neither.`,
           },
           { status: 400 }
         );
@@ -535,7 +584,7 @@ export async function POST(req: NextRequest) {
     const savedColumn = await column.save();
     console.log("Column saved successfully with ID:", savedColumn._id);
 
-    // Create audit log with new fields
+    // Create audit log with pH range fields
     const changes: ChangeLog[] = formattedBody.descriptions
       .flatMap((desc: any, index: number) => [
         {
@@ -618,16 +667,21 @@ export async function POST(req: NextRequest) {
           from: undefined,
           to: desc.isObsolete,
         },
-        // NEW optional fields in audit log
+        // NEW pH range fields in audit log
         {
           field: `descriptions[${index}].description`,
           from: undefined,
           to: desc.description,
         },
         {
-          field: `descriptions[${index}].phValue`,
+          field: `descriptions[${index}].phMin`,
           from: undefined,
-          to: desc.phValue,
+          to: desc.phMin,
+        },
+        {
+          field: `descriptions[${index}].phMax`,
+          from: undefined,
+          to: desc.phMax,
         },
       ])
       .filter(
@@ -726,7 +780,7 @@ export async function PUT(req: NextRequest) {
     await mongoose.connect(process.env.MONGODB_URI!);
     console.log("Database connected successfully");
 
-    // Format descriptions with new optional fields
+    // Format descriptions with pH range fields
     formattedDescriptions = body.descriptions.map(
       (desc: any, index: number) => {
         console.log(
@@ -757,15 +811,17 @@ export async function PUT(req: NextRequest) {
           usePrefixForNewCode: !!desc.usePrefixForNewCode,
           useSuffixForNewCode: !!desc.useSuffixForNewCode,
           isObsolete: !!desc.isObsolete,
-          // NEW optional fields with proper handling
+          // NEW pH range fields with proper null handling
           description: desc.description?.trim() || null,
-          phValue: desc.phValue !== undefined && desc.phValue !== null && desc.phValue !== "" 
-            ? Number(desc.phValue) : null,
+          phMin: desc.phMin != null && desc.phMin !== "" 
+            ? Number(desc.phMin) : null,
+          phMax: desc.phMax != null && desc.phMax !== "" 
+            ? Number(desc.phMax) : null,
         };
       }
     );
 
-    // Validate descriptions (including optional field validation)
+    // Validate descriptions with pH range validation
     for (let i = 0; i < formattedDescriptions.length; i++) {
       const desc = formattedDescriptions[i];
       if (!desc.carbonType) {
@@ -804,12 +860,44 @@ export async function PUT(req: NextRequest) {
           { status: 400 }
         );
       }
-      // Optional validation for phValue if provided
-      if (desc.phValue !== null && (isNaN(desc.phValue) || desc.phValue < 0 || desc.phValue > 14)) {
+
+      // NEW: pH range validation for PUT
+      if (desc.phMin != null && (isNaN(desc.phMin) || desc.phMin < 0 || desc.phMin > 14)) {
         return NextResponse.json(
           {
             success: false,
-            error: `Invalid pH value for description ${i + 1}. Must be between 0 and 14.`,
+            error: `Invalid pH minimum for description ${i + 1}. Must be between 0 and 14.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      if (desc.phMax != null && (isNaN(desc.phMax) || desc.phMax < 0 || desc.phMax > 14)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Invalid pH maximum for description ${i + 1}. Must be between 0 and 14.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      if (desc.phMin != null && desc.phMax != null && desc.phMin > desc.phMax) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Invalid pH range for description ${i + 1}. Minimum (${desc.phMin}) cannot be greater than maximum (${desc.phMax}).`,
+          },
+          { status: 400 }
+        );
+      }
+
+      // Optional: Ensure both pH values are provided together
+      if ((desc.phMin != null && desc.phMax == null) || (desc.phMin == null && desc.phMax != null)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Both pH minimum and maximum must be provided for description ${i + 1}, or neither.`,
           },
           { status: 400 }
         );
@@ -838,7 +926,7 @@ export async function PUT(req: NextRequest) {
 
     console.log("Column updated successfully with ID:", updatedColumn._id);
 
-    // Create audit log with new fields
+    // Create audit log with pH range fields
     const changes = formattedDescriptions.flatMap(
       (desc: any, index: number) => [
         {
@@ -881,16 +969,21 @@ export async function PUT(req: NextRequest) {
           from: undefined,
           to: desc.useSuffixForNewCode,
         },
-        // NEW optional fields in audit log
+        // NEW pH range fields in audit log
         {
           field: `descriptions[${index}].description`,
           from: undefined,
           to: desc.description,
         },
         {
-          field: `descriptions[${index}].phValue`,
+          field: `descriptions[${index}].phMin`,
           from: undefined,
-          to: desc.phValue,
+          to: desc.phMin,
+        },
+        {
+          field: `descriptions[${index}].phMax`,
+          from: undefined,
+          to: desc.phMax,
         },
       ]
     );

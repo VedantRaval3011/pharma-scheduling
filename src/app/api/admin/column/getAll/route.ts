@@ -7,6 +7,7 @@ import connectDB from "@/lib/db";
 import Make from "@/models/make";
 import { PrefixSuffix } from '@/models/PrefixSuffix';
 
+// Updated interface with pH range fields
 interface IDescription {
   descriptionId: mongoose.Types.ObjectId;
   prefixId?: mongoose.Types.ObjectId | null;
@@ -24,9 +25,10 @@ interface IDescription {
   usePrefixForNewCode: boolean;
   useSuffixForNewCode: boolean;
   isObsolete: boolean;
-  // NEW optional fields
+  // NEW optional fields - pH range instead of single value
   description?: string;
-  phValue?: number;
+  phMin?: number | null;
+  phMax?: number | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -157,9 +159,10 @@ export async function GET(req: NextRequest) {
           usePrefixForNewCode: desc.usePrefixForNewCode,
           useSuffixForNewCode: desc.useSuffixForNewCode,
           isObsolete: desc.isObsolete,
-          // NEW optional fields - handle gracefully with null fallback
+          // NEW optional fields - pH range with proper null handling
           description: desc.description || null,
-          phValue: desc.phValue || null,
+          phMin: desc.phMin || null,
+          phMax: desc.phMax || null,
         };
       });
 
