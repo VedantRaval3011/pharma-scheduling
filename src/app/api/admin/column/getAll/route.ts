@@ -6,7 +6,6 @@ import { authOptions } from "@/lib/auth";
 import Make from "@/models/make";
 import { PrefixSuffix } from "@/models/PrefixSuffix";
 
-
 const ensureModelsRegistered = () => {
   // This forces Mongoose to register the models if they haven't been already
   if (!mongoose.models.Make) {
@@ -16,7 +15,6 @@ const ensureModelsRegistered = () => {
     require("@/models/PrefixSuffix");
   }
 };
-
 
 export async function GET(req: NextRequest) {
   console.log("=== GET /api/admin/column-description START ===");
@@ -31,14 +29,11 @@ export async function GET(req: NextRequest) {
       );
     }
 
-
     const companyId = req.nextUrl.searchParams.get("companyId");
     const locationId = req.nextUrl.searchParams.get("locationId");
     const descriptionId = req.nextUrl.searchParams.get("descriptionId");
 
-
     console.log("Query params:", { companyId, locationId, descriptionId });
-
 
     if (!companyId || !locationId || !descriptionId) {
       console.log("Missing required query params");
@@ -48,11 +43,9 @@ export async function GET(req: NextRequest) {
       );
     }
 
-
     await mongoose.connect(process.env.MONGODB_URI!);
     ensureModelsRegistered();
     console.log("Database connected successfully");
-
 
     // Find the column that contains the description with the given descriptionId
     const column = await Column.findOne({
@@ -60,7 +53,6 @@ export async function GET(req: NextRequest) {
       locationId,
       "descriptions.descriptionId": descriptionId
     });
-
 
     if (!column) {
       console.log("Column or description not found");
@@ -70,13 +62,13 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    console.log("Found parent column:", column.columnCode, "partNumber:", column.partNumber || 'N/A');
+    // ✅ FIXED: Remove reference to column.partNumber
+    console.log("Found parent column:", column.columnCode, "with", column.descriptions.length, "descriptions");
 
     // Find the specific description within the column
     const description = column.descriptions.find(
       (desc: any) => desc.descriptionId && desc.descriptionId.toString() === descriptionId
     );
-
 
     if (!description) {
       console.log("Description not found in column");
@@ -86,9 +78,9 @@ export async function GET(req: NextRequest) {
       );
     }
 
-
-    console.log("Found description:", JSON.stringify(description, null, 2));
-
+    // ✅ UPDATED: Log description with partNumber from description level
+    console.log("Found description with partNumber:", description.partNumber || 'N/A');
+    console.log("Description details:", JSON.stringify(description, null, 2));
 
     // Collect related IDs for batch fetching
     const relatedIds = {
@@ -97,9 +89,7 @@ export async function GET(req: NextRequest) {
       suffixIds: description.suffixId ? [description.suffixId.toString()] : []
     };
 
-
     console.log("Related IDs to fetch:", relatedIds);
-
 
     // Batch fetch all related data
     const [makes, prefixSuffixes] = await Promise.all([
@@ -109,10 +99,8 @@ export async function GET(req: NextRequest) {
       }).lean()
     ]);
 
-
     console.log("Fetched makes:", makes);
     console.log("Fetched prefixSuffixes:", prefixSuffixes);
-
 
     // Create lookup maps for fast access
     const makeMap = new Map();
@@ -120,37 +108,33 @@ export async function GET(req: NextRequest) {
       makeMap.set(String(make._id), make);
     });
 
-
     const prefixSuffixMap = new Map();
     prefixSuffixes.forEach((ps) => {
       prefixSuffixMap.set(String(ps._id), ps);
     });
-
 
     // Manually join related data
     const make = description.makeId ? makeMap.get(description.makeId.toString()) : null;
     const prefix = description.prefixId ? prefixSuffixMap.get(description.prefixId.toString()) : null;
     const suffix = description.suffixId ? prefixSuffixMap.get(description.suffixId.toString()) : null;
 
-
     console.log("Joined data:", { make, prefix, suffix });
 
-
-    // ✅ NEW: Transform the response to include both column-level and description-level data
+    // ✅ UPDATED: Transform the response with partNumber at description level
     const responseData = {
-      // ✅ Parent column information
+      // ✅ Parent column information (removed partNumber from here)
       column: {
         _id: column._id,
         columnCode: column.columnCode,
-        partNumber: column.partNumber || '', // Include partNumber with fallback
         companyId: column.companyId,
         locationId: column.locationId,
         createdAt: column.createdAt,
         updatedAt: column.updatedAt,
       },
-      // ✅ Description data (subdocument)
+      // ✅ Description data (subdocument) - now includes partNumber
       description: {
         descriptionId: description.descriptionId,
+        partNumber: description.partNumber || null, // ✅ ADDED: partNumber from description
         prefixId: description.prefixId ? {
           _id: description.prefixId,
           name: prefix?.name || null,
@@ -183,15 +167,14 @@ export async function GET(req: NextRequest) {
       }
     };
 
-
     console.log("Final response data:", JSON.stringify(responseData, null, 2));
     console.log("=== GET /api/admin/column-description SUCCESS ===");
 
-
+    // ✅ UPDATED: Success message uses description.partNumber instead of column.partNumber
     return NextResponse.json({ 
       success: true, 
       data: responseData,
-      message: `Description retrieved successfully from column ${column.columnCode}${column.partNumber ? ` (${column.partNumber})` : ''}` // ✅ Include partNumber in success message
+      message: `Description retrieved successfully from column ${column.columnCode}${description.partNumber ? ` (Part: ${description.partNumber})` : ''}`
     });
   } catch (error: any) {
     console.error("=== GET /api/admin/column-description ERROR ===");

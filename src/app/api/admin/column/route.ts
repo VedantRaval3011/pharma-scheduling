@@ -181,8 +181,7 @@ export async function GET(req: NextRequest) {
         : null;
 
 
-      // Transform the description with joined data
-     // Transform the description with joined data
+// Transform the description with joined data
 const transformedDescription = {
   descriptionId: description.descriptionId,
   partNumber: description.partNumber || null,  // ✅ ADD: Include partNumber
@@ -221,6 +220,7 @@ const transformedDescription = {
   phMin: description.phMin || null,
   phMax: description.phMax || null,
 };
+
 
 
 
@@ -330,6 +330,7 @@ const transformedDescription = {
 
         return {
           descriptionId: desc.descriptionId,
+          partNumber: desc.partNumber?.trim() || null,
           prefixId: desc.prefixId
             ? {
                 _id: desc.prefixId,
@@ -368,11 +369,7 @@ const transformedDescription = {
         };
       });
 
-      // ✅ NEW: Include partNumber in response
-      return {
-        ...columnObj,
-        partNumber: column.partNumber || '', // Include partNumber field
-      };
+      return columnObj;
     });
 
 
@@ -448,7 +445,6 @@ export async function POST(req: NextRequest) {
 
     const formattedBody = {
       columnCode: body.columnCode.trim(),
-      partNumber: body.partNumber.trim(), // ✅ NEW: Add partNumber
       descriptions: body.descriptions.map((desc: any, index: number) => {
         console.log(
           `Processing description ${index}:`,
@@ -456,6 +452,7 @@ export async function POST(req: NextRequest) {
         );
         return {
           descriptionId: desc.descriptionId || new mongoose.Types.ObjectId(), // Add descriptionId
+           partNumber: desc.partNumber || null,
           prefixId: desc.prefixId || null,
           carbonType: desc.carbonType?.trim() || "",
           linkedCarbonType: desc.linkedCarbonType?.trim() || "",
@@ -712,12 +709,7 @@ export async function POST(req: NextRequest) {
     // Create audit log with pH range fields and partNumber
     const resolvedChanges: ChangeLog[] = [];
 
-    // ✅ NEW: Add partNumber to audit log
-    resolvedChanges.push({
-      field: "partNumber",
-      from: undefined,
-      to: formattedBody.partNumber,
-    });
+    
 
     for (let index = 0; index < formattedBody.descriptions.length; index++) {
       const desc = formattedBody.descriptions[index];
@@ -729,6 +721,11 @@ export async function POST(req: NextRequest) {
           from: undefined,
           to: desc.descriptionId,
         },
+        {
+      field: `descriptions[${index}].partNumber`,  // ✅ ADD: partNumber in description audit
+      from: undefined,
+      to: desc.partNumber,
+    },
         {
           field: `descriptions[${index}].prefixId`,
           from: undefined,
@@ -888,16 +885,13 @@ export async function POST(req: NextRequest) {
 
 
 
-// Replace your entire PUT function with this:
 export async function PUT(req: NextRequest) {
   console.log("=== PUT /api/admin/column START ===");
-
 
   let body;
   let formattedDescriptions: any[] = [];
   const companyId = req.nextUrl.searchParams.get("companyId");
   const locationId = req.nextUrl.searchParams.get("locationId");
-
 
   try {
     const session = await getServerSession(authOptions);
@@ -909,9 +903,7 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-
     body = await req.json();
-
 
     console.log(
       "Request params - companyId:",
@@ -920,7 +912,6 @@ export async function PUT(req: NextRequest) {
       locationId
     );
     console.log("Request body:", JSON.stringify(body, null, 2));
-
 
     if (
       !companyId ||
@@ -934,16 +925,14 @@ export async function PUT(req: NextRequest) {
         {
           success: false,
           error:
-            "Company ID, Location ID, column ID, column code, and descriptions are required", // ✅ Updated error
+            "Company ID, Location ID, column ID, column code, and descriptions are required",
         },
         { status: 400 }
       );
     }
 
-
     await mongoose.connect(process.env.MONGODB_URI!);
     console.log("Database connected successfully");
-
 
     // Get the original column BEFORE making changes for audit comparison
     const originalColumn = await Column.findOne({
@@ -951,7 +940,6 @@ export async function PUT(req: NextRequest) {
       companyId,
       locationId
     });
-
 
     if (!originalColumn) {
       console.log("Original column not found for update");
@@ -961,9 +949,7 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-
-    console.log("Found original column:", originalColumn.columnCode, "with partNumber:", originalColumn.partNumber, "and", originalColumn.descriptions.length, "descriptions");
-
+    console.log("Found original column:", originalColumn.columnCode, "with", originalColumn.descriptions.length, "descriptions");
 
     // Format descriptions with pH range fields
     formattedDescriptions = body.descriptions.map(
@@ -973,7 +959,8 @@ export async function PUT(req: NextRequest) {
           JSON.stringify(desc, null, 2)
         );
         return {
-          descriptionId: desc.descriptionId || new mongoose.Types.ObjectId(), // Add descriptionId
+          descriptionId: desc.descriptionId || new mongoose.Types.ObjectId(),
+          partNumber: desc.partNumber?.trim() || null,  // ✅ FIXED: proper trim handling
           prefixId: desc.prefixId || null,
           carbonType: desc.carbonType?.trim() || "",
           linkedCarbonType: desc.linkedCarbonType?.trim() || "",
@@ -996,7 +983,6 @@ export async function PUT(req: NextRequest) {
           usePrefixForNewCode: !!desc.usePrefixForNewCode,
           useSuffixForNewCode: !!desc.useSuffixForNewCode,
           isObsolete: !!desc.isObsolete,
-          // NEW pH range fields with proper null handling
           description: desc.description?.trim() || null,
           phMin: desc.phMin != null && desc.phMin !== "" && desc.phMin !== 'null'
             ? Number(desc.phMin) : null,
@@ -1006,7 +992,7 @@ export async function PUT(req: NextRequest) {
       }
     );
 
-    // Validate descriptions with pH range validation
+    // Validation logic (same as before)...
     for (let i = 0; i < formattedDescriptions.length; i++) {
       const desc = formattedDescriptions[i];
       if (!desc.carbonType) {
@@ -1046,8 +1032,7 @@ export async function PUT(req: NextRequest) {
         );
       }
 
-
-      // NEW: pH range validation for PUT
+      // pH range validation for PUT
       if (desc.phMin != null && (isNaN(desc.phMin) || desc.phMin < 0 || desc.phMin > 14)) {
         return NextResponse.json(
           {
@@ -1057,7 +1042,6 @@ export async function PUT(req: NextRequest) {
           { status: 400 }
         );
       }
-
 
       if (desc.phMax != null && (isNaN(desc.phMax) || desc.phMax < 0 || desc.phMax > 14)) {
         return NextResponse.json(
@@ -1069,7 +1053,6 @@ export async function PUT(req: NextRequest) {
         );
       }
 
-
       if (desc.phMin != null && desc.phMax != null && desc.phMin > desc.phMax) {
         return NextResponse.json(
           {
@@ -1080,8 +1063,6 @@ export async function PUT(req: NextRequest) {
         );
       }
 
-
-      // Optional: Ensure both pH values are provided together
       if ((desc.phMin != null && desc.phMax == null) || (desc.phMin == null && desc.phMax != null)) {
         return NextResponse.json(
           {
@@ -1093,20 +1074,17 @@ export async function PUT(req: NextRequest) {
       }
     }
 
-
-    // Find and update the column
+    // ✅ FIXED: Remove partNumber from column level update
     const updatedColumn = await Column.findByIdAndUpdate(
       body.id,
       {
         columnCode: body.columnCode.trim(),
-        partNumber: body.partNumber.trim(), // ✅ NEW: Update partNumber
         descriptions: formattedDescriptions,
         companyId,
         locationId,
       },
       { new: true, runValidators: true }
     );
-
 
     if (!updatedColumn) {
       console.log("Column not found for update");
@@ -1116,13 +1094,10 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-
     console.log("Column updated successfully with ID:", updatedColumn._id);
-
 
     // Create audit log with resolved values - Compare old vs new
     const resolvedChanges: ChangeLog[] = [];
-
 
     // Track column code change
     if (originalColumn.columnCode !== body.columnCode.trim()) {
@@ -1133,23 +1108,14 @@ export async function PUT(req: NextRequest) {
       });
     }
 
-    // ✅ NEW: Track partNumber change
-    if (originalColumn.partNumber !== body.partNumber.trim()) {
-      resolvedChanges.push({
-        field: "partNumber",
-        from: originalColumn.partNumber,
-        to: body.partNumber.trim()
-      });
-    }
+    // ✅ REMOVED: partNumber tracking at column level since it's now in descriptions
 
-    // Compare descriptions
+    // Compare descriptions (same logic as before)...
     const maxDescriptions = Math.max(originalColumn.descriptions.length, formattedDescriptions.length);
-
 
     for (let index = 0; index < maxDescriptions; index++) {
       const newDesc = formattedDescriptions[index];
       const oldDesc = originalColumn.descriptions[index];
-
 
       if (!oldDesc && newDesc) {
         // New description added
@@ -1165,7 +1131,6 @@ export async function PUT(req: NextRequest) {
         continue;
       }
 
-
       if (oldDesc && !newDesc) {
         // Description removed
         const resolvedMake = await resolveFieldValue('makeId', oldDesc.makeId);
@@ -1180,33 +1145,28 @@ export async function PUT(req: NextRequest) {
         continue;
       }
 
-
       if (oldDesc && newDesc) {
         // Compare each field for changes
         const fieldsToTrack = [
-          'descriptionId', 'prefixId', 'carbonType', 'linkedCarbonType',
+          'descriptionId', 'partNumber', 'prefixId', 'carbonType', 'linkedCarbonType', // ✅ partNumber is correctly included here
           'innerDiameter', 'length', 'particleSize', 'suffixId', 'makeId',
           'columnId', 'installationDate', 'usePrefix', 'useSuffix',
           'usePrefixForNewCode', 'useSuffixForNewCode', 'isObsolete',
           'description', 'phMin', 'phMax'
         ];
 
-
         for (const fieldName of fieldsToTrack) {
           const oldValue = oldDesc[fieldName as keyof typeof oldDesc];
           const newValue = newDesc[fieldName as keyof typeof newDesc];
-
 
           // Convert to string for comparison to handle type differences
           const oldStr = oldValue === null || oldValue === undefined ? 'null' : String(oldValue);
           const newStr = newValue === null || newValue === undefined ? 'null' : String(newValue);
 
-
           // Only log if there's actually a change
           if (oldStr !== newStr) {
             const resolvedOldValue = await resolveFieldValue(fieldName, oldValue);
             const resolvedNewValue = await resolveFieldValue(fieldName, newValue);
-
 
             resolvedChanges.push({
               field: `descriptions[${index}].${fieldName}`,
@@ -1217,7 +1177,6 @@ export async function PUT(req: NextRequest) {
         }
       }
     }
-
 
     // Only create audit log if there are actual changes
     if (resolvedChanges.length > 0) {
@@ -1238,7 +1197,6 @@ export async function PUT(req: NextRequest) {
       console.log("No changes detected, skipping audit log creation");
     }
 
-
     console.log("=== PUT /api/admin/column SUCCESS ===");
     return NextResponse.json(
       { success: true, data: updatedColumn },
@@ -1248,7 +1206,6 @@ export async function PUT(req: NextRequest) {
     console.error("=== PUT /api/admin/column ERROR ===");
     console.error("Error details:", error);
     console.error("Error stack:", error.stack);
-
 
     if (error.name === "ValidationError") {
       console.log("Mongoose validation error:", error.errors);
@@ -1264,13 +1221,13 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
     );
   }
 }
+
 
 
 export async function DELETE(req: NextRequest) {

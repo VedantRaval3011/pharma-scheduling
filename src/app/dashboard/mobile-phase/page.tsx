@@ -512,30 +512,308 @@ function MobilePhaseMaster() {
       console.error("Failed to log audit action:", err);
     }
   };
-
   const fetchAuditLogs = async () => {
     try {
-      if (!companyId || !locationId) return;
-      const queryParams = new URLSearchParams({ companyId, locationId });
-      if (selectedMobilePhase)
+      if (!companyId || !locationId) {
+        return;
+      }
+
+      const queryParams = new URLSearchParams({
+        companyId,
+        locationId,
+      });
+
+      if (selectedMobilePhase) {
         queryParams.append("mobilePhaseId", selectedMobilePhase.mobilePhaseId);
-      if (auditSearchTerm) queryParams.append("searchTerm", auditSearchTerm);
-      if (auditActionFilter) queryParams.append("action", auditActionFilter);
-      if (auditStartDate) queryParams.append("startDate", auditStartDate);
-      if (auditEndDate) queryParams.append("endDate", auditEndDate);
+      }
+      if (auditSearchTerm) {
+        queryParams.append("searchTerm", auditSearchTerm);
+      }
+      if (auditActionFilter) {
+        queryParams.append("action", auditActionFilter);
+      }
+      if (auditStartDate) {
+        queryParams.append("startDate", auditStartDate);
+      }
+      if (auditEndDate) {
+        queryParams.append("endDate", auditEndDate);
+      }
 
       const response = await fetch(
         `/api/admin/mobile-phase/audit?${queryParams.toString()}`
       );
       const data = await response.json();
+
       if (data.success) {
         setAuditLogs(data.data);
       } else {
         setError(data.error || "Failed to fetch audit logs");
       }
-    } catch {
+    } catch (err) {
       setError("Failed to fetch audit logs");
     }
+  };
+
+  const renderAuditModal = () => {
+    if (!showAuditModal) return null;
+
+    return (
+      <div
+        className="fixed inset-0 bg-opacity-30 flex items-center justify-center z-50"
+        style={{ backdropFilter: "blur(2px)" }}>
+        <div
+          className="bg-white rounded-lg p-6 w-4/5 max-w-4xl max-h-[80vh] overflow-y-auto"
+          style={{
+            border: "1px solid #a6c8ff",
+            backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+          }}>
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">
+            Audit Trail{" "}
+            {selectedMobilePhase
+              ? `for ${selectedMobilePhase.mobilePhaseCode}`
+              : "(All Mobile Phases)"}
+          </h3>
+
+          <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Search
+              </label>
+              <input
+                ref={auditSearchInputRef}
+                type="text"
+                value={auditSearchTerm}
+                onChange={(e) => {
+                  setAuditSearchTerm(e.target.value);
+                  fetchAuditLogs();
+                }}
+                className="w-full px-3 py-2 border border-[#a6c8ff] rounded focus:ring-2 focus:ring-[#66a3ff] focus:outline-none bg-white"
+                style={{
+                  borderStyle: "inset",
+                  boxShadow: "inset 1px 1px 2px rgba(0,0,0,0.1)",
+                }}
+                placeholder="Search mobile phase code or description..."
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Action
+              </label>
+              <select
+                value={auditActionFilter}
+                onChange={(e) => {
+                  setAuditActionFilter(e.target.value);
+                  fetchAuditLogs();
+                }}
+                className="w-full px-3 py-2 border border-[#a6c8ff] rounded focus:ring-2 focus:ring-[#66a3ff] focus:outline-none bg-white"
+                style={{
+                  borderStyle: "inset",
+                  boxShadow: "inset 1px 1px 2px rgba(0,0,0,0.1)",
+                }}>
+                <option value="">All Actions</option>
+                <option value="CREATE">Create</option>
+                <option value="UPDATE">Update</option>
+                <option value="DELETE">Delete</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={auditStartDate}
+                onChange={(e) => {
+                  setAuditStartDate(e.target.value);
+                  fetchAuditLogs();
+                }}
+                className="w-full px-3 py-2 border border-[#a6c8ff] rounded focus:ring-2 focus:ring-[#66a3ff] focus:outline-none bg-white"
+                style={{
+                  borderStyle: "inset",
+                  boxShadow: "inset 1px 1px 2px rgba(0,0,0,0.1)",
+                }}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                End Date
+              </label>
+              <input
+                type="date"
+                value={auditEndDate}
+                onChange={(e) => {
+                  setAuditEndDate(e.target.value);
+                  fetchAuditLogs();
+                }}
+                className="w-full px-3 py-2 border border-[#a6c8ff] rounded focus:ring-2 focus:ring-[#66a3ff] focus:outline-none bg-white"
+                style={{
+                  borderStyle: "inset",
+                  boxShadow: "inset 1px 1px 2px rgba(0,0,0,0.1)",
+                }}
+              />
+            </div>
+          </div>
+
+          <div
+            className="max-h-64 overflow-y-auto border border-[#a6c8ff] rounded"
+            style={{
+              backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
+            }}>
+            <table className="w-full text-sm">
+              <thead
+                className="bg-gradient-to-b from-[#f0f0f0] to-[#ffffff] sticky top-0"
+                style={{ borderBottom: "1px solid #a6c8ff" }}>
+                <tr>
+                  <th className="px-3 py-2 text-left text-gray-700">
+                    Timestamp
+                  </th>
+                  <th className="px-3 py-2 text-left text-gray-700">User</th>
+                  <th className="px-3 py-2 text-left text-gray-700">Action</th>
+                  <th className="px-3 py-2 text-left text-gray-700">
+                    Mobile Phase Code
+                  </th>
+                  <th className="px-3 py-2 text-left text-gray-700">Type</th>
+                  <th className="px-3 py-2 text-left text-gray-700">Name</th>
+                  <th className="px-3 py-2 text-left text-gray-700">
+                    pH Value
+                  </th>
+                  <th className="px-3 py-2 text-left text-gray-700">
+                    Description
+                  </th>
+                  <th className="px-3 py-2 text-left text-gray-700">
+                    Previous Code
+                  </th>
+                  <th className="px-3 py-2 text-left text-gray-700">
+                    Previous Type
+                  </th>
+                  <th className="px-3 py-2 text-left text-gray-700">
+                    Previous Name
+                  </th>
+                  <th className="px-3 py-2 text-left text-gray-700">
+                    Previous pH
+                  </th>
+                  <th className="px-3 py-2 text-left text-gray-700">
+                    Previous Description
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#a6c8ff]">
+                {auditLogs.map((log: any, index) => (
+                  <tr key={index} className="hover:bg-[#e6f0fa]">
+                    <td className="px-3 py-2">
+                      {new Date(log.timestamp).toLocaleDateString("en-GB", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "2-digit",
+                      })}
+                    </td>
+                    <td className="px-3 py-2">
+                      {log.userId === session?.user?.id
+                        ? session?.user.userId
+                        : log.userId}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={`px-2 py-1 rounded text-xs ${
+                          log.action === "CREATE"
+                            ? "bg-[#ccffcc] text-[#008800]"
+                            : log.action === "UPDATE"
+                            ? "bg-[#ffffcc] text-[#666600]"
+                            : log.action === "DELETE"
+                            ? "bg-[#ffe6e6] text-[#cc0000]"
+                            : "bg-[#f0f0f0]"
+                        }`}>
+                        {log.action}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="max-w-xs truncate">
+                        {log.data.mobilePhaseCode || "—"}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="max-w-xs truncate">
+                        {log.data.isSolvent
+                          ? "Solvent"
+                          : log.data.isBuffer
+                          ? "Buffer"
+                          : "—"}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="max-w-xs truncate">
+                        {log.data.bufferName || log.data.solventName || "—"}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="max-w-xs truncate">
+                        {log.data.pHValue || "—"}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="max-w-xs truncate">
+                        {log.data.description || "—"}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="max-w-xs truncate">
+                        {log.previousData?.mobilePhaseCode || "—"}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="max-w-xs truncate">
+                        {log.previousData?.isSolvent
+                          ? "Solvent"
+                          : log.previousData?.isBuffer
+                          ? "Buffer"
+                          : "—"}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="max-w-xs truncate">
+                        {log.previousData?.bufferName ||
+                          log.previousData?.solventName ||
+                          "—"}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="max-w-xs truncate">
+                        {log.previousData?.pHValue || "—"}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="max-w-xs truncate">
+                        {log.previousData?.description || "—"}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex justify-end mt-4">
+            <button
+              onClick={() => {
+                setShowAuditModal(false);
+                setAuditSearchTerm("");
+                setAuditActionFilter("");
+                setAuditStartDate("");
+                setAuditEndDate("");
+                setAuditLogs([]);
+              }}
+              className="px-4 py-2 bg-gradient-to-b from-[#d9d9d9] to-[#b3b3b3] text-gray-800 rounded hover:bg-gradient-to-b hover:from-[#b3b3b3] hover:to-[#d9d9d9] active:bg-gradient-to-b active:from-[#b3b3b3] active:to-[#999999]"
+              style={{
+                border: "1px solid #808080",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+              }}>
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   useEffect(() => {
@@ -745,6 +1023,70 @@ function MobilePhaseMaster() {
     router.push("/dashboard");
   };
 
+  const handleMobilePhaseSelect = (mp: MobilePhase, index: number) => {
+    if (!isFormEnabled) {
+      setSelectedMobilePhase(mp);
+      setCurrentMobilePhaseIndex(index);
+
+      // Populate form with selected mobile phase data
+      setFormData({
+        mobilePhaseId: mp.mobilePhaseId,
+        mobilePhaseCode: mp.mobilePhaseCode,
+        isSolvent: mp.isSolvent,
+        isBuffer: mp.isBuffer,
+        bufferName: mp.bufferName || "",
+        solventName: mp.solventName || "",
+        chemicals: [
+          ...mp.chemicals,
+          ...Array(5 - mp.chemicals.length).fill(""),
+        ],
+        dilutionFactor: mp.dilutionFactor?.toString() || "",
+        pHValue: mp.pHValue?.toString() || "",
+        description: mp.description || "",
+        chemicalsDesc: mp.chemicals
+          .map((id) => chemicals.find((c) => c._id === id)?.desc || "")
+          .concat(Array(5 - mp.chemicals.length).fill("")),
+        bufferDesc: mp.bufferDesc || "",
+        solventDesc: mp.solventDesc || "",
+      });
+
+      // Update chemical input display values
+      setChemicalInputValues([
+        chemicals.find((c) => c._id === mp.chemicals[0])?.chemicalName || "",
+        chemicals.find((c) => c._id === mp.chemicals[1])?.chemicalName || "",
+        chemicals.find((c) => c._id === mp.chemicals[2])?.chemicalName || "",
+        chemicals.find((c) => c._id === mp.chemicals[3])?.chemicalName || "",
+        chemicals.find((c) => c._id === mp.chemicals[4])?.chemicalName || "",
+      ]);
+
+      // Reset all dropdown states
+      setShowDropdown({
+        bufferName: false,
+        solventName: false,
+        chemicals: [false, false, false, false, false],
+      });
+
+      setShowDescDropdown({
+        bufferDesc: false,
+        solventDesc: false,
+        chemicalsDesc: [false, false, false, false, false],
+      });
+
+      setDropdownSelectedIndex({
+        bufferName: -1,
+        solventName: -1,
+        chemicals: [-1, -1, -1, -1, -1],
+        search: -1,
+      });
+
+      setDescDropdownSelectedIndex({
+        bufferDesc: -1,
+        solventDesc: -1,
+        chemicalsDesc: [-1, -1, -1, -1, -1],
+      });
+    }
+  };
+
   const handleUp = () => {
     if (currentMobilePhaseIndex > 0) {
       const newIndex = currentMobilePhaseIndex - 1;
@@ -842,6 +1184,48 @@ function MobilePhaseMaster() {
         bufferDesc: mp.bufferDesc || "",
       });
     }
+  };
+
+  const handleSearchSelect = (mp: MobilePhase) => {
+    setSelectedMobilePhase(mp);
+    const originalIndex = displayedMobilePhases.findIndex(
+      (phase) => phase._id === mp._id
+    );
+    setCurrentMobilePhaseIndex(originalIndex);
+
+    // Populate form data
+    setFormData({
+      mobilePhaseId: mp.mobilePhaseId,
+      mobilePhaseCode: mp.mobilePhaseCode,
+      isSolvent: mp.isSolvent,
+      isBuffer: mp.isBuffer,
+      bufferName: mp.bufferName || "",
+      solventName: mp.solventName || "",
+      chemicals: [...mp.chemicals, ...Array(5 - mp.chemicals.length).fill("")],
+      dilutionFactor: mp.dilutionFactor?.toString() || "",
+      pHValue: mp.pHValue?.toString() || "",
+      description: mp.description || "",
+      chemicalsDesc: mp.chemicals
+        .map((id) => chemicals.find((c) => c._id === id)?.desc || "")
+        .concat(Array(5 - mp.chemicals.length).fill("")),
+      solventDesc: mp.solventDesc || "",
+      bufferDesc: mp.bufferDesc || "",
+    });
+
+    // Update chemical input values
+    setChemicalInputValues([
+      chemicals.find((c) => c._id === mp.chemicals[0])?.chemicalName || "",
+      chemicals.find((c) => c._id === mp.chemicals[1])?.chemicalName || "",
+      chemicals.find((c) => c._id === mp.chemicals[2])?.chemicalName || "",
+      chemicals.find((c) => c._id === mp.chemicals[3])?.chemicalName || "",
+      chemicals.find((c) => c._id === mp.chemicals[4])?.chemicalName || "",
+    ]);
+
+    // Close search modal and reset states
+    setShowSearchModal(false);
+    setSearchTerm("");
+    setSearchResults([]);
+    setSearchSelectedIndex(-1);
   };
 
   const handleSearch = () => {
@@ -1436,8 +1820,7 @@ function MobilePhaseMaster() {
       className="min-h-screen bg-[#c0dcff] font-segoe"
       style={{
         backgroundImage: "linear-gradient(to bottom, #e6f0fa, #c0dcff)",
-      }}
-    >
+      }}>
       <WindowsToolbar
         modulePath="/dashboard/mobile-phase"
         onAddNew={handleAddNew}
@@ -1457,13 +1840,11 @@ function MobilePhaseMaster() {
       <div>
         <div
           className="bg-gradient-to-b from-[#0055a4] to-[#0088d1] text-white px-4 py-2 flex items-center shadow-md"
-          style={{ border: "1px solid #004080" }}
-        >
+          style={{ border: "1px solid #004080" }}>
           <div className="flex items-center space-x-2">
             <div
               className="w-4 h-4 bg-white rounded-sm flex items-center justify-center"
-              style={{ border: "1px solid #004080" }}
-            >
+              style={{ border: "1px solid #004080" }}>
               <span className="text-[#0055a4] text-xs font-bold">M</span>
             </div>
             <span className="font-semibold text-sm">Mobile Phase Master</span>
@@ -1474,8 +1855,7 @@ function MobilePhaseMaster() {
           {error && (
             <div
               className="bg-[#ffe6e6] border border-[#cc0000] text-[#cc0000] px-4 py-3 rounded mb-4 shadow-inner"
-              style={{ borderStyle: "inset" }}
-            >
+              style={{ borderStyle: "inset" }}>
               {error}
             </div>
           )}
@@ -1487,8 +1867,7 @@ function MobilePhaseMaster() {
               style={{
                 border: "1px solid #a6c8ff",
                 backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
-              }}
-            >
+              }}>
               <div className="text-sm text-gray-600">
                 {selectedMobilePhase && (
                   <div>
@@ -1515,14 +1894,12 @@ function MobilePhaseMaster() {
             style={{
               border: "1px solid #a6c8ff",
               backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
-            }}
-          >
+            }}>
             <div
               className="p-4 border-b border-[#a6c8ff]"
               style={{
                 backgroundImage: "linear-gradient(to bottom, #f0f0f0, #ffffff)",
-              }}
-            >
+              }}>
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-gray-800">
                   Mobile Phases ({sortedMobilePhases.length})
@@ -1538,8 +1915,7 @@ function MobilePhaseMaster() {
                       onChange={(e) =>
                         setSortBy(e.target.value as "name" | "mobilePhaseCode")
                       }
-                      className="px-2 py-1 border border-[#a6c8ff] rounded text-sm focus:ring-2 focus:ring-[#66a3ff] focus:outline-none bg-white"
-                    >
+                      className="px-2 py-1 border border-[#a6c8ff] rounded text-sm focus:ring-2 focus:ring-[#66a3ff] focus:outline-none bg-white">
                       <option value="name">Name</option>
                       <option value="mobilePhaseCode">Mobile Phase Code</option>
                     </select>
@@ -1550,8 +1926,7 @@ function MobilePhaseMaster() {
                       className="px-2 py-1 bg-white border border-[#a6c8ff] rounded hover:bg-[#e6f0fa] text-sm focus:ring-2 focus:ring-[#66a3ff] focus:outline-none"
                       title={`Sort ${
                         sortOrder === "asc" ? "Descending" : "Ascending"
-                      }`}
-                    >
+                      }`}>
                       {sortOrder === "asc" ? "↑" : "↓"}
                     </button>
                   </div>
@@ -1610,8 +1985,7 @@ function MobilePhaseMaster() {
                         style={{
                           border: "1px solid #004080",
                           boxShadow: "0 2px 4px rgba(0,85,164,0.3)",
-                        }}
-                      >
+                        }}>
                         Add First Mobile Phase
                       </button>
                     ) : (
@@ -1627,8 +2001,7 @@ function MobilePhaseMaster() {
                 <table className="w-full border-collapse">
                   <thead
                     className="bg-gradient-to-b from-[#f0f0f0] to-[#ffffff]"
-                    style={{ borderBottom: "1px solid #a6c8ff" }}
-                  >
+                    style={{ borderBottom: "1px solid #a6c8ff" }}>
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
                         Mobile Phase Code
@@ -1663,39 +2036,83 @@ function MobilePhaseMaster() {
                           (c) => c._id === chemId
                         );
                         return {
-                          name: chemical?.chemicalName || "—",
-                          description: chemical?.desc || "—",
+                          name: chemical?.chemicalName || "",
+                          description: chemical?.desc || "",
                         };
                       });
 
-                      // If no chemicals, show at least one row
                       const displayEntries =
                         chemicalEntries.length > 0
                           ? chemicalEntries
-                          : [{ name: "—", description: "—" }];
+                          : [{ name: "", description: "" }];
 
                       return displayEntries.map((entry, chemIndex) => (
                         <tr
                           key={`${mp._id}-${chemIndex}`}
-                          className={`cursor-pointer border ${
+                          className={`cursor-pointer border transition-all duration-200 ${
                             selectedMobilePhase?._id === mp._id
-                              ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]"
-                              : "hover:bg-[#e6f0fa]"
+                              ? "bg-blue-100 text-gray-800 border-blue-300" // Light blue selection - no shadow
+                              : "hover:bg-blue-50 hover:border-blue-200" // Very light blue hover
                           }`}
                           onClick={() => {
                             if (!isFormEnabled) {
                               setSelectedMobilePhase(mp);
                               setCurrentMobilePhaseIndex(index);
+
+                              // Populate form with selected mobile phase data
+                              setFormData({
+                                mobilePhaseId: mp.mobilePhaseId,
+                                mobilePhaseCode: mp.mobilePhaseCode,
+                                isSolvent: mp.isSolvent,
+                                isBuffer: mp.isBuffer,
+                                bufferName: mp.bufferName || "",
+                                solventName: mp.solventName || "",
+                                chemicals: [
+                                  ...mp.chemicals,
+                                  ...Array(5 - mp.chemicals.length).fill(""),
+                                ],
+                                dilutionFactor:
+                                  mp.dilutionFactor?.toString() || "",
+                                pHValue: mp.pHValue?.toString() || "",
+                                description: mp.description || "",
+                                chemicalsDesc: mp.chemicals
+                                  .map(
+                                    (id) =>
+                                      chemicals.find((c) => c._id === id)
+                                        ?.desc || ""
+                                  )
+                                  .concat(
+                                    Array(5 - mp.chemicals.length).fill("")
+                                  ),
+                                bufferDesc: mp.bufferDesc || "",
+                                solventDesc: mp.solventDesc || "",
+                              });
+
+                              // Update chemical input display values
+                              setChemicalInputValues([
+                                chemicals.find((c) => c._id === mp.chemicals[0])
+                                  ?.chemicalName || "",
+                                chemicals.find((c) => c._id === mp.chemicals[1])
+                                  ?.chemicalName || "",
+                                chemicals.find((c) => c._id === mp.chemicals[2])
+                                  ?.chemicalName || "",
+                                chemicals.find((c) => c._id === mp.chemicals[3])
+                                  ?.chemicalName || "",
+                                chemicals.find((c) => c._id === mp.chemicals[4])
+                                  ?.chemicalName || "",
+                              ]);
                             }
-                          }}
-                        >
+                          }}>
                           {/* Mobile Phase Code - only show on first row */}
                           {chemIndex === 0 && (
                             <td
-                              className="px-4 py-3 whitespace-nowrap border border-gray-300 bg-gray-50"
-                              rowSpan={displayEntries.length}
-                            >
-                              <div className="font-medium text-gray-800">
+                              className={`px-4 py-3 whitespace-nowrap border border-gray-300 font-medium ${
+                                selectedMobilePhase?._id === mp._id
+                                  ? "bg-blue-200 text-gray-800"
+                                  : "bg-gray-50"
+                              }`}
+                              rowSpan={displayEntries.length}>
+                              <div className="font-medium">
                                 {mp.mobilePhaseCode}
                               </div>
                             </td>
@@ -1704,15 +2121,18 @@ function MobilePhaseMaster() {
                           {/* Type - only show on first row */}
                           {chemIndex === 0 && (
                             <td
-                              className="px-4 py-3 whitespace-nowrap border border-gray-300 bg-gray-50"
-                              rowSpan={displayEntries.length}
-                            >
-                              <div className="text-gray-600">
+                              className={`px-4 py-3 whitespace-nowrap border border-gray-300 ${
+                                selectedMobilePhase?._id === mp._id
+                                  ? "bg-blue-200 text-gray-800"
+                                  : "bg-gray-50"
+                              }`}
+                              rowSpan={displayEntries.length}>
+                              <div>
                                 {mp.isSolvent
                                   ? "Solvent"
                                   : mp.isBuffer
                                   ? "Buffer"
-                                  : "—"}
+                                  : ""}
                               </div>
                             </td>
                           )}
@@ -1720,47 +2140,60 @@ function MobilePhaseMaster() {
                           {/* Name - only show on first row */}
                           {chemIndex === 0 && (
                             <td
-                              className="px-4 py-3 whitespace-nowrap border border-gray-300 bg-gray-50"
-                              rowSpan={displayEntries.length}
-                            >
-                              <div className="text-gray-600">
-                                {mp.bufferName || mp.solventName || "—"}
-                              </div>
+                              className={`px-4 py-3 whitespace-nowrap border border-gray-300 ${
+                                selectedMobilePhase?._id === mp._id
+                                  ? "bg-blue-200 text-gray-800"
+                                  : "bg-gray-50"
+                              }`}
+                              rowSpan={displayEntries.length}>
+                              <div>{mp.bufferName || mp.solventName}</div>
                             </td>
                           )}
 
                           {/* Chemical Name - show on each row */}
-                          <td className="px-4 py-3 border border-gray-300">
-                            <div className="text-gray-600">{entry.name}</div>
+                          <td
+                            className={`px-4 py-3 border border-gray-300 ${
+                              selectedMobilePhase?._id === mp._id
+                                ? "bg-blue-100 text-gray-800"
+                                : ""
+                            }`}>
+                            <div>{entry.name}</div>
                           </td>
 
                           {/* Chemical Description - show on each row */}
-                          <td className="px-4 py-3 border border-gray-300">
-                            <div className="text-gray-500 text-sm">
-                              {entry.description}
-                            </div>
+                          <td
+                            className={`px-4 py-3 border border-gray-300 ${
+                              selectedMobilePhase?._id === mp._id
+                                ? "bg-blue-100 text-gray-800"
+                                : ""
+                            }`}>
+                            <div className="text-sm">{entry.description}</div>
                           </td>
 
                           {/* pH Value - only show on first row */}
                           {chemIndex === 0 && (
                             <td
-                              className="px-4 py-3 whitespace-nowrap border border-gray-300 bg-gray-50"
-                              rowSpan={displayEntries.length}
-                            >
-                              <div className="text-gray-600">
-                                {mp.pHValue || "—"}
-                              </div>
+                              className={`px-4 py-3 whitespace-nowrap border border-gray-300 ${
+                                selectedMobilePhase?._id === mp._id
+                                  ? "bg-blue-200 text-gray-800"
+                                  : "bg-gray-50"
+                              }`}
+                              rowSpan={displayEntries.length}>
+                              <div>{mp.pHValue}</div>
                             </td>
                           )}
 
                           {/* Description - only show on first row */}
                           {chemIndex === 0 && (
                             <td
-                              className="px-4 py-3 border border-gray-300 bg-gray-50"
-                              rowSpan={displayEntries.length}
-                            >
-                              <div className="text-gray-600 max-w-xs truncate">
-                                {mp.description || "—"}
+                              className={`px-4 py-3 border border-gray-300 ${
+                                selectedMobilePhase?._id === mp._id
+                                  ? "bg-blue-200 text-gray-800"
+                                  : "bg-gray-50"
+                              }`}
+                              rowSpan={displayEntries.length}>
+                              <div className="max-w-xs truncate">
+                                {mp.description}
                               </div>
                             </td>
                           )}
@@ -1768,9 +2201,12 @@ function MobilePhaseMaster() {
                           {/* Created - only show on first row */}
                           {chemIndex === 0 && (
                             <td
-                              className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 border border-gray-300 bg-gray-50"
-                              rowSpan={displayEntries.length}
-                            >
+                              className={`px-4 py-3 whitespace-nowrap text-sm border border-gray-300 ${
+                                selectedMobilePhase?._id === mp._id
+                                  ? "bg-blue-200 text-gray-800"
+                                  : "bg-gray-50"
+                              }`}
+                              rowSpan={displayEntries.length}>
                               {new Date(mp.createdAt).toLocaleDateString()}
                             </td>
                           )}
@@ -1789,16 +2225,14 @@ function MobilePhaseMaster() {
       {showFormModal && (
         <div
           className="fixed inset-0 bg-opacity-30 flex items-center justify-center z-50"
-          style={{ backdropFilter: "blur(2px)" }}
-        >
+          style={{ backdropFilter: "blur(2px)" }}>
           <div
             className="bg-white rounded-lg p-4 w-full max-w-5xl max-h-[85vh] overflow-y-auto mx-4"
             style={{
               border: "1px solid #0055a4",
               backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
               boxShadow: "0 3px 15px rgba(0,85,164,0.2)",
-            }}
-          >
+            }}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
                 <div className="w-6 h-6 bg-gradient-to-b from-[#0055a4] to-[#0088d1] rounded-sm flex items-center justify-center">
@@ -1810,8 +2244,7 @@ function MobilePhaseMaster() {
               </div>
               <button
                 onClick={() => setShowFormModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-2xl font-bold p-1 hover:bg-gray-100 rounded"
-              >
+                className="text-gray-400 hover:text-gray-600 text-2xl font-bold p-1 hover:bg-gray-100 rounded">
                 ×
               </button>
             </div>
@@ -1919,8 +2352,7 @@ function MobilePhaseMaster() {
                   {/* Buffer Name with Enhanced Dropdown */}
                   <div
                     ref={bufferNameDropdownRef}
-                    className="relative bg-green-50 p-3 rounded-lg border border-green-200"
-                  >
+                    className="relative bg-green-50 p-3 rounded-lg border border-green-200">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Buffer Name *
                     </label>
@@ -1996,19 +2428,18 @@ function MobilePhaseMaster() {
                               onClick={() => {
                                 setFormData({
                                   ...formData,
-                                  bufferName: chemical.chemicalName,
                                   bufferDesc: chemical.desc || "",
+                                  bufferName: chemical.chemicalName, // This ensures name updates
                                 });
-                                setShowDropdown({
-                                  ...showDropdown,
-                                  bufferName: false,
+                                setShowDescDropdown({
+                                  ...showDescDropdown,
+                                  bufferDesc: false,
                                 });
-                                setDropdownSelectedIndex({
-                                  ...dropdownSelectedIndex,
-                                  bufferName: -1,
+                                setDescDropdownSelectedIndex({
+                                  ...descDropdownSelectedIndex,
+                                  bufferDesc: -1,
                                 });
-                              }}
-                            >
+                              }}>
                               <div className="font-semibold text-gray-800 text-sm">
                                 {chemical.chemicalName}
                               </div>
@@ -2043,8 +2474,7 @@ function MobilePhaseMaster() {
                   {/* Buffer Description with Enhanced Dropdown */}
                   <div
                     ref={bufferDescDropdownRef}
-                    className="relative bg-green-50 p-3 rounded-lg border border-green-200"
-                  >
+                    className="relative bg-green-50 p-3 rounded-lg border border-green-200">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Buffer Description{" "}
                     </label>
@@ -2136,8 +2566,7 @@ function MobilePhaseMaster() {
                                     ...descDropdownSelectedIndex,
                                     bufferDesc: -1,
                                   });
-                                }}
-                              >
+                                }}>
                                 <div className="font-semibold text-gray-800 text-sm">
                                   {chemical.desc}
                                 </div>
@@ -2176,8 +2605,7 @@ function MobilePhaseMaster() {
                   {/* Solvent Name with Enhanced Dropdown */}
                   <div
                     ref={solventNameDropdownRef}
-                    className="relative bg-yellow-50 p-3 rounded-lg border border-yellow-200"
-                  >
+                    className="relative bg-yellow-50 p-3 rounded-lg border border-yellow-200">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Solvent Name *
                     </label>
@@ -2253,19 +2681,18 @@ function MobilePhaseMaster() {
                               onClick={() => {
                                 setFormData({
                                   ...formData,
-                                  solventName: chemical.chemicalName,
                                   solventDesc: chemical.desc || "",
+                                  solventName: chemical.chemicalName, // This ensures name updates
                                 });
-                                setShowDropdown({
-                                  ...showDropdown,
-                                  solventName: false,
+                                setShowDescDropdown({
+                                  ...showDescDropdown,
+                                  solventDesc: false,
                                 });
-                                setDropdownSelectedIndex({
-                                  ...dropdownSelectedIndex,
-                                  solventName: -1,
+                                setDescDropdownSelectedIndex({
+                                  ...descDropdownSelectedIndex,
+                                  solventDesc: -1,
                                 });
-                              }}
-                            >
+                              }}>
                               <div className="font-semibold text-gray-800 text-sm">
                                 {chemical.chemicalName}
                               </div>
@@ -2282,8 +2709,7 @@ function MobilePhaseMaster() {
                   {/* Solvent Description with Enhanced Dropdown */}
                   <div
                     ref={solventDescDropdownRef}
-                    className="relative bg-yellow-50 p-3 rounded-lg border border-yellow-200"
-                  >
+                    className="relative bg-yellow-50 p-3 rounded-lg border border-yellow-200">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Solvent Description{" "}
                     </label>
@@ -2376,8 +2802,7 @@ function MobilePhaseMaster() {
                                     ...descDropdownSelectedIndex,
                                     solventDesc: -1,
                                   });
-                                }}
-                              >
+                                }}>
                                 <div className="font-semibold text-gray-800 text-sm">
                                   {chemical.desc}
                                 </div>
@@ -2424,8 +2849,7 @@ function MobilePhaseMaster() {
                           ref={(el) => {
                             chemicalDropdownRefs.current[index] = el;
                           }}
-                          className="relative"
-                        >
+                          className="relative">
                           <label className="block text-xs font-medium text-gray-600 mb-1">
                             Chemical {index + 1}
                             {index === 0 ? " *" : ""}
@@ -2558,28 +2982,9 @@ function MobilePhaseMaster() {
                                             (v, i) => (i === index ? false : v)
                                           ),
                                         });
-                                      }}
-                                    >
+                                      }}>
                                       <div className="font-medium text-sm">
                                         {chemical.chemicalName}
-                                      </div>
-                                      <div className="text-xs text-gray-500 mt-1">
-                                        {chemical.desc || "No description"}
-                                      </div>
-                                      <div className="flex items-center justify-between mt-1">
-                                        <span className="text-xs px-2 py-1 rounded-full bg-gray-100">
-                                          {chemical.isBuffer &&
-                                          chemical.isSolvent
-                                            ? "Buffer & Solvent"
-                                            : chemical.isBuffer
-                                            ? "Buffer"
-                                            : chemical.isSolvent
-                                            ? "Solvent"
-                                            : "Chemical"}
-                                        </span>
-                                        <span className="text-xs text-purple-600">
-                                          ↑↓ • Click
-                                        </span>
                                       </div>
                                     </div>
                                   )
@@ -2594,8 +2999,7 @@ function MobilePhaseMaster() {
                           ref={(el) => {
                             chemicalDescDropdownRefs.current[index] = el;
                           }}
-                          className="relative"
-                        >
+                          className="relative">
                           <label className="block text-xs font-medium text-gray-600 mb-1">
                             Description
                           </label>
@@ -2609,24 +3013,33 @@ function MobilePhaseMaster() {
                                 ...formData.chemicalsDesc,
                               ];
                               newChemicalsDesc[index] = newDesc;
+
                               setFormData({
                                 ...formData,
                                 chemicalsDesc: newChemicalsDesc,
                               });
 
-                              // Auto-sync chemical when typing description
+                              // Auto-sync chemical when typing description - WITH INPUT VALUE UPDATE
                               const foundChemical = chemicals.find(
                                 (c) =>
                                   c.desc &&
                                   c.desc.toLowerCase() === newDesc.toLowerCase()
                               );
+
                               if (foundChemical) {
                                 const newChemicals = [...formData.chemicals];
+                                const newInputValues = [...chemicalInputValues];
+
                                 newChemicals[index] = foundChemical._id;
+                                newInputValues[index] =
+                                  foundChemical.chemicalName; // Update display value
+
                                 setFormData((prev) => ({
                                   ...prev,
                                   chemicals: newChemicals,
                                 }));
+
+                                setChemicalInputValues(newInputValues); // Update input display
                               }
 
                               setShowDescDropdown({
@@ -2656,7 +3069,6 @@ function MobilePhaseMaster() {
                             autoComplete="off"
                           />
 
-                          {/* Chemical Description Dropdown */}
                           {showDescDropdown.chemicalsDesc[index] &&
                             isFormEnabled && (
                               <div className="absolute z-30 w-full mt-1 bg-white border-2 border-purple-300 rounded-lg shadow-xl max-h-36 overflow-y-auto">
@@ -2682,22 +3094,42 @@ function MobilePhaseMaster() {
                                     availableDescs.map((chemical, cIndex) => (
                                       <div
                                         key={chemical._id}
-                                        className="px-2 py-2 cursor-pointer border-b border-gray-100 last:border-b-0 hover:bg-purple-50 transition-colors"
+                                        className={`px-2 py-2 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors ${
+                                          cIndex ===
+                                          descDropdownSelectedIndex
+                                            .chemicalsDesc[index]
+                                            ? "bg-purple-100 border-l-4 border-l-purple-500"
+                                            : "hover:bg-purple-50"
+                                        }`}
                                         onClick={() => {
+                                          // Update both chemicals array, descriptions array, and input display values
                                           const newChemicals = [
                                             ...formData.chemicals,
                                           ];
                                           const newChemicalsDesc = [
                                             ...formData.chemicalsDesc,
                                           ];
+                                          const newInputValues = [
+                                            ...chemicalInputValues,
+                                          ];
+
                                           newChemicals[index] = chemical._id;
                                           newChemicalsDesc[index] =
                                             chemical.desc || "";
+                                          newInputValues[index] =
+                                            chemical.chemicalName; // This is the key fix - update display value
+
                                           setFormData({
                                             ...formData,
                                             chemicals: newChemicals,
                                             chemicalsDesc: newChemicalsDesc,
                                           });
+
+                                          // Update the chemical input display values
+                                          setChemicalInputValues(
+                                            newInputValues
+                                          );
+
                                           setShowDescDropdown({
                                             ...showDescDropdown,
                                             chemicalsDesc:
@@ -2706,8 +3138,7 @@ function MobilePhaseMaster() {
                                                   i === index ? false : v
                                               ),
                                           });
-                                        }}
-                                      >
+                                        }}>
                                         <div className="font-medium text-xs">
                                           {chemical.desc}
                                         </div>
@@ -2728,11 +3159,7 @@ function MobilePhaseMaster() {
                       </div>
                     ))}
                   </div>
-                  <p className="text-sm text-gray-500 mt-3 flex items-center">
-                    <span className="mr-1">💡</span>
-                    Descriptions auto-sync with chemical selection but are fully
-                    editable
-                  </p>
+                  <p className="text-sm text-gray-500 mt-3 flex items-center"></p>
                 </div>
               )}
 
@@ -2782,11 +3209,7 @@ function MobilePhaseMaster() {
 
             {/* Enhanced Modal Footer */}
             <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
-              <div className="text-sm text-gray-500 flex items-center">
-                <span className="mr-1">💡</span>
-                Use Tab/Shift+Tab to navigate • ↑↓ arrows in dropdowns • Esc to
-                close
-              </div>
+              <div className="text-sm text-gray-500 flex items-center"></div>
               <div className="flex space-x-3">
                 <button
                   onClick={() => setShowFormModal(false)}
@@ -2794,8 +3217,7 @@ function MobilePhaseMaster() {
                   style={{
                     border: "1px solid #808080",
                     boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                  }}
-                >
+                  }}>
                   Cancel
                 </button>
                 {isFormEnabled && (
@@ -2807,8 +3229,7 @@ function MobilePhaseMaster() {
                     style={{
                       border: "1px solid #004080",
                       boxShadow: "0 2px 4px rgba(0,85,164,0.2)",
-                    }}
-                  >
+                    }}>
                     {isEditMode ? "Update" : "Save"} Mobile Phase
                   </button>
                 )}
@@ -2822,15 +3243,13 @@ function MobilePhaseMaster() {
       {showSearchModal && (
         <div
           className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-40"
-          style={{ backdropFilter: "blur(3px)" }}
-        >
+          style={{ backdropFilter: "blur(3px)" }}>
           <div
             className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4"
             style={{
               border: "2px solid #0055a4",
               boxShadow: "0 10px 25px rgba(0,85,164,0.3)",
-            }}
-          >
+            }}>
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-semibold text-gray-800 flex items-center">
                 <span className="mr-2">🔍</span>
@@ -2838,8 +3257,7 @@ function MobilePhaseMaster() {
               </h3>
               <button
                 onClick={() => setShowSearchModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
-              >
+                className="text-gray-400 hover:text-gray-600 text-2xl font-bold">
                 ×
               </button>
             </div>
@@ -2876,29 +3294,17 @@ function MobilePhaseMaster() {
                           ? "bg-blue-100 border-l-4 border-l-blue-500"
                           : "hover:bg-gray-50"
                       }`}
-                      onClick={() => {
-                        setSelectedMobilePhase(mp);
-                        const originalIndex = displayedMobilePhases.findIndex(
-                          (phase) => phase._id === mp._id
-                        );
-                        setCurrentMobilePhaseIndex(originalIndex);
-                        setShowSearchModal(false);
-                        setSearchTerm("");
-                        setSearchResults([]);
-                        setSearchSelectedIndex(-1);
-                      }}
+                      onClick={() => handleSearchSelect(mp)} // Use the new handler
                     >
                       <div className="font-semibold text-gray-800">
                         {mp.mobilePhaseCode}
                       </div>
                       <div className="text-sm text-gray-600 mt-1">
                         Type:{" "}
-                        {mp.isSolvent
-                          ? "Solvent"
-                          : mp.isBuffer
-                          ? "Buffer"
-                          : "—"}{" "}
-                        | Name: {mp.bufferName || mp.solventName || "—"}
+                        {mp.isSolvent ? "Solvent" : mp.isBuffer ? "Buffer" : ""}
+                        {mp.bufferName || mp.solventName
+                          ? ` • Name: ${mp.bufferName || mp.solventName}`
+                          : ""}
                       </div>
                       {mp.description && (
                         <div className="text-xs text-gray-500 mt-1">
@@ -2931,8 +3337,7 @@ function MobilePhaseMaster() {
                 style={{
                   border: "1px solid #808080",
                   boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                }}
-              >
+                }}>
                 Close Search
               </button>
             </div>
@@ -2941,145 +3346,19 @@ function MobilePhaseMaster() {
       )}
 
       {/* Audit Modal */}
-      {showAuditModal && selectedMobilePhase && (
-        <div
-          className="fixed inset-0  bg-opacity-50 flex items-center justify-center z-40"
-          style={{ backdropFilter: "blur(3px)" }}
-        >
-          <div
-            className="bg-white rounded-lg p-6 w-full max-w-3xl mx-4 max-h-[80vh] overflow-y-auto"
-            style={{
-              border: "2px solid #0055a4",
-              boxShadow: "0 10px 25px rgba(0,85,164,0.3)",
-            }}
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-semibold text-gray-800 flex items-center">
-                <span className="mr-2">📋</span>
-                Audit Trail - {selectedMobilePhase.mobilePhaseCode}
-              </h3>
-              <button
-                onClick={() => setShowAuditModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <h4 className="font-semibold text-blue-800 mb-2">
-                  Mobile Phase Information
-                </h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <strong>Code:</strong> {selectedMobilePhase.mobilePhaseCode}
-                  </div>
-                  <div>
-                    <strong>Type:</strong>{" "}
-                    {selectedMobilePhase.isSolvent
-                      ? "Solvent"
-                      : selectedMobilePhase.isBuffer
-                      ? "Buffer"
-                      : "—"}
-                  </div>
-                  <div>
-                    <strong>Name:</strong>{" "}
-                    {selectedMobilePhase.bufferName ||
-                      selectedMobilePhase.solventName ||
-                      "—"}
-                  </div>
-                  <div>
-                    <strong>pH Value:</strong>{" "}
-                    {selectedMobilePhase.pHValue || "—"}
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <h4 className="font-semibold text-gray-800 mb-2">
-                  Audit Information
-                </h4>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <strong>Created At:</strong>{" "}
-                    {new Date(selectedMobilePhase.createdAt).toLocaleString()}
-                  </div>
-                  <div>
-                    <strong>Updated At:</strong>{" "}
-                    {new Date(selectedMobilePhase.updatedAt).toLocaleString()}
-                  </div>
-                  <div>
-                    <strong>Created By:</strong> {selectedMobilePhase.createdBy}
-                  </div>
-                  <div>
-                    <strong>Company ID:</strong> {selectedMobilePhase.companyId}
-                  </div>
-                  <div>
-                    <strong>Location ID:</strong>{" "}
-                    {selectedMobilePhase.locationId}
-                  </div>
-                </div>
-              </div>
-
-              {selectedMobilePhase.chemicals &&
-                selectedMobilePhase.chemicals.length > 0 && (
-                  <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                    <h4 className="font-semibold text-purple-800 mb-2">
-                      Associated Chemicals
-                    </h4>
-                    <div className="space-y-1">
-                      {selectedMobilePhase.chemicals.map((chemId, index) => {
-                        const chemical = chemicals.find(
-                          (c) => c._id === chemId
-                        );
-                        return chemical ? (
-                          <div key={index} className="text-sm">
-                            <strong>Chemical {index + 1}:</strong>{" "}
-                            {chemical.chemicalName}
-                            {chemical.desc && (
-                              <span className="text-gray-600">
-                                {" "}
-                                ({chemical.desc})
-                              </span>
-                            )}
-                          </div>
-                        ) : null;
-                      })}
-                    </div>
-                  </div>
-                )}
-            </div>
-
-            <div className="flex justify-end mt-6">
-              <button
-                onClick={() => setShowAuditModal(false)}
-                className="px-6 py-2 bg-gradient-to-b from-[#d9d9d9] to-[#b3b3b3] text-gray-800 rounded-md hover:bg-gradient-to-b hover:from-[#b3b3b3] hover:to-[#d9d9d9] font-medium"
-                style={{
-                  border: "1px solid #808080",
-                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                }}
-              >
-                Close Audit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {renderAuditModal()}
 
       {/* Help Modal */}
       {showHelpModal && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40"
-          style={{ backdropFilter: "blur(3px)" }}
-        >
+          style={{ backdropFilter: "blur(3px)" }}>
           <div
             className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[80vh] overflow-y-auto"
             style={{
               border: "2px solid #0055a4",
               boxShadow: "0 10px 25px rgba(0,85,164,0.3)",
-            }}
-          >
+            }}>
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-semibold text-gray-800 flex items-center">
                 <span className="mr-2">❓</span>
@@ -3087,8 +3366,7 @@ function MobilePhaseMaster() {
               </h3>
               <button
                 onClick={() => setShowHelpModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
-              >
+                className="text-gray-400 hover:text-gray-600 text-2xl font-bold">
                 ×
               </button>
             </div>
@@ -3183,8 +3461,7 @@ function MobilePhaseMaster() {
                 style={{
                   border: "1px solid #808080",
                   boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                }}
-              >
+                }}>
                 Close Help
               </button>
             </div>

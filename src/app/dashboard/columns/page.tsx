@@ -8,6 +8,7 @@ import * as XLSX from "xlsx";
 interface ColumnDescription {
   prefix: string; // This will now be prefixId
   carbonType: string;
+  partNumber?: string;
   linkedCarbonType: string;
   innerDiameter: string | number;
   length: string | number;
@@ -38,7 +39,6 @@ interface Column {
   _id: string;
   columnCode: string;
   descriptions: ColumnDescription[];
-  partNumber: string;
   companyId: string;
   locationId: string;
 }
@@ -319,10 +319,11 @@ export default function MasterColumn() {
 
   const [form, setForm] = useState({
     columnCode: "",
-    partNumber: "",
+
     descriptions: [
       {
         prefix: "",
+        partNumber: "",
         carbonType: "",
         linkedCarbonType: "",
         innerDiameter: "",
@@ -402,7 +403,7 @@ export default function MasterColumn() {
           const row: any = {
             "Serial No": descIndex === 0 ? serialNo : "",
             "Column Code": descIndex === 0 ? column.columnCode : "",
-            "Part Number": descIndex === 0 ? column.partNumber || "" : "",
+
             Prefix: resolvePrefixName(desc.prefix),
             Suffix: resolveSuffixName(desc.suffix),
             "Carbon Type": desc.carbonType,
@@ -410,10 +411,12 @@ export default function MasterColumn() {
             "Inner Diameter (mm)": desc.innerDiameter,
             "Length (mm)": desc.length,
             "Particle Size (µm)": desc.particleSize,
+
             Description: formatAlignedDescription(desc),
             Make: resolveMakeName(desc.make),
             "Column ID": desc.columnId,
             "Installation Date": desc.installationDate,
+            "Part Number": desc.partNumber || "",
             "Make Specific":
               desc.usePrefixForNewCode || desc.useSuffixForNewCode
                 ? "Yes"
@@ -1838,10 +1841,11 @@ export default function MasterColumn() {
     // Reset form to initial state
     setForm({
       columnCode: "",
-      partNumber: "",
+
       descriptions: [
         {
           prefix: "",
+          partNumber: "",
           carbonType: "",
           linkedCarbonType: "",
           innerDiameter: "",
@@ -2072,7 +2076,6 @@ export default function MasterColumn() {
               id: targetColumn._id,
               columnCode: form.columnCode,
               descriptions: [...targetColumn.descriptions, formattedDesc],
-              partNumber: form.partNumber,
               companyId,
               locationId,
             };
@@ -2088,7 +2091,6 @@ export default function MasterColumn() {
               descriptions: [formattedDesc],
               companyId,
               locationId,
-              partNumber: form.partNumber,
             };
           }
         } else if (wasObsolete && !isObsolete) {
@@ -2154,7 +2156,6 @@ export default function MasterColumn() {
               descriptions: [...activeColumn.descriptions, formattedDesc],
               companyId,
               locationId,
-              partNumber: form.partNumber,
             };
           } else {
             url = `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
@@ -2164,7 +2165,6 @@ export default function MasterColumn() {
               descriptions: [formattedDesc],
               companyId,
               locationId,
-              partNumber: form.partNumber,
             };
           }
         } else if (!wasObsolete && isObsolete) {
@@ -2230,7 +2230,6 @@ export default function MasterColumn() {
               descriptions: [...obsoleteColumn.descriptions, formattedDesc],
               companyId,
               locationId,
-              partNumber: form.partNumber,
             };
           } else {
             url = `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`;
@@ -2240,7 +2239,6 @@ export default function MasterColumn() {
               descriptions: [formattedDesc],
               companyId,
               locationId,
-              partNumber: form.partNumber,
             };
           }
         } else {
@@ -2263,7 +2261,6 @@ export default function MasterColumn() {
             descriptions: updatedDescriptions,
             companyId,
             locationId,
-            partNumber: form.partNumber,
           };
         }
       } else {
@@ -2304,7 +2301,6 @@ export default function MasterColumn() {
                 descriptions: [...obsoleteColumn.descriptions, formattedDesc],
                 companyId,
                 locationId,
-                partNumber: form.partNumber,
               };
             } else {
               url = `/api/admin/obsolete-column?companyId=${companyId}&locationId=${locationId}`;
@@ -2314,7 +2310,6 @@ export default function MasterColumn() {
                 descriptions: [formattedDesc],
                 companyId,
                 locationId,
-                partNumber: form.partNumber,
               };
             }
           } else {
@@ -2335,7 +2330,6 @@ export default function MasterColumn() {
                 descriptions: [...activeColumn.descriptions, formattedDesc],
                 companyId,
                 locationId,
-                partNumber: form.partNumber,
               };
             } else {
               url = `/api/admin/column?companyId=${companyId}&locationId=${locationId}`;
@@ -2345,7 +2339,6 @@ export default function MasterColumn() {
                 descriptions: [formattedDesc],
                 companyId,
                 locationId,
-                partNumber: form.partNumber,
               };
             }
           }
@@ -2365,7 +2358,6 @@ export default function MasterColumn() {
             descriptions: [formattedDesc],
             companyId,
             locationId,
-            partNumber: form.partNumber,
           };
         }
       }
@@ -2457,11 +2449,11 @@ export default function MasterColumn() {
       const existingDesc = existingColumn.descriptions[0];
       setForm({
         columnCode: existingColumn.columnCode,
-        partNumber: existingColumn.partNumber || "",
         descriptions: [
           {
             ...existingDesc,
             innerDiameter: existingDesc.innerDiameter.toString(),
+            partNumber: existingDesc.partNumber || "",
             length: existingDesc.length.toString(),
             particleSize: existingDesc.particleSize.toString(),
             linkedCarbonType: carbonTypeMap[existingDesc.carbonType] || "",
@@ -2527,11 +2519,12 @@ export default function MasterColumn() {
         const desc = column.descriptions[selectedDescriptionIndex];
         setForm({
           columnCode: column.columnCode,
-          partNumber: column.partNumber || "",
+
           descriptions: [
             {
               ...desc,
               innerDiameter: desc.innerDiameter.toString(),
+              partNumber: desc.partNumber || "",
               length: desc.length.toString(),
               particleSize: desc.particleSize.toString(),
               linkedCarbonType: carbonTypeMap[desc.carbonType] || "",
@@ -2696,11 +2689,12 @@ export default function MasterColumn() {
     setSelectedDescriptionIndex(newDescIndex);
     setForm({
       columnCode: selectedColumn.columnCode,
-      partNumber: selectedColumn.partNumber || "",
+
       descriptions: [
         {
           ...selectedDesc,
           innerDiameter: selectedDesc.innerDiameter.toString(),
+          partNumber: selectedDesc.partNumber || "",
           length: selectedDesc.length.toString(),
           particleSize: selectedDesc.particleSize.toString(),
           linkedCarbonType: carbonTypeMap[selectedDesc.carbonType] || "",
@@ -2793,7 +2787,8 @@ export default function MasterColumn() {
     <ProtectedRoute allowedRoles={["admin", "employee"]}>
       <div
         className="min-h-screen bg-gradient-to-b from-[#d7e6f5] to-[#a0b7d0] pt-4 p-3"
-        style={{ fontFamily: "Verdana, Arial, sans-serif" }}>
+        style={{ fontFamily: "Verdana, Arial, sans-serif" }}
+      >
         <WindowsToolbar
           modulePath="/dashboard/columns"
           onAddNew={() => {
@@ -2802,10 +2797,11 @@ export default function MasterColumn() {
                 columns.length === 0 && obsoleteColumns.length === 0
                   ? "CL01"
                   : "",
-              partNumber: "",
+
               descriptions: [
                 {
                   prefix: "",
+                  partNumber: "",
                   carbonType: "",
                   linkedCarbonType: "",
                   innerDiameter: "",
@@ -2938,7 +2934,8 @@ export default function MasterColumn() {
                 showObsoleteTable
                   ? "bg-red-600 hover:bg-red-800"
                   : "bg-[#0052cc] hover:bg-[#003087]"
-              }`}>
+              }`}
+            >
               {showObsoleteTable
                 ? "Show Active Columns"
                 : "Show Obsolete Columns"}
@@ -2952,7 +2949,8 @@ export default function MasterColumn() {
                   ? obsoleteColumns.length === 0
                   : columns.length === 0)
               }
-              className="px-3 py-1 rounded-lg transition-all shadow-sm text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs">
+              className="px-3 py-1 rounded-lg transition-all shadow-sm text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+            >
               📊 Export to Excel
             </button>
           </div>
@@ -2960,7 +2958,8 @@ export default function MasterColumn() {
           <div className="overflow-x-auto border border-gray-300 rounded-lg shadow-sm">
             <table
               key={renderKey}
-              className="w-full border-collapse border border-gray-300 bg-white text-xs">
+              className="w-full border-collapse border border-gray-300 bg-white text-xs"
+            >
               <thead>
                 <tr className="bg-gray-100">
                   {[
@@ -2972,15 +2971,16 @@ export default function MasterColumn() {
                     "Make",
                     "Column ID",
                     "Installation Date",
+                    "Part Number", // Added Part Number column before Make Specific
                     "Make Specific",
-                    // UPDATED NEW HEADERS - pH range instead of single value
                     "Remark",
                     "pH Min",
                     "pH Max",
                   ].map((header) => (
                     <th
                       key={header}
-                      className="border border-gray-300 p-1 text-gray-700 font-semibold text-[10px]">
+                      className="border border-gray-300 p-1 text-gray-700 font-semibold text-[10px]"
+                    >
                       {header}
                     </th>
                   ))}
@@ -2998,17 +2998,20 @@ export default function MasterColumn() {
                           : "hover:bg-gray-100"
                       }`}
                       onClick={(e) => handleTableRowClick(column, descIndex, e)}
-                      title="Click to select, Ctrl+Click for popup">
+                      title="Click to select, Ctrl+Click for popup"
+                    >
                       {descIndex === 0 && (
                         <>
                           <td
                             className="border border-gray-300 p-1 text-center"
-                            rowSpan={column.descriptions.length}>
+                            rowSpan={column.descriptions.length}
+                          >
                             {colIndex + 1}
                           </td>
                           <td
                             className="border border-gray-300 p-1 text-center"
-                            rowSpan={column.descriptions.length}>
+                            rowSpan={column.descriptions.length}
+                          >
                             {column.columnCode}
                           </td>
                         </>
@@ -3041,6 +3044,12 @@ export default function MasterColumn() {
                             )
                           : "-"}
                       </td>
+
+                      {/* Added Part Number column */}
+                      <td className="border border-gray-300 p-1 text-center text-xs">
+                        {desc.partNumber || "-"}
+                      </td>
+
                       <td className="border border-gray-300 p-1 text-center">
                         {desc.usePrefixForNewCode || desc.useSuffixForNewCode
                           ? "Yes"
@@ -3049,11 +3058,12 @@ export default function MasterColumn() {
 
                       <td
                         className="border border-gray-300 p-1 text-left text-xs max-w-[150px] truncate"
-                        title={desc.description || "-"}>
+                        title={desc.description || "-"}
+                      >
                         {desc.description || "-"}
                       </td>
 
-                      {/* pH Value Column */}
+                      {/* pH Min Column */}
                       <td className="border border-gray-300 p-1 text-center text-xs">
                         {desc.phMin !== undefined && desc.phMin !== null
                           ? desc.phMin.toFixed(1)
@@ -3225,7 +3235,8 @@ export default function MasterColumn() {
                   <div className="mt-4 flex justify-end">
                     <button
                       onClick={() => setShowDescriptionPopup(false)}
-                      className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-all">
+                      className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-all"
+                    >
                       Close
                     </button>
                   </div>
@@ -3250,7 +3261,8 @@ export default function MasterColumn() {
                         <svg
                           className="w-4 h-4 mr-2"
                           fill="currentColor"
-                          viewBox="0 0 20 20">
+                          viewBox="0 0 20 20"
+                        >
                           <path
                             fillRule="evenodd"
                             d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
@@ -3290,7 +3302,8 @@ export default function MasterColumn() {
                             );
                           }}
                           className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
-                          required>
+                          required
+                        >
                           <option value="">Select Make</option>
                           {makes.map((make) => (
                             <option key={make._id} value={make._id}>
@@ -3317,7 +3330,8 @@ export default function MasterColumn() {
                               e.target.value
                             )
                           }
-                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs">
+                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
+                        >
                           <option value="">Select Prefix</option>
                           {prefixes.map((prefix) => (
                             <option key={prefix._id} value={prefix._id}>
@@ -3382,7 +3396,8 @@ export default function MasterColumn() {
                             ref={(el) => {
                               carbonTypeDropdownRefs.current[index] = el;
                             }}
-                            className="absolute z-10 w-full bg-[#f8f8f8] border-2 border-[#3a6ea5] rounded-lg mt-1 shadow-lg max-h-28 overflow-y-auto">
+                            className="absolute z-10 w-full bg-[#f8f8f8] border-2 border-[#3a6ea5] rounded-lg mt-1 shadow-lg max-h-28 overflow-y-auto"
+                          >
                             {carbonTypeOptions
                               .filter((option) =>
                                 option
@@ -3420,7 +3435,8 @@ export default function MasterColumn() {
                                         carbonType: optIndex,
                                       },
                                     }))
-                                  }>
+                                  }
+                                >
                                   <span>{option}</span>
                                   <span
                                     className={`text-[10px] ${
@@ -3429,7 +3445,8 @@ export default function MasterColumn() {
                                         ?.carbonType || 0)
                                         ? "text-gray-200"
                                         : "text-gray-500"
-                                    }`}>
+                                    }`}
+                                  >
                                     → {carbonTypeMap[option] || "N/A"}
                                   </span>
                                 </div>
@@ -3501,7 +3518,8 @@ export default function MasterColumn() {
                             ref={(el) => {
                               linkedCarbonTypeDropdownRefs.current[index] = el;
                             }}
-                            className="absolute z-10 w-full bg-[#f8f8f8] border-2 border-[#3a6ea5] rounded-lg mt-1 shadow-lg max-h-28 overflow-y-auto">
+                            className="absolute z-10 w-full bg-[#f8f8f8] border-2 border-[#3a6ea5] rounded-lg mt-1 shadow-lg max-h-28 overflow-y-auto"
+                          >
                             {linkedCarbonTypeOptions
                               .filter((option) =>
                                 option
@@ -3539,7 +3557,8 @@ export default function MasterColumn() {
                                         linkedCarbonType: optIndex,
                                       },
                                     }))
-                                  }>
+                                  }
+                                >
                                   <span>{option}</span>
                                   <span
                                     className={`text-[10px] ${
@@ -3548,7 +3567,8 @@ export default function MasterColumn() {
                                         ?.linkedCarbonType || 0)
                                         ? "text-gray-200"
                                         : "text-gray-500"
-                                    }`}>
+                                    }`}
+                                  >
                                     → {carbonTypeMap[option] || "N/A"}
                                   </span>
                                 </div>
@@ -3652,7 +3672,8 @@ export default function MasterColumn() {
                               e.target.value
                             )
                           }
-                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs">
+                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
+                        >
                           <option value="">Select Suffix</option>
                           {suffixes.map((suffix) => (
                             <option key={suffix._id} value={suffix._id}>
@@ -3819,26 +3840,26 @@ export default function MasterColumn() {
                         )}
                       </div>
 
-                      {/* ✅ ADD THIS PART NUMBER FIELD */}
                       <div>
                         <label className="block text-[10px] font-medium text-[#003087] mb-1">
                           Part Number
                         </label>
                         <input
                           type="text"
-                          value={form.partNumber}
+                          value={desc.partNumber || ""}
                           onChange={(e) =>
-                            setForm((prev) => ({
-                              ...prev,
-                              partNumber: e.target.value,
-                            }))
+                            handleDescriptionChange(
+                              index,
+                              "partNumber",
+                              e.target.value
+                            )
                           }
-                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
+                          className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs font-semibold opacity-50"
                           placeholder="Enter part number"
                         />
-                        {formErrors.partNumber && (
-                          <p className="text-red-500 text-[10px] mt-1">
-                            {formErrors.partNumber}
+                        {formErrors[`partNumber${index}`] && (
+                          <p className="text-red-500 text-10px mt-1">
+                            {formErrors[`partNumber${index}`]}
                           </p>
                         )}
                       </div>
@@ -3869,7 +3890,8 @@ export default function MasterColumn() {
                             <span
                               className={`text-[10px] font-medium ${
                                 desc.prefix ? "text-[#003087]" : "text-gray-400"
-                              }`}>
+                              }`}
+                            >
                               Use prefix to generate a new column code
                               {!desc.prefix && " (Select a prefix first)"}
                             </span>
@@ -3904,7 +3926,8 @@ export default function MasterColumn() {
                             <span
                               className={`text-[10px] font-medium ${
                                 desc.suffix ? "text-[#003087]" : "text-gray-400"
-                              }`}>
+                              }`}
+                            >
                               Use suffix to generate a new column code
                               {!desc.suffix && " (Select a suffix first)"}
                             </span>
@@ -3948,13 +3971,15 @@ export default function MasterColumn() {
                   type="button"
                   onClick={handleSave}
                   disabled={loading}
-                  className="bg-[#0052cc] text-white px-3 py-1 rounded-lg hover:bg-[#003087] transition-all disabled:opacity-50 text-xs">
+                  className="bg-[#0052cc] text-white px-3 py-1 rounded-lg hover:bg-[#003087] transition-all disabled:opacity-50 text-xs"
+                >
                   {loading ? "Saving..." : "Save"}
                 </button>
                 <button
                   type="button"
                   onClick={handleCloseForm}
-                  className="bg-gray-500 text-white px-3 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs">
+                  className="bg-gray-500 text-white px-3 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs"
+                >
                   Cancel
                 </button>
               </div>
@@ -3985,7 +4010,8 @@ export default function MasterColumn() {
                     }));
                     setShowSearchModal(false);
                   }}
-                  className="bg-[#0052cc] text-white px-3 py-1 rounded-lg hover:bg-[#003087] transition-all text-xs">
+                  className="bg-[#0052cc] text-white px-3 py-1 rounded-lg hover:bg-[#003087] transition-all text-xs"
+                >
                   Apply
                 </button>
                 <button
@@ -3997,12 +4023,14 @@ export default function MasterColumn() {
                     }));
                     setShowSearchModal(false);
                   }}
-                  className="bg-gray-500 text-white px-3 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs">
+                  className="bg-gray-500 text-white px-3 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs"
+                >
                   Clear
                 </button>
                 <button
                   onClick={() => setShowSearchModal(false)}
-                  className="bg-gray-500 text-white px-3 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs">
+                  className="bg-gray-500 text-white px-3 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs"
+                >
                   Cancel
                 </button>
               </div>
@@ -4051,7 +4079,8 @@ export default function MasterColumn() {
                         action: e.target.value,
                       }))
                     }
-                    className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs">
+                    className="border-2 border-[#3a6ea5] rounded-lg p-1 w-full bg-[#f8f8f8] text-xs"
+                  >
                     <option value="">All Actions</option>
                     <option value="CREATE">CREATE</option>
                     <option value="UPDATE">UPDATE</option>
@@ -4103,7 +4132,8 @@ export default function MasterColumn() {
                       setAuditFilters((prev) => ({ ...prev, columnCode: "" }));
                       fetchAudits();
                     }}
-                    className="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600">
+                    className="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600"
+                  >
                     Show All Audits
                   </button>
                   <span className="ml-2 text-xs text-gray-600">
@@ -4165,7 +4195,8 @@ export default function MasterColumn() {
                                   : audit.action === "DELETE"
                                   ? "bg-red-100 text-red-800"
                                   : "bg-gray-100 text-gray-800"
-                              }`}>
+                              }`}
+                            >
                               {audit.action}
                             </span>
                           </td>
@@ -4182,7 +4213,8 @@ export default function MasterColumn() {
                                 {audit.changes.map((change, idx) => (
                                   <div
                                     key={idx}
-                                    className="text-[10px] break-words">
+                                    className="text-[10px] break-words"
+                                  >
                                     <span className="font-medium text-gray-700">
                                       {formatFieldName(change.field)}:
                                     </span>{" "}
@@ -4213,7 +4245,8 @@ export default function MasterColumn() {
                                 {audit.changes.map((change, idx) => (
                                   <div
                                     key={idx}
-                                    className="text-[10px] break-words">
+                                    className="text-[10px] break-words"
+                                  >
                                     <span className="font-medium text-gray-700">
                                       {formatFieldName(change.field)}:
                                     </span>{" "}
@@ -4236,7 +4269,8 @@ export default function MasterColumn() {
                       <tr>
                         <td
                           colSpan={6}
-                          className="border border-gray-300 p-2 text-center text-gray-500 text-[10px]">
+                          className="border border-gray-300 p-2 text-center text-gray-500 text-[10px]"
+                        >
                           No audit records found
                         </td>
                       </tr>
@@ -4248,7 +4282,8 @@ export default function MasterColumn() {
               <div className="flex justify-end mt-3">
                 <button
                   onClick={() => setShowAuditModal(false)}
-                  className="bg-gray-500 text-white px-4 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs">
+                  className="bg-gray-500 text-white px-4 py-1 rounded-lg hover:bg-gray-600 transition-all text-xs"
+                >
                   Close
                 </button>
               </div>

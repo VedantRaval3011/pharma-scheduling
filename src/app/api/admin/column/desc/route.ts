@@ -115,9 +115,10 @@ export async function GET(req: NextRequest) {
 
     console.log("Joined data:", { make, prefix, suffix });
 
-    // Transform the description with joined data
+    // ✅ UPDATED: Transform the description with joined data including partNumber
     const transformedDescription = {
       descriptionId: description.descriptionId,
+      partNumber: description.partNumber || null, // ✅ ADDED: Include partNumber from description level
       prefixId: description.prefixId ? {
         _id: description.prefixId,
         name: prefix?.name || null,

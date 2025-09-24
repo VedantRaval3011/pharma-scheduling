@@ -7,7 +7,6 @@ import Audit from "@/models/columnAudit";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
-
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -17,7 +16,6 @@ export async function GET(
   // Await params to resolve the promise
   const resolvedParams = await params;
   console.log("Column ID:", resolvedParams.id);
-
 
   try {
     const session = await getServerSession(authOptions);
@@ -30,15 +28,12 @@ export async function GET(
     }
     console.log("Authentication successful - User:", session.user.userId);
 
-
     const companyId = req.nextUrl.searchParams.get("companyId");
     const locationId = req.nextUrl.searchParams.get("locationId");
     const { id } = resolvedParams;
 
-
     console.log("Query params - companyId:", companyId, "locationId:", locationId);
     console.log("Path param - id:", id);
-
 
     if (!companyId || !locationId || !id) {
       console.log("Missing required parameters");
@@ -51,10 +46,8 @@ export async function GET(
       );
     }
 
-
     await mongoose.connect(process.env.MONGODB_URI!);
     console.log("Database connected successfully");
-
 
     // First try to find in the regular Column collection with population
     let column = await Column.findOne({
@@ -65,12 +58,11 @@ export async function GET(
       .populate('descriptions.prefixId', 'name')
       .populate('descriptions.suffixId', 'name');
 
-
     let isObsolete = false;
 
-
     if (column) {
-      console.log("Found column in regular table:", column.columnCode, "partNumber:", column.partNumber || 'N/A', "with", column.descriptions?.length || 0, "descriptions");
+      // ✅ FIXED: Remove reference to column.partNumber
+      console.log("Found column in regular table:", column.columnCode, "with", column.descriptions?.length || 0, "descriptions");
       
       // Ensure all descriptions have descriptionId
       let needsUpdate = false;
@@ -109,9 +101,9 @@ export async function GET(
         .populate('descriptions.prefixId', 'name')
         .populate('descriptions.suffixId', 'name');
 
-
       if (column) {
-        console.log("Found column in obsolete table:", column.columnCode, "partNumber:", column.partNumber || 'N/A', "with", column.descriptions?.length || 0, "descriptions");
+        // ✅ FIXED: Remove reference to column.partNumber
+        console.log("Found column in obsolete table:", column.columnCode, "with", column.descriptions?.length || 0, "descriptions");
         isObsolete = true;
         
         // Ensure all descriptions have descriptionId for obsolete columns too
@@ -143,7 +135,6 @@ export async function GET(
       }
     }
 
-
     if (!column) {
       console.log("Column not found in either table");
       return NextResponse.json(
@@ -152,47 +143,43 @@ export async function GET(
       );
     }
 
-
     console.log(`Column found successfully in ${isObsolete ? 'obsolete' : 'regular'} table`);
-
 
     // Transform column data to ensure optional fields are properly handled
     const columnObj = column.toObject();
     
-    // Process descriptions to ensure new pH range fields are included with proper null handling
+    // ✅ UPDATED: Process descriptions to include partNumber and ensure new pH range fields are included
     const processedDescriptions = columnObj.descriptions.map((desc: any) => ({
       ...desc,
+      partNumber: desc.partNumber || null, // ✅ ADDED: Include partNumber from description level
       // NEW optional fields - pH range with proper null fallback
       description: desc.description || null,
       phMin: desc.phMin !== undefined ? desc.phMin : null,
       phMax: desc.phMax !== undefined ? desc.phMax : null,
     }));
 
-
-    // Prepare response data with additional metadata
+    // ✅ UPDATED: Prepare response data without column-level partNumber
     const columnData = {
       ...columnObj,
-      partNumber: column.partNumber || '', // ✅ NEW: Ensure partNumber is included with fallback
       descriptions: processedDescriptions,
       isObsolete,
       status: isObsolete ? 'obsolete' : 'active',
       descriptionsCount: column.descriptions?.length || 0
     };
 
-
     console.log("=== GET /api/admin/column/[id] SUCCESS ===");
+    
+    // ✅ FIXED: Remove partNumber from success message since it's now in descriptions
     return NextResponse.json({ 
       success: true, 
       data: columnData,
-      message: `${isObsolete ? 'Obsolete' : 'Active'} column ${column.columnCode}${column.partNumber ? ` (${column.partNumber})` : ''} retrieved successfully` // ✅ NEW: Include partNumber in success message
+      message: `${isObsolete ? 'Obsolete' : 'Active'} column ${column.columnCode} retrieved successfully`
     });
-
 
   } catch (error: any) {
     console.error("=== GET /api/admin/column/[id] ERROR ===");
     console.error("Error details:", error);
     console.error("Error stack:", error.stack);
-
 
     return NextResponse.json(
       { success: false, error: error.message },
@@ -200,7 +187,6 @@ export async function GET(
     );
   }
 }
-
 
 export async function DELETE(
   req: NextRequest,
@@ -211,7 +197,6 @@ export async function DELETE(
   // Await params to resolve the promise
   const resolvedParams = await params;
   console.log("Column ID:", resolvedParams.id);
-
 
   try {
     const session = await getServerSession(authOptions);
@@ -224,15 +209,12 @@ export async function DELETE(
     }
     console.log("Authentication successful - User:", session.user.userId);
 
-
     const companyId = req.nextUrl.searchParams.get("companyId");
     const locationId = req.nextUrl.searchParams.get("locationId");
     const { id } = resolvedParams;
 
-
     console.log("Query params - companyId:", companyId, "locationId:", locationId);
     console.log("Path param - id:", id);
-
 
     if (!companyId || !locationId || !id) {
       console.log("Missing required parameters");
@@ -245,10 +227,8 @@ export async function DELETE(
       );
     }
 
-
     await mongoose.connect(process.env.MONGODB_URI!);
     console.log("Database connected successfully");
-
 
     // First try to find in the regular Column collection
     let column = await Column.findOne({
@@ -257,13 +237,12 @@ export async function DELETE(
       locationId,
     });
 
-
     let isObsolete = false;
     let deletedColumn = null;
 
-
     if (column) {
-      console.log("Found column in regular table:", column.columnCode, "partNumber:", column.partNumber || 'N/A', "with", column.descriptions.length, "descriptions");
+      // ✅ FIXED: Remove reference to column.partNumber
+      console.log("Found column in regular table:", column.columnCode, "with", column.descriptions.length, "descriptions");
       
       // Delete from regular Column collection
       deletedColumn = await Column.findOneAndDelete({
@@ -280,9 +259,9 @@ export async function DELETE(
         locationId,
       });
 
-
       if (column) {
-        console.log("Found column in obsolete table:", column.columnCode, "partNumber:", column.partNumber || 'N/A', "with", column.descriptions.length, "descriptions");
+        // ✅ FIXED: Remove reference to column.partNumber
+        console.log("Found column in obsolete table:", column.columnCode, "with", column.descriptions.length, "descriptions");
         isObsolete = true;
         
         // Delete from ObsoleteColumn collection
@@ -294,7 +273,6 @@ export async function DELETE(
       }
     }
 
-
     if (!deletedColumn) {
       console.log("Column not found in either table");
       return NextResponse.json(
@@ -303,15 +281,9 @@ export async function DELETE(
       );
     }
 
-
     console.log(`Column deleted successfully from ${isObsolete ? 'obsolete' : 'regular'} table`);
 
-
-    // ✅ NEW: Enhanced audit log with partNumber information
-    const columnIdentifier = deletedColumn.partNumber 
-      ? `${deletedColumn.columnCode} (${deletedColumn.partNumber})` 
-      : deletedColumn.columnCode;
-
+    // ✅ UPDATED: Create audit log without column-level partNumber references
     const audit = new Audit({
       action: "delete",
       userId: session.user.userId,
@@ -322,33 +294,26 @@ export async function DELETE(
       changes: [
         { 
           field: "column", 
-          from: `${columnIdentifier} (${deletedColumn.descriptions.length} descriptions) - ${isObsolete ? 'Obsolete' : 'Active'}`, 
+          from: `${deletedColumn.columnCode} (${deletedColumn.descriptions.length} descriptions) - ${isObsolete ? 'Obsolete' : 'Active'}`, 
           to: "deleted" 
-        },
-        // ✅ NEW: Separate audit entry for partNumber if it exists
-        ...(deletedColumn.partNumber ? [{
-          field: "partNumber",
-          from: deletedColumn.partNumber,
-          to: "deleted"
-        }] : [])
+        }
       ],
     });
     await audit.save();
     console.log("Audit log created");
 
-
     console.log("=== DELETE /api/admin/column/[id] SUCCESS ===");
+    
+    // ✅ FIXED: Remove partNumber from success message
     return NextResponse.json({ 
       success: true, 
-      message: `${isObsolete ? 'Obsolete' : 'Active'} column ${columnIdentifier} deleted successfully` // ✅ NEW: Include partNumber in success message
+      message: `${isObsolete ? 'Obsolete' : 'Active'} column ${deletedColumn.columnCode} deleted successfully`
     });
-
 
   } catch (error: any) {
     console.error("=== DELETE /api/admin/column/[id] ERROR ===");
     console.error("Error details:", error);
     console.error("Error stack:", error.stack);
-
 
     return NextResponse.json(
       { success: false, error: error.message },
