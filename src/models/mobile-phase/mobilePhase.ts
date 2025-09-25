@@ -1,4 +1,6 @@
 import { Schema, model, Document, Types, models } from 'mongoose';
+// Import Chemical model to ensure it's registered
+import '@/models/chemical/chemical'
 
 // Interface for Mobile Phase document
 interface IMobilePhase extends Document {
@@ -25,14 +27,12 @@ const mobilePhaseSchema = new Schema<IMobilePhase>(
     mobilePhaseId: {
       type: String,
       required: [true, 'Mobile Phase ID is required'],
-      unique: true,
       trim: true,
       maxlength: [50, 'Mobile Phase ID cannot exceed 50 characters'],
     },
     mobilePhaseCode: {
       type: String,
       required: [true, 'Mobile Phase Code is required'],
-      unique: true,
       trim: true,
       maxlength: [20, 'Mobile Phase Code cannot exceed 20 characters'],
     },
@@ -49,55 +49,17 @@ const mobilePhaseSchema = new Schema<IMobilePhase>(
       trim: true,
       required: false,
       maxlength: [100, 'Buffer Name cannot exceed 100 characters'],
-      // Reference to Chemical Master (chemicalName)
-      validate: {
-        validator: async function (value: string) {
-          if (this.isBuffer && !value) {
-            return false; // bufferName is required if isBuffer is true
-          }
-          if (value) {
-            const Chemical = model('Chemical');
-            const chemical = await Chemical.findOne({ chemicalName: value });
-            return !!chemical; // Ensure bufferName exists in Chemical Master
-          }
-          return true;
-        },
-        message: 'Buffer Name must reference a valid chemical in Chemical Master',
-      },
     },
     solventName: {
       type: String,
       trim: true,
       maxlength: [100, 'Solvent Name cannot exceed 100 characters'],
-      // Reference to Chemical Master (chemicalName)
-      validate: {
-        validator: async function (value: string) {
-          if (this.isSolvent && !value) {
-            return false; // solventName is required if isSolvent is true
-          }
-          if (value) {
-            const Chemical = model('Chemical');
-            const chemical = await Chemical.findOne({ chemicalName: value });
-            return !!chemical; // Ensure solventName exists in Chemical Master
-          }
-          return true;
-        },
-        message: 'Solvent Name must reference a valid chemical in Chemical Master',
-      },
     },
     chemicals: [
       {
         type: Schema.Types.ObjectId,
-        ref: 'Chemical',
-        validate: {
-          validator: async function (value: Types.ObjectId) {
-            const Chemical = model('Chemical');
-            const chemical = await Chemical.findById(value);
-            return !!chemical; // Ensure each chemical ID exists in Chemical Master
-          },
-          message: 'Invalid chemical ID in chemicals array',
-        },
-      },
+        ref: 'Chemical'
+      }
     ],
     dilutionFactor: {
       type: Number,
@@ -109,7 +71,7 @@ const mobilePhaseSchema = new Schema<IMobilePhase>(
       min: [0, 'pH Value cannot be negative'],
       max: [14, 'pH Value cannot exceed 14'],
       required: function () {
-        return this.isBuffer; // pHValue is required if isBuffer is true
+        return this.isBuffer;
       },
     },
     description: {
@@ -143,26 +105,37 @@ const mobilePhaseSchema = new Schema<IMobilePhase>(
     },
   },
   {
-    timestamps: true, // Automatically updates createdAt and updatedAt
+    timestamps: true,
   }
 );
 
+// Create compound unique indexes for company-location scoped uniqueness
+mobilePhaseSchema.index(
+  { companyId: 1, locationId: 1, mobilePhaseId: 1 }, 
+  { unique: true, name: 'company_location_mobilePhaseId_unique' }
+);
+
+mobilePhaseSchema.index(
+  { companyId: 1, locationId: 1, mobilePhaseCode: 1 }, 
+  { unique: true, name: 'company_location_mobilePhaseCode_unique' }
+);
+
+// Keep existing index for general querying
 mobilePhaseSchema.index({ companyId: 1, locationId: 1 });
 
-// Pre-save hook to validate bufferName and solventName constraints
+// Pre-save hook remains the same
 mobilePhaseSchema.pre('save', async function (next) {
- 
   if (this.isSolvent && !this.solventName) {
     return next(new Error('Solvent Name is required when isSolvent is true'));
   }
   if (!this.isBuffer && this.bufferName) {
-    this.bufferName = undefined; // Clear bufferName if isBuffer is false
+    this.bufferName = undefined;
   }
   if (!this.isSolvent && this.solventName) {
-    this.solventName = undefined; // Clear solventName if isSolvent is false
+    this.solventName = undefined;
   }
   if (!this.isBuffer && this.pHValue !== undefined) {
-    this.pHValue = undefined; // Clear pHValue if isBuffer is false
+    this.pHValue = undefined;
   }
   next();
 });

@@ -52,6 +52,8 @@ function MobilePhaseMaster() {
   // Add these missing state variables for search functionality
   const [searchResults, setSearchResults] = useState<MobilePhase[]>([]);
   const [searchSelectedIndex, setSearchSelectedIndex] = useState(-1);
+  const [tableSortField, setTableSortField] = useState<string>("");
+  const [tableSortOrder, setTableSortOrder] = useState<"asc" | "desc">("asc");
 
   const [formData, setFormData] = useState({
     mobilePhaseId: "",
@@ -560,15 +562,17 @@ function MobilePhaseMaster() {
     return (
       <div
         className="fixed inset-0 bg-opacity-30 flex items-center justify-center z-50"
-        style={{ backdropFilter: "blur(2px)" }}>
+        style={{ backdropFilter: "blur(2px)" }}
+      >
         <div
           className="bg-white rounded-lg p-6 w-4/5 max-w-4xl max-h-[80vh] overflow-y-auto"
           style={{
             border: "1px solid #a6c8ff",
             backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
             boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-          }}>
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">
+          }}
+        >
+          <h3 className="text-sm font-semibold text-gray-800 mb-4">
             Audit Trail{" "}
             {selectedMobilePhase
               ? `for ${selectedMobilePhase.mobilePhaseCode}`
@@ -610,7 +614,8 @@ function MobilePhaseMaster() {
                 style={{
                   borderStyle: "inset",
                   boxShadow: "inset 1px 1px 2px rgba(0,0,0,0.1)",
-                }}>
+                }}
+              >
                 <option value="">All Actions</option>
                 <option value="CREATE">Create</option>
                 <option value="UPDATE">Update</option>
@@ -659,11 +664,13 @@ function MobilePhaseMaster() {
             className="max-h-64 overflow-y-auto border border-[#a6c8ff] rounded"
             style={{
               backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
-            }}>
+            }}
+          >
             <table className="w-full text-sm">
               <thead
                 className="bg-gradient-to-b from-[#f0f0f0] to-[#ffffff] sticky top-0"
-                style={{ borderBottom: "1px solid #a6c8ff" }}>
+                style={{ borderBottom: "1px solid #a6c8ff" }}
+              >
                 <tr>
                   <th className="px-3 py-2 text-left text-gray-700">
                     Timestamp
@@ -723,7 +730,8 @@ function MobilePhaseMaster() {
                             : log.action === "DELETE"
                             ? "bg-[#ffe6e6] text-[#cc0000]"
                             : "bg-[#f0f0f0]"
-                        }`}>
+                        }`}
+                      >
                         {log.action}
                       </span>
                     </td>
@@ -807,7 +815,8 @@ function MobilePhaseMaster() {
               style={{
                 border: "1px solid #808080",
                 boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
-              }}>
+              }}
+            >
               Close
             </button>
           </div>
@@ -831,23 +840,117 @@ function MobilePhaseMaster() {
     return false;
   });
 
-  const sortedMobilePhases = displayedMobilePhases.sort((a, b) => {
-    let aValue: string;
-    let bValue: string;
-
-    if (sortBy === "name") {
-      // Sort by buffer name or solvent name
-      aValue = (a.bufferName || a.solventName || "").toLowerCase();
-      bValue = (b.bufferName || b.solventName || "").toLowerCase();
+  // Add this sorting function
+  const handleTableSort = (field: string) => {
+    if (tableSortField === field) {
+      // Toggle order if same field
+      setTableSortOrder(tableSortOrder === "asc" ? "desc" : "asc");
     } else {
-      // Sort by mobile phase code
-      aValue = a.mobilePhaseCode.toLowerCase();
-      bValue = b.mobilePhaseCode.toLowerCase();
+      // New field, default to ascending
+      setTableSortField(field);
+      setTableSortOrder("asc");
+    }
+  };
+
+  // Update your sortedMobilePhases to use table sorting
+  const sortedMobilePhases = displayedMobilePhases.sort((a, b) => {
+    let aValue: any;
+    let bValue: any;
+
+    // Use tableSortField for column sorting, fallback to existing sortBy
+    const sortField =
+      tableSortField || (sortBy === "name" ? "bufferName" : "mobilePhaseCode");
+
+    switch (sortField) {
+      case "mobilePhaseCode":
+        aValue = a.mobilePhaseCode.toLowerCase();
+        bValue = b.mobilePhaseCode.toLowerCase();
+        break;
+      case "type":
+        aValue = a.isSolvent ? "solvent" : a.isBuffer ? "buffer" : "";
+        bValue = b.isSolvent ? "solvent" : b.isBuffer ? "buffer" : "";
+        break;
+      case "name":
+      case "bufferName":
+        aValue = (a.bufferName || a.solventName || "").toLowerCase();
+        bValue = (b.bufferName || b.solventName || "").toLowerCase();
+        break;
+      case "chemicalName":
+        // Sort by first chemical name
+        const aChemical = chemicals.find((c) => c._id === a.chemicals[0]);
+        const bChemical = chemicals.find((c) => c._id === b.chemicals[0]);
+        aValue = (aChemical?.chemicalName || "").toLowerCase();
+        bValue = (bChemical?.chemicalName || "").toLowerCase();
+        break;
+      case "chemicalDescription":
+        // Sort by first chemical description
+        const aChemicalDesc = chemicals.find((c) => c._id === a.chemicals[0]);
+        const bChemicalDesc = chemicals.find((c) => c._id === b.chemicals[0]);
+        aValue = (aChemicalDesc?.desc || "").toLowerCase();
+        bValue = (bChemicalDesc?.desc || "").toLowerCase();
+        break;
+      case "pHValue":
+        aValue = a.pHValue || 0;
+        bValue = b.pHValue || 0;
+        break;
+      case "description":
+        aValue = (a.description || "").toLowerCase();
+        bValue = (b.description || "").toLowerCase();
+        break;
+      case "createdAt":
+        aValue = new Date(a.createdAt).getTime();
+        bValue = new Date(b.createdAt).getTime();
+        break;
+      default:
+        aValue = (a.bufferName || a.solventName || "").toLowerCase();
+        bValue = (b.bufferName || b.solventName || "").toLowerCase();
     }
 
-    const comparison = aValue.localeCompare(bValue);
-    return sortOrder === "asc" ? comparison : -comparison;
+    const comparison =
+      typeof aValue === "number"
+        ? aValue - bValue
+        : aValue.toString().localeCompare(bValue.toString());
+
+    return tableSortOrder === "asc" ? comparison : -comparison;
   });
+
+  // Add this component for sortable headers
+  const SortableHeader = ({
+    field,
+    children,
+  }: {
+    field: string;
+    children: React.ReactNode;
+  }) => (
+    <th
+      className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300 cursor-pointer hover:bg-gray-100 select-none"
+      onClick={() => handleTableSort(field)}
+    >
+      <div className="flex items-center justify-between">
+        <span>{children}</span>
+        <div className="flex flex-col ml-1">
+          <span
+            className={`text-xs transition-colors ${
+              tableSortField === field && tableSortOrder === "asc"
+                ? "text-blue-600"
+                : "text-gray-400"
+            }`}
+          >
+            ▲
+          </span>
+          <span
+            className={`text-xs transition-colors ${
+              tableSortField === field && tableSortOrder === "desc"
+                ? "text-blue-600"
+                : "text-gray-400"
+            }`}
+          >
+            ▼
+          </span>
+        </div>
+      </div>
+    </th>
+  );
 
   const handleAddNew = async () => {
     const newMobilePhaseId = await generateMobilePhaseId();
@@ -1810,7 +1913,7 @@ function MobilePhaseMaster() {
   if (status === "loading") {
     return (
       <div className="min-h-screen bg-[#c0dcff] flex items-center justify-center">
-        <div className="text-lg font-segoe text-gray-700">Loading...</div>
+        <div className="text-sm font-segoe text-gray-700">Loading...</div>
       </div>
     );
   }
@@ -1820,7 +1923,8 @@ function MobilePhaseMaster() {
       className="min-h-screen bg-[#c0dcff] font-segoe"
       style={{
         backgroundImage: "linear-gradient(to bottom, #e6f0fa, #c0dcff)",
-      }}>
+      }}
+    >
       <WindowsToolbar
         modulePath="/dashboard/mobile-phase"
         onAddNew={handleAddNew}
@@ -1840,11 +1944,13 @@ function MobilePhaseMaster() {
       <div>
         <div
           className="bg-gradient-to-b from-[#0055a4] to-[#0088d1] text-white px-4 py-2 flex items-center shadow-md"
-          style={{ border: "1px solid #004080" }}>
+          style={{ border: "1px solid #004080" }}
+        >
           <div className="flex items-center space-x-2">
             <div
               className="w-4 h-4 bg-white rounded-sm flex items-center justify-center"
-              style={{ border: "1px solid #004080" }}>
+              style={{ border: "1px solid #004080" }}
+            >
               <span className="text-[#0055a4] text-xs font-bold">M</span>
             </div>
             <span className="font-semibold text-sm">Mobile Phase Master</span>
@@ -1855,7 +1961,8 @@ function MobilePhaseMaster() {
           {error && (
             <div
               className="bg-[#ffe6e6] border border-[#cc0000] text-[#cc0000] px-4 py-3 rounded mb-4 shadow-inner"
-              style={{ borderStyle: "inset" }}>
+              style={{ borderStyle: "inset" }}
+            >
               {error}
             </div>
           )}
@@ -1867,7 +1974,8 @@ function MobilePhaseMaster() {
               style={{
                 border: "1px solid #a6c8ff",
                 backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
-              }}>
+              }}
+            >
               <div className="text-sm text-gray-600">
                 {selectedMobilePhase && (
                   <div>
@@ -1894,14 +2002,16 @@ function MobilePhaseMaster() {
             style={{
               border: "1px solid #a6c8ff",
               backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
-            }}>
+            }}
+          >
             <div
               className="p-4 border-b border-[#a6c8ff]"
               style={{
                 backgroundImage: "linear-gradient(to bottom, #f0f0f0, #ffffff)",
-              }}>
+              }}
+            >
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-800">
+                <h2 className="text-sm font-semibold text-gray-800">
                   Mobile Phases ({sortedMobilePhases.length})
                 </h2>
                 <div className="flex items-center space-x-4">
@@ -1915,7 +2025,8 @@ function MobilePhaseMaster() {
                       onChange={(e) =>
                         setSortBy(e.target.value as "name" | "mobilePhaseCode")
                       }
-                      className="px-2 py-1 border border-[#a6c8ff] rounded text-sm focus:ring-2 focus:ring-[#66a3ff] focus:outline-none bg-white">
+                      className="px-2 py-1 border border-[#a6c8ff] rounded text-sm focus:ring-2 focus:ring-[#66a3ff] focus:outline-none bg-white"
+                    >
                       <option value="name">Name</option>
                       <option value="mobilePhaseCode">Mobile Phase Code</option>
                     </select>
@@ -1926,7 +2037,8 @@ function MobilePhaseMaster() {
                       className="px-2 py-1 bg-white border border-[#a6c8ff] rounded hover:bg-[#e6f0fa] text-sm focus:ring-2 focus:ring-[#66a3ff] focus:outline-none"
                       title={`Sort ${
                         sortOrder === "asc" ? "Descending" : "Ascending"
-                      }`}>
+                      }`}
+                    >
                       {sortOrder === "asc" ? "↑" : "↓"}
                     </button>
                   </div>
@@ -1970,7 +2082,7 @@ function MobilePhaseMaster() {
                     <span className="text-2xl text-gray-400">📋</span>
                   </div>
                   <div>
-                    <h3 className="text-lg font-medium text-gray-700 mb-2">
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">
                       No Mobile Phases Found
                     </h3>
                     <p className="text-sm text-gray-500 mb-4">
@@ -1985,7 +2097,8 @@ function MobilePhaseMaster() {
                         style={{
                           border: "1px solid #004080",
                           boxShadow: "0 2px 4px rgba(0,85,164,0.3)",
-                        }}>
+                        }}
+                      >
                         Add First Mobile Phase
                       </button>
                     ) : (
@@ -2001,34 +2114,28 @@ function MobilePhaseMaster() {
                 <table className="w-full border-collapse">
                   <thead
                     className="bg-gradient-to-b from-[#f0f0f0] to-[#ffffff]"
-                    style={{ borderBottom: "1px solid #a6c8ff" }}>
+                    style={{ borderBottom: "1px solid #a6c8ff" }}
+                  >
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                      <SortableHeader field="mobilePhaseCode">
                         Mobile Phase Code
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
-                        Type
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
-                        Name
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                      </SortableHeader>
+                      <SortableHeader field="type">Type</SortableHeader>
+                      <SortableHeader field="name">Name</SortableHeader>
+                      <SortableHeader field="chemicalName">
                         Chemical Name
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                      </SortableHeader>
+                      <SortableHeader field="chemicalDescription">
                         Chemical Description
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
-                        pH Value
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
+                      </SortableHeader>
+                      <SortableHeader field="pHValue">pH Value</SortableHeader>
+                      <SortableHeader field="description">
                         Description
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border border-gray-300">
-                        Created
-                      </th>
+                      </SortableHeader>
+                      <SortableHeader field="createdAt">Created</SortableHeader>
                     </tr>
                   </thead>
+
                   <tbody>
                     {sortedMobilePhases.map((mp, index) => {
                       const chemicalEntries = mp.chemicals.map((chemId) => {
@@ -2102,7 +2209,8 @@ function MobilePhaseMaster() {
                                   ?.chemicalName || "",
                               ]);
                             }
-                          }}>
+                          }}
+                        >
                           {/* Mobile Phase Code - only show on first row */}
                           {chemIndex === 0 && (
                             <td
@@ -2111,7 +2219,8 @@ function MobilePhaseMaster() {
                                   ? "bg-blue-200 text-gray-800"
                                   : "bg-gray-50"
                               }`}
-                              rowSpan={displayEntries.length}>
+                              rowSpan={displayEntries.length}
+                            >
                               <div className="font-medium">
                                 {mp.mobilePhaseCode}
                               </div>
@@ -2126,7 +2235,8 @@ function MobilePhaseMaster() {
                                   ? "bg-blue-200 text-gray-800"
                                   : "bg-gray-50"
                               }`}
-                              rowSpan={displayEntries.length}>
+                              rowSpan={displayEntries.length}
+                            >
                               <div>
                                 {mp.isSolvent
                                   ? "Solvent"
@@ -2145,7 +2255,8 @@ function MobilePhaseMaster() {
                                   ? "bg-blue-200 text-gray-800"
                                   : "bg-gray-50"
                               }`}
-                              rowSpan={displayEntries.length}>
+                              rowSpan={displayEntries.length}
+                            >
                               <div>{mp.bufferName || mp.solventName}</div>
                             </td>
                           )}
@@ -2156,7 +2267,8 @@ function MobilePhaseMaster() {
                               selectedMobilePhase?._id === mp._id
                                 ? "bg-blue-100 text-gray-800"
                                 : ""
-                            }`}>
+                            }`}
+                          >
                             <div>{entry.name}</div>
                           </td>
 
@@ -2166,7 +2278,8 @@ function MobilePhaseMaster() {
                               selectedMobilePhase?._id === mp._id
                                 ? "bg-blue-100 text-gray-800"
                                 : ""
-                            }`}>
+                            }`}
+                          >
                             <div className="text-sm">{entry.description}</div>
                           </td>
 
@@ -2178,7 +2291,8 @@ function MobilePhaseMaster() {
                                   ? "bg-blue-200 text-gray-800"
                                   : "bg-gray-50"
                               }`}
-                              rowSpan={displayEntries.length}>
+                              rowSpan={displayEntries.length}
+                            >
                               <div>{mp.pHValue}</div>
                             </td>
                           )}
@@ -2191,7 +2305,8 @@ function MobilePhaseMaster() {
                                   ? "bg-blue-200 text-gray-800"
                                   : "bg-gray-50"
                               }`}
-                              rowSpan={displayEntries.length}>
+                              rowSpan={displayEntries.length}
+                            >
                               <div className="max-w-xs truncate">
                                 {mp.description}
                               </div>
@@ -2206,7 +2321,8 @@ function MobilePhaseMaster() {
                                   ? "bg-blue-200 text-gray-800"
                                   : "bg-gray-50"
                               }`}
-                              rowSpan={displayEntries.length}>
+                              rowSpan={displayEntries.length}
+                            >
                               {new Date(mp.createdAt).toLocaleDateString()}
                             </td>
                           )}
@@ -2225,26 +2341,33 @@ function MobilePhaseMaster() {
       {showFormModal && (
         <div
           className="fixed inset-0 bg-opacity-30 flex items-center justify-center z-50"
-          style={{ backdropFilter: "blur(2px)" }}>
+          style={{ backdropFilter: "blur(2px)" }}
+        >
           <div
             className="bg-white rounded-lg p-4 w-full max-w-5xl max-h-[85vh] overflow-y-auto mx-4"
             style={{
               border: "1px solid #0055a4",
               backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
               boxShadow: "0 3px 15px rgba(0,85,164,0.2)",
-            }}>
+            }}
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
                 <div className="w-6 h-6 bg-gradient-to-b from-[#0055a4] to-[#0088d1] rounded-sm flex items-center justify-center">
                   <span className="text-white text-sm font-bold">M</span>
                 </div>
-                <h3 className="text-xl font-semibold text-gray-800">
+                <h3 className="text-base font-semibold text-gray-800">
                   {isEditMode ? "Edit Mobile Phase" : "Add New Mobile Phase"}
                 </h3>
               </div>
               <button
-                onClick={() => setShowFormModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-2xl font-bold p-1 hover:bg-gray-100 rounded">
+                onClick={() => {
+                  setShowFormModal(false);
+                  setIsFormEnabled(false); // Add this line
+                  setIsEditMode(false);
+                }}
+                className="text-gray-400 hover:text-gray-600 text-2xl font-bold p-1 hover:bg-gray-100 rounded"
+              >
                 ×
               </button>
             </div>
@@ -2263,9 +2386,6 @@ function MobilePhaseMaster() {
                     disabled={true}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600 font-medium"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Auto-generated and read-only
-                  </p>
                 </div>
 
                 <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
@@ -2352,7 +2472,8 @@ function MobilePhaseMaster() {
                   {/* Buffer Name with Enhanced Dropdown */}
                   <div
                     ref={bufferNameDropdownRef}
-                    className="relative bg-green-50 p-3 rounded-lg border border-green-200">
+                    className="relative bg-green-50 p-3 rounded-lg border border-green-200"
+                  >
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Buffer Name *
                     </label>
@@ -2439,7 +2560,8 @@ function MobilePhaseMaster() {
                                   ...descDropdownSelectedIndex,
                                   bufferDesc: -1,
                                 });
-                              }}>
+                              }}
+                            >
                               <div className="font-semibold text-gray-800 text-sm">
                                 {chemical.chemicalName}
                               </div>
@@ -2458,7 +2580,7 @@ function MobilePhaseMaster() {
                                 .includes(formData.bufferName.toLowerCase()))
                         ).length === 0 && (
                           <div className="px-4 py-6 text-center text-gray-500">
-                            <div className="text-lg mb-2">🔍</div>
+                            <div className="text-sm mb-2">🔍</div>
                             <div className="font-medium">
                               No matching buffer chemicals found
                             </div>
@@ -2474,7 +2596,8 @@ function MobilePhaseMaster() {
                   {/* Buffer Description with Enhanced Dropdown */}
                   <div
                     ref={bufferDescDropdownRef}
-                    className="relative bg-green-50 p-3 rounded-lg border border-green-200">
+                    className="relative bg-green-50 p-3 rounded-lg border border-green-200"
+                  >
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Buffer Description{" "}
                     </label>
@@ -2566,7 +2689,8 @@ function MobilePhaseMaster() {
                                     ...descDropdownSelectedIndex,
                                     bufferDesc: -1,
                                   });
-                                }}>
+                                }}
+                              >
                                 <div className="font-semibold text-gray-800 text-sm">
                                   {chemical.desc}
                                 </div>
@@ -2577,7 +2701,7 @@ function MobilePhaseMaster() {
                             ))
                           ) : (
                             <div className="px-4 py-6 text-center">
-                              <div className="text-gray-500 text-lg mb-2">
+                              <div className="text-gray-500 text-sm mb-2">
                                 ✏️
                               </div>
                               <div className="text-gray-500 font-medium mb-1">
@@ -2605,7 +2729,8 @@ function MobilePhaseMaster() {
                   {/* Solvent Name with Enhanced Dropdown */}
                   <div
                     ref={solventNameDropdownRef}
-                    className="relative bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                    className="relative bg-yellow-50 p-3 rounded-lg border border-yellow-200"
+                  >
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Solvent Name *
                     </label>
@@ -2692,7 +2817,8 @@ function MobilePhaseMaster() {
                                   ...descDropdownSelectedIndex,
                                   solventDesc: -1,
                                 });
-                              }}>
+                              }}
+                            >
                               <div className="font-semibold text-gray-800 text-sm">
                                 {chemical.chemicalName}
                               </div>
@@ -2709,7 +2835,8 @@ function MobilePhaseMaster() {
                   {/* Solvent Description with Enhanced Dropdown */}
                   <div
                     ref={solventDescDropdownRef}
-                    className="relative bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                    className="relative bg-yellow-50 p-3 rounded-lg border border-yellow-200"
+                  >
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Solvent Description{" "}
                     </label>
@@ -2802,7 +2929,8 @@ function MobilePhaseMaster() {
                                     ...descDropdownSelectedIndex,
                                     solventDesc: -1,
                                   });
-                                }}>
+                                }}
+                              >
                                 <div className="font-semibold text-gray-800 text-sm">
                                   {chemical.desc}
                                 </div>
@@ -2813,7 +2941,7 @@ function MobilePhaseMaster() {
                             ))
                           ) : (
                             <div className="px-4 py-6 text-center">
-                              <div className="text-gray-500 text-lg mb-2">
+                              <div className="text-gray-500 text-sm mb-2">
                                 ✏️
                               </div>
                               <div className="text-gray-500 font-medium mb-1">
@@ -2838,7 +2966,7 @@ function MobilePhaseMaster() {
               {/* Enhanced Chemicals Array */}
               {formData.isBuffer && (
                 <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                  <label className="text-lg font-medium text-gray-700 mb-3 flex items-center">
+                  <label className="text-sm font-medium text-gray-700 mb-3 flex items-center">
                     Chemicals *
                   </label>
                   <div className="grid grid-cols-5 gap-3">
@@ -2849,7 +2977,8 @@ function MobilePhaseMaster() {
                           ref={(el) => {
                             chemicalDropdownRefs.current[index] = el;
                           }}
-                          className="relative">
+                          className="relative"
+                        >
                           <label className="block text-xs font-medium text-gray-600 mb-1">
                             Chemical {index + 1}
                             {index === 0 ? " *" : ""}
@@ -2982,7 +3111,8 @@ function MobilePhaseMaster() {
                                             (v, i) => (i === index ? false : v)
                                           ),
                                         });
-                                      }}>
+                                      }}
+                                    >
                                       <div className="font-medium text-sm">
                                         {chemical.chemicalName}
                                       </div>
@@ -2999,7 +3129,8 @@ function MobilePhaseMaster() {
                           ref={(el) => {
                             chemicalDescDropdownRefs.current[index] = el;
                           }}
-                          className="relative">
+                          className="relative"
+                        >
                           <label className="block text-xs font-medium text-gray-600 mb-1">
                             Description
                           </label>
@@ -3138,7 +3269,8 @@ function MobilePhaseMaster() {
                                                   i === index ? false : v
                                               ),
                                           });
-                                        }}>
+                                        }}
+                                      >
                                         <div className="font-medium text-xs">
                                           {chemical.desc}
                                         </div>
@@ -3217,7 +3349,8 @@ function MobilePhaseMaster() {
                   style={{
                     border: "1px solid #808080",
                     boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                  }}>
+                  }}
+                >
                   Cancel
                 </button>
                 {isFormEnabled && (
@@ -3229,7 +3362,8 @@ function MobilePhaseMaster() {
                     style={{
                       border: "1px solid #004080",
                       boxShadow: "0 2px 4px rgba(0,85,164,0.2)",
-                    }}>
+                    }}
+                  >
                     {isEditMode ? "Update" : "Save"} Mobile Phase
                   </button>
                 )}
@@ -3243,21 +3377,24 @@ function MobilePhaseMaster() {
       {showSearchModal && (
         <div
           className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-40"
-          style={{ backdropFilter: "blur(3px)" }}>
+          style={{ backdropFilter: "blur(3px)" }}
+        >
           <div
             className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4"
             style={{
               border: "2px solid #0055a4",
               boxShadow: "0 10px 25px rgba(0,85,164,0.3)",
-            }}>
+            }}
+          >
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-semibold text-gray-800 flex items-center">
+              <h3 className="text-base font-semibold text-gray-800 flex items-center">
                 <span className="mr-2">🔍</span>
                 Search Mobile Phases
               </h3>
               <button
                 onClick={() => setShowSearchModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-2xl font-bold">
+                className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+              >
                 ×
               </button>
             </div>
@@ -3318,7 +3455,7 @@ function MobilePhaseMaster() {
 
               {searchTerm && searchResults.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
-                  <div className="text-lg mb-2">🔍</div>
+                  <div className="text-sm mb-2">🔍</div>
                   <div>No mobile phases found for "{searchTerm}"</div>
                   <div className="text-sm mt-1">Try different search terms</div>
                 </div>
@@ -3337,7 +3474,8 @@ function MobilePhaseMaster() {
                 style={{
                   border: "1px solid #808080",
                   boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                }}>
+                }}
+              >
                 Close Search
               </button>
             </div>
@@ -3352,21 +3490,24 @@ function MobilePhaseMaster() {
       {showHelpModal && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40"
-          style={{ backdropFilter: "blur(3px)" }}>
+          style={{ backdropFilter: "blur(3px)" }}
+        >
           <div
             className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[80vh] overflow-y-auto"
             style={{
               border: "2px solid #0055a4",
               boxShadow: "0 10px 25px rgba(0,85,164,0.3)",
-            }}>
+            }}
+          >
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-semibold text-gray-800 flex items-center">
+              <h3 className="text-base font-semibold text-gray-800 flex items-center">
                 <span className="mr-2">❓</span>
                 Help - Mobile Phase Master
               </h3>
               <button
                 onClick={() => setShowHelpModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-2xl font-bold">
+                className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+              >
                 ×
               </button>
             </div>
@@ -3461,7 +3602,8 @@ function MobilePhaseMaster() {
                 style={{
                   border: "1px solid #808080",
                   boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                }}>
+                }}
+              >
                 Close Help
               </button>
             </div>
