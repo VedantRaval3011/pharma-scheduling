@@ -1,4 +1,4 @@
-import { Schema, model, Document, Types } from 'mongoose';
+import { Schema, model, Document, Types, models } from 'mongoose';
 
 // Interface for Mobile Phase Audit Log document
 interface IMobilePhaseAuditLog extends Document {
@@ -103,7 +103,7 @@ const mobilePhaseAuditLogSchema = new Schema<IMobilePhaseAuditLog>(
     },
   },
   {
-    timestamps: false, // Only use explicit timestamp field
+    timestamps: false,
   }
 );
 
@@ -115,7 +115,7 @@ mobilePhaseAuditLogSchema.index({ userId: 1, action: 1, timestamp: -1 });
 // Pre-save hook to validate data based on action
 mobilePhaseAuditLogSchema.pre('save', function (next) {
   if (this.action === 'CREATE' && this.previousData) {
-    this.previousData = undefined; // Clear previousData for CREATE
+    this.previousData = undefined;
   }
   if (this.action === 'DELETE' && !this.previousData) {
     return next(new Error('Previous data is required for DELETE action'));
@@ -126,6 +126,6 @@ mobilePhaseAuditLogSchema.pre('save', function (next) {
   next();
 });
 
-// Create and export the model
-const MobilePhaseAuditLog = model<IMobilePhaseAuditLog>('MobilePhaseAuditLog', mobilePhaseAuditLogSchema);
+// ✅ FIX: Check if model exists before creating it
+const MobilePhaseAuditLog = models.MobilePhaseAuditLog || model<IMobilePhaseAuditLog>('MobilePhaseAuditLog', mobilePhaseAuditLogSchema);
 export default MobilePhaseAuditLog;
