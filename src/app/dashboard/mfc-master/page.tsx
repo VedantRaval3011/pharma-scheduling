@@ -965,441 +965,565 @@ const MFCMasterPage: React.FC = () => {
     }
   };
 
-const exportToExcel = async () => {
-  try {
-    setIsLoading(true);
+  const exportToExcel = async () => {
+    try {
+      setIsLoading(true);
 
-    // Fetch all records (not just the current page)
-    const { companyId, locationId } = getStorageIds();
+      // Fetch all records (not just the current page)
+      const { companyId, locationId } = getStorageIds();
 
-    if (!companyId || !locationId) {
-      setErrorMessage(
-        "Company ID and Location ID not found. Please login again."
-      );
-      return;
-    }
+      if (!companyId || !locationId) {
+        setErrorMessage(
+          "Company ID and Location ID not found. Please login again."
+        );
+        return;
+      }
 
-    const params = new URLSearchParams({
-      companyId,
-      locationId,
-      page: "1",
-      limit: "9999", // Get all records
-      populate: "true",
-    });
+      const params = new URLSearchParams({
+        companyId,
+        locationId,
+        page: "1",
+        limit: "9999", // Get all records
+        populate: "true",
+      });
 
-    // Filter based on active tab
-    if (activeTab === "obsolete") {
-      params.append("isObsolete", "true");
-    } else if (activeTab === "rawMaterial") {
-      params.append("isRawMaterial", "true");
-    } else {
-      params.append("isObsolete", "false");
-      params.append("isRawMaterial", "false");
-    }
+      // Filter based on active tab
+      if (activeTab === "obsolete") {
+        params.append("isObsolete", "true");
+      } else if (activeTab === "rawMaterial") {
+        params.append("isRawMaterial", "true");
+      } else {
+        params.append("isObsolete", "false");
+        params.append("isRawMaterial", "false");
+      }
 
-    if (searchTerm.trim()) {
-      params.append("search", searchTerm.trim());
-    }
+      if (searchTerm.trim()) {
+        params.append("search", searchTerm.trim());
+      }
 
-    const response = await fetch(`/api/admin/mfc?${params}`);
-    const data = await response.json();
+      const response = await fetch(`/api/admin/mfc?${params}`);
+      const data = await response.json();
 
-    if (!response.ok) {
-      setErrorMessage(data.error || "Failed to fetch MFC records for export");
-      return;
-    }
+      if (!response.ok) {
+        setErrorMessage(data.error || "Failed to fetch MFC records for export");
+        return;
+      }
 
-    const allRecords: IMFCMaster[] = data.data || [];
+      const allRecords: IMFCMaster[] = data.data || [];
 
-    if (allRecords.length === 0) {
-      alert("No records to export");
-      return;
-    }
+      if (allRecords.length === 0) {
+        alert("No records to export");
+        return;
+      }
 
-    // Transform data for Excel export with proper structure for merging
-    const excelData: any[] = [];
-    const mergeRanges: any[] = [];
-    let currentRow = 1; // Starting from row 1 (0 is header)
+      // Transform data for Excel export with proper structure for merging
+      const excelData: any[] = [];
+      const mergeRanges: any[] = [];
+      let currentRow = 1; // Starting from row 1 (0 is header)
 
-    allRecords.forEach((record: IMFCMaster) => {
-      const recordStartRow = currentRow;
-      let recordRowCount = 0;
+      allRecords.forEach((record: IMFCMaster) => {
+        const recordStartRow = currentRow;
+        let recordRowCount = 0;
 
-      record.generics?.forEach((generic: any, genericIndex: number) => {
-        const genericStartRow = currentRow;
-        let genericRowCount = 0;
+        record.generics?.forEach((generic: any, genericIndex: number) => {
+          const genericStartRow = currentRow;
+          let genericRowCount = 0;
 
-        generic.apis?.forEach((api: any, apiIndex: number) => {
-          const apiStartRow = currentRow;
-          let apiRowCount = 0;
-          
-          const testTypes = api.testTypes || [];
-          const productData = getProductCodesForMFC(record);
+          generic.apis?.forEach((api: any, apiIndex: number) => {
+            const apiStartRow = currentRow;
+            let apiRowCount = 0;
 
-          testTypes.forEach((testType: any, testTypeIndex: number) => {
-            // Create one row per test type
-            const row: Record<string, any> = {
-              // Basic Info (will be merged)
-              "MFC Number": record.mfcNumber,
-              "Status": [
-                (record as any).isObsolete ? "Obsolete" : "",
-                (record as any).isRawMaterial ? "Raw Material" : ""
-              ].filter(Boolean).join(", ") || "Active",
-              
-              "Product Codes": productData.map((p: any) => p.code).join(", "),
-              "Product Names": productData.map((p: any) => p.name).join(", "),
-              "Department": getDepartmentName(record.departmentId),
-              
-              // Generic Level (will be merged)
-              "Generic Name": generic.genericName,
-              
-              // API Level (will be merged)
-              "API Name": getApiName(api.apiName),
-              "API Linked": api.testTypes?.some((tt: any) => tt.isLinked) ? "Yes" : "No",
-              
-              // Test Type Level (unique per row)
-              "Test Type": getTestTypeName(testType.testTypeId),
-              "Column": getColumnDisplayText(testType.columnCode) || getColumnName(testType.columnCode),
-              "Detector": getDetectorTypeName(testType.detectorTypeId),
-              "Pharmacopeial": getPharmacopoeialsName(testType.pharmacopoeialId),
-              
-              // Mobile Phases
-              "MP1": testType.mobilePhaseCodes?.[0] ? getMobilePhaseName(testType.mobilePhaseCodes[0]) : "-",
-              "MP2": testType.mobilePhaseCodes?.[1] ? getMobilePhaseName(testType.mobilePhaseCodes[1]) : "-",
-              "MP3": testType.mobilePhaseCodes?.[2] ? getMobilePhaseName(testType.mobilePhaseCodes[2]) : "-",
-              "MP4": testType.mobilePhaseCodes?.[3] ? getMobilePhaseName(testType.mobilePhaseCodes[3]) : "-",
-              "Wash1": testType.mobilePhaseCodes?.[4] ? getMobilePhaseName(testType.mobilePhaseCodes[4]) : "-",
-              "Wash2": testType.mobilePhaseCodes?.[5] ? getMobilePhaseName(testType.mobilePhaseCodes[5]) : "-",
-              
-              // Injection Fields
-              "Blank Inj": testType.blankInjection || "-",
-              "System Suit": testType.systemSuitability || "-",
-              "Sensitivity": testType.sensitivity || "-",
-              "Placebo": testType.placebo || "-",
-              "Std Inj": testType.standardInjection || "-",
-              "Ref 1": testType.reference1 || "-",
-              "Ref 2": testType.reference2 || "-",
-              "Sample Inj": testType.sampleInjection || "-",
-              "Bracket Freq": testType.bracketingFrequency || "-",
-              
-              // Runtime Fields
-              "Wash Time": testType.washTime || "-",
-              "Blank Run": testType.blankRunTime || "-",
-              "Std Run": testType.standardRunTime || "-",
-              "Sample Run": testType.sampleRunTime || "-",
-              "Sys Suit Run": testType.systemSuitabilityRunTime || "-",
-              "Sensitivity Run": testType.sensitivityRunTime || "-",
-              "Placebo Run": testType.placeboRunTime || "-",
-              "Ref1 Run": testType.reference1RunTime || "-",
-              "Ref2 Run": testType.reference2RunTime || "-",
-              
-              // Injection Counts
-              "AMV Inj": testType.amv ? testType.numberOfInjectionsAMV || 0 : "-",
-              "PV Inj": testType.pv ? testType.numberOfInjectionsPV || 0 : "-",
-              "CV Inj": testType.cv ? testType.numberOfInjectionsCV || 0 : "-",
-              
-              // Other fields
-              "Outsourced": testType.isOutsourcedTest ? "Yes" : "No",
-              "Stage": getTestTypeFlags(testType),
-              
-              // Metadata
-              "Created By": record.createdBy || "",
-              "Created At": record.createdAt ? new Date(record.createdAt).toLocaleString() : "",
-              "Updated At": record.updatedAt ? new Date(record.updatedAt).toLocaleString() : "",
-            };
+            const testTypes = api.testTypes || [];
+            const productData = getProductCodesForMFC(record);
 
-            excelData.push(row);
-            currentRow++;
-            recordRowCount++;
-            genericRowCount++;
-            apiRowCount++;
+            testTypes.forEach((testType: any, testTypeIndex: number) => {
+              // Create one row per test type
+              const row: Record<string, any> = {
+                // Basic Info (will be merged)
+                "MFC Number": record.mfcNumber,
+                Status:
+                  [
+                    (record as any).isObsolete ? "Obsolete" : "",
+                    (record as any).isRawMaterial ? "Raw Material" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(", ") || "Active",
+
+                "Product Codes": productData.map((p: any) => p.code).join(", "),
+                "Product Names": productData.map((p: any) => p.name).join(", "),
+                Department: getDepartmentName(record.departmentId),
+
+                // Generic Level (will be merged)
+                "Generic Name": generic.genericName,
+
+                // API Level (will be merged)
+                "API Name": getApiName(api.apiName),
+                "API Linked": api.testTypes?.some((tt: any) => tt.isLinked)
+                  ? "Yes"
+                  : "No",
+
+                // Test Type Level (unique per row)
+                "Test Type": getTestTypeName(testType.testTypeId),
+                Column:
+                  getColumnDisplayText(testType.columnCode) ||
+                  getColumnName(testType.columnCode),
+                Detector: getDetectorTypeName(testType.detectorTypeId),
+                Pharmacopeial: getPharmacopoeialsName(
+                  testType.pharmacopoeialId
+                ),
+
+                // Mobile Phases
+                MP1: testType.mobilePhaseCodes?.[0]
+                  ? getMobilePhaseName(testType.mobilePhaseCodes[0])
+                  : "-",
+                MP2: testType.mobilePhaseCodes?.[1]
+                  ? getMobilePhaseName(testType.mobilePhaseCodes[1])
+                  : "-",
+                MP3: testType.mobilePhaseCodes?.[2]
+                  ? getMobilePhaseName(testType.mobilePhaseCodes[2])
+                  : "-",
+                MP4: testType.mobilePhaseCodes?.[3]
+                  ? getMobilePhaseName(testType.mobilePhaseCodes[3])
+                  : "-",
+                Wash1: testType.mobilePhaseCodes?.[4]
+                  ? getMobilePhaseName(testType.mobilePhaseCodes[4])
+                  : "-",
+                Wash2: testType.mobilePhaseCodes?.[5]
+                  ? getMobilePhaseName(testType.mobilePhaseCodes[5])
+                  : "-",
+
+                // Injection Fields
+                "Blank Inj": testType.blankInjection || "-",
+                "System Suit": testType.systemSuitability || "-",
+                Sensitivity: testType.sensitivity || "-",
+                Placebo: testType.placebo || "-",
+                "Std Inj": testType.standardInjection || "-",
+                "Ref 1": testType.reference1 || "-",
+                "Ref 2": testType.reference2 || "-",
+                "Sample Inj": testType.sampleInjection || "-",
+                "Bracket Freq": testType.bracketingFrequency || "-",
+
+                // Runtime Fields
+                "Wash Time": testType.washTime || "-",
+                "Blank Run": testType.blankRunTime || "-",
+                "Std Run": testType.standardRunTime || "-",
+                "Sample Run": testType.sampleRunTime || "-",
+                "Sys Suit Run": testType.systemSuitabilityRunTime || "-",
+                "Sensitivity Run": testType.sensitivityRunTime || "-",
+                "Placebo Run": testType.placeboRunTime || "-",
+                "Ref1 Run": testType.reference1RunTime || "-",
+                "Ref2 Run": testType.reference2RunTime || "-",
+
+                "MP Ratios":
+                  Array.isArray(testType.mobilePhaseRatios) &&
+                  testType.mobilePhaseRatios.filter(Boolean).length > 0
+                    ? testType.mobilePhaseRatios.filter(Boolean).join(":")
+                    : "-",
+                "Flow Rates":
+                  Array.isArray(testType.flowRates) &&
+                  testType.flowRates.filter(Boolean).length > 0
+                    ? testType.flowRates.join(", ")
+                    : "-",
+                "System Flow": testType.systemFlowRate || "-",
+                "Wash Flow": testType.washFlowRate || "-",
+
+                // Injection Counts
+                "AMV Inj": testType.amv
+                  ? testType.numberOfInjectionsAMV || 0
+                  : "-",
+                "PV Inj": testType.pv
+                  ? testType.numberOfInjectionsPV || 0
+                  : "-",
+                "CV Inj": testType.cv
+                  ? testType.numberOfInjectionsCV || 0
+                  : "-",
+
+                // Other fields
+                Outsourced: testType.isOutsourcedTest ? "Yes" : "No",
+                Stage: getTestTypeFlags(testType),
+
+                // Metadata
+                "Created By": record.createdBy || "",
+                "Created At": record.createdAt
+                  ? new Date(record.createdAt).toLocaleString()
+                  : "",
+                "Updated At": record.updatedAt
+                  ? new Date(record.updatedAt).toLocaleString()
+                  : "",
+              };
+
+              excelData.push(row);
+              currentRow++;
+              recordRowCount++;
+              genericRowCount++;
+              apiRowCount++;
+            });
+
+            // Add merge ranges for API-level fields (if more than 1 test type)
+            if (apiRowCount > 1) {
+              const apiEndRow = apiStartRow + apiRowCount - 1;
+
+              // Get column indices for API fields
+              const headers = Object.keys(excelData[0]);
+              const apiNameCol = headers.indexOf("API Name");
+              const apiLinkedCol = headers.indexOf("API Linked");
+
+              if (apiNameCol >= 0) {
+                mergeRanges.push({
+                  s: { r: apiStartRow, c: apiNameCol },
+                  e: { r: apiEndRow, c: apiNameCol },
+                });
+              }
+
+              if (apiLinkedCol >= 0) {
+                mergeRanges.push({
+                  s: { r: apiStartRow, c: apiLinkedCol },
+                  e: { r: apiEndRow, c: apiLinkedCol },
+                });
+              }
+            }
           });
 
-          // Add merge ranges for API-level fields (if more than 1 test type)
-          if (apiRowCount > 1) {
-            const apiEndRow = apiStartRow + apiRowCount - 1;
-            
-            // Get column indices for API fields
+          // Add merge ranges for Generic-level fields (if more than 1 row)
+          if (genericRowCount > 1) {
+            const genericEndRow = genericStartRow + genericRowCount - 1;
+
             const headers = Object.keys(excelData[0]);
-            const apiNameCol = headers.indexOf("API Name");
-            const apiLinkedCol = headers.indexOf("API Linked");
-            
-            if (apiNameCol >= 0) {
+            const genericNameCol = headers.indexOf("Generic Name");
+
+            if (genericNameCol >= 0) {
               mergeRanges.push({
-                s: { r: apiStartRow, c: apiNameCol },
-                e: { r: apiEndRow, c: apiNameCol }
-              });
-            }
-            
-            if (apiLinkedCol >= 0) {
-              mergeRanges.push({
-                s: { r: apiStartRow, c: apiLinkedCol },
-                e: { r: apiEndRow, c: apiLinkedCol }
+                s: { r: genericStartRow, c: genericNameCol },
+                e: { r: genericEndRow, c: genericNameCol },
               });
             }
           }
         });
 
-        // Add merge ranges for Generic-level fields (if more than 1 row)
-        if (genericRowCount > 1) {
-          const genericEndRow = genericStartRow + genericRowCount - 1;
-          
+        // Add merge ranges for Record-level fields (if more than 1 row)
+        if (recordRowCount > 1) {
+          const recordEndRow = recordStartRow + recordRowCount - 1;
+
           const headers = Object.keys(excelData[0]);
-          const genericNameCol = headers.indexOf("Generic Name");
-          
-          if (genericNameCol >= 0) {
-            mergeRanges.push({
-              s: { r: genericStartRow, c: genericNameCol },
-              e: { r: genericEndRow, c: genericNameCol }
-            });
-          }
+          const mfcNumberCol = headers.indexOf("MFC Number");
+          const statusCol = headers.indexOf("Status");
+          const productCodesCol = headers.indexOf("Product Codes");
+          const productNamesCol = headers.indexOf("Product Names");
+          const departmentCol = headers.indexOf("Department");
+          const createdByCol = headers.indexOf("Created By");
+          const createdAtCol = headers.indexOf("Created At");
+          const updatedAtCol = headers.indexOf("Updated At");
+
+          const fieldsToMerge = [
+            { col: mfcNumberCol, name: "MFC Number" },
+            { col: statusCol, name: "Status" },
+            { col: productCodesCol, name: "Product Codes" },
+            { col: productNamesCol, name: "Product Names" },
+            { col: departmentCol, name: "Department" },
+            { col: createdByCol, name: "Created By" },
+            { col: createdAtCol, name: "Created At" },
+            { col: updatedAtCol, name: "Updated At" },
+          ];
+
+          fieldsToMerge.forEach((field) => {
+            if (field.col >= 0) {
+              mergeRanges.push({
+                s: { r: recordStartRow, c: field.col },
+                e: { r: recordEndRow, c: field.col },
+              });
+            }
+          });
         }
       });
 
-      // Add merge ranges for Record-level fields (if more than 1 row)
-      if (recordRowCount > 1) {
-        const recordEndRow = recordStartRow + recordRowCount - 1;
-        
-        const headers = Object.keys(excelData[0]);
-        const mfcNumberCol = headers.indexOf("MFC Number");
-        const statusCol = headers.indexOf("Status");
-        const productCodesCol = headers.indexOf("Product Codes");
-        const productNamesCol = headers.indexOf("Product Names");
-        const departmentCol = headers.indexOf("Department");
-        const createdByCol = headers.indexOf("Created By");
-        const createdAtCol = headers.indexOf("Created At");
-        const updatedAtCol = headers.indexOf("Updated At");
-        
-        const fieldsToMerge = [
-          { col: mfcNumberCol, name: "MFC Number" },
-          { col: statusCol, name: "Status" },
-          { col: productCodesCol, name: "Product Codes" },
-          { col: productNamesCol, name: "Product Names" },
-          { col: departmentCol, name: "Department" },
-          { col: createdByCol, name: "Created By" },
-          { col: createdAtCol, name: "Created At" },
-          { col: updatedAtCol, name: "Updated At" }
-        ];
-        
-        fieldsToMerge.forEach(field => {
-          if (field.col >= 0) {
-            mergeRanges.push({
-              s: { r: recordStartRow, c: field.col },
-              e: { r: recordEndRow, c: field.col }
-            });
-          }
-        });
+      if (excelData.length === 0) {
+        alert("No data available to export");
+        return;
       }
-    });
 
-    if (excelData.length === 0) {
-      alert("No data available to export");
-      return;
-    }
+      // Create workbook and worksheet
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
 
-    // Create workbook and worksheet
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(excelData);
+      // Apply merge ranges
+      if (mergeRanges.length > 0) {
+        worksheet["!merges"] = mergeRanges;
+      }
 
-    // Apply merge ranges
-    if (mergeRanges.length > 0) {
-      worksheet["!merges"] = mergeRanges;
-    }
+      // Auto-size columns
+      const columnWidths: Array<{ width: number }> = [];
+      const headers = Object.keys(excelData[0]);
 
-    // Auto-size columns
-    const columnWidths: Array<{ width: number }> = [];
-    const headers = Object.keys(excelData[0]);
-
-    headers.forEach((header: string, index: number) => {
-      let maxWidth = header.length;
-      excelData.forEach((row: any) => {
-        const cellValue = String(row[header] || "");
-        maxWidth = Math.max(maxWidth, cellValue.length);
+      headers.forEach((header: string, index: number) => {
+        let maxWidth = header.length;
+        excelData.forEach((row: any) => {
+          const cellValue = String(row[header] || "");
+          maxWidth = Math.max(maxWidth, cellValue.length);
+        });
+        columnWidths[index] = { width: Math.min(maxWidth + 3, 80) };
       });
-      columnWidths[index] = { width: Math.min(maxWidth + 3, 80) };
-    });
 
-    worksheet["!cols"] = columnWidths;
+      worksheet["!cols"] = columnWidths;
 
-    // Add the main worksheet with merged cells
-    const sheetName = `MFC_${activeTab}_Merged`;
-    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+      // Add the main worksheet with merged cells
+      const sheetName = `MFC_${activeTab}_Merged`;
+      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
 
-    // Create a second consolidated sheet (your original logic)
-    const consolidatedData: any[] = [];
-    allRecords.forEach((record: IMFCMaster) => {
-      record.generics?.forEach((generic: any, genericIndex: number) => {
-        generic.apis?.forEach((api: any, apiIndex: number) => {
-          const productData = getProductCodesForMFC(record);
-          const testTypes = api.testTypes || [];
-          
-          // Create consolidated test type information
-          const testTypesList = testTypes.map((testType: any, index: number) => 
-            `${index + 1}. ${getTestTypeName(testType.testTypeId)}`
-          ).join('; ');
+      // Create a second consolidated sheet (your original logic)
+      const consolidatedData: any[] = [];
+      allRecords.forEach((record: IMFCMaster) => {
+        record.generics?.forEach((generic: any, genericIndex: number) => {
+          generic.apis?.forEach((api: any, apiIndex: number) => {
+            const productData = getProductCodesForMFC(record);
+            const testTypes = api.testTypes || [];
 
-          const columnsList = testTypes.map((testType: any, index: number) => 
-            `${index + 1}. ${getColumnDisplayText(testType.columnCode) || getColumnName(testType.columnCode)}`
-          ).join('; ');
+            // Create consolidated test type information
+            const testTypesList = testTypes
+              .map(
+                (testType: any, index: number) =>
+                  `${index + 1}. ${getTestTypeName(testType.testTypeId)}`
+              )
+              .join("; ");
 
-          const detectorsList = testTypes.map((testType: any, index: number) => 
-            `${index + 1}. ${getDetectorTypeName(testType.detectorTypeId)}`
-          ).join('; ');
+            const columnsList = testTypes
+              .map(
+                (testType: any, index: number) =>
+                  `${index + 1}. ${
+                    getColumnDisplayText(testType.columnCode) ||
+                    getColumnName(testType.columnCode)
+                  }`
+              )
+              .join("; ");
 
-          const pharmacopoeialsListMain = testTypes.map((testType: any, index: number) => 
-            `${index + 1}. ${getPharmacopoeialsName(testType.pharmacopoeialId) || '-'}`
-          ).join('; ');
+            const detectorsList = testTypes
+              .map(
+                (testType: any, index: number) =>
+                  `${index + 1}. ${getDetectorTypeName(
+                    testType.detectorTypeId
+                  )}`
+              )
+              .join("; ");
 
-          // Create one row per MFC-Generic-API combination
-          const row: Record<string, any> = {
-            // Basic Info (no repetition)
-            "MFC Number": record.mfcNumber,
-            "Status": [
-              (record as any).isObsolete ? "Obsolete" : "",
-              (record as any).isRawMaterial ? "Raw Material" : ""
-            ].filter(Boolean).join(", ") || "Active",
-            
-            "Product Codes": productData.map((p: any) => p.code).join(", "),
-            "Product Names": productData.map((p: any) => p.name).join(", "),
-            "Department": getDepartmentName(record.departmentId),
-            
-            // Generic Level
-            "Generic Name": generic.genericName,
-            
-            // API Level
-            "API Name": getApiName(api.apiName),
-            "API Linked": api.testTypes?.some((tt: any) => tt.isLinked) ? "Yes" : "No",
-            
-            // Test Types Summary
-            "Test Types Count": testTypes.length,
-            "Test Types": testTypesList,
-            "Columns": columnsList,
-            "Detectors": detectorsList,
-            "Pharmacopoeials": pharmacopoeialsListMain,
+            const pharmacopoeialsListMain = testTypes
+              .map(
+                (testType: any, index: number) =>
+                  `${index + 1}. ${
+                    getPharmacopoeialsName(testType.pharmacopoeialId) || "-"
+                  }`
+              )
+              .join("; ");
 
-            // Consolidated Mobile Phases (from all test types)
-            "Mobile Phases": (() => {
-              const allMobilePhases = new Set<string>();
-              testTypes.forEach((testType: any) => {
-                testType.mobilePhaseCodes?.forEach((mpCode: string, idx: number) => {
-                  if (mpCode) {
-                    const mpName = getMobilePhaseName(mpCode);
-                    const position = idx < 4 ? `MP${idx + 1}` : `Wash${idx - 3}`;
-                    allMobilePhases.add(`${position}: ${mpName}`);
+            // Create one row per MFC-Generic-API combination
+            const row: Record<string, any> = {
+              // Basic Info (no repetition)
+              "MFC Number": record.mfcNumber,
+              Status:
+                [
+                  (record as any).isObsolete ? "Obsolete" : "",
+                  (record as any).isRawMaterial ? "Raw Material" : "",
+                ]
+                  .filter(Boolean)
+                  .join(", ") || "Active",
+
+              "Product Codes": productData.map((p: any) => p.code).join(", "),
+              "Product Names": productData.map((p: any) => p.name).join(", "),
+              Department: getDepartmentName(record.departmentId),
+
+              // Generic Level
+              "Generic Name": generic.genericName,
+
+              // API Level
+              "API Name": getApiName(api.apiName),
+              "API Linked": api.testTypes?.some((tt: any) => tt.isLinked)
+                ? "Yes"
+                : "No",
+
+              // Test Types Summary
+              "Test Types Count": testTypes.length,
+              "Test Types": testTypesList,
+              Columns: columnsList,
+              Detectors: detectorsList,
+              Pharmacopoeials: pharmacopoeialsListMain,
+
+              // Consolidated Mobile Phases (from all test types)
+              "Mobile Phases": (() => {
+                const allMobilePhases = new Set<string>();
+                testTypes.forEach((testType: any) => {
+                  testType.mobilePhaseCodes?.forEach(
+                    (mpCode: string, idx: number) => {
+                      if (mpCode) {
+                        const mpName = getMobilePhaseName(mpCode);
+                        const position =
+                          idx < 4 ? `MP${idx + 1}` : `Wash${idx - 3}`;
+                        allMobilePhases.add(`${position}: ${mpName}`);
+                      }
+                    }
+                  );
+                });
+                return Array.from(allMobilePhases).join("; ");
+              })(),
+
+              // Consolidated Injection Fields
+              "Injection Summary": (() => {
+                const injectionData: string[] = [];
+                testTypes.forEach((testType: any, index: number) => {
+                  const injections = [
+                    testType.blankInjection &&
+                      `Blank: ${testType.blankInjection}`,
+                    testType.systemSuitability &&
+                      `Sys Suit: ${testType.systemSuitability}`,
+                    testType.sensitivity &&
+                      `Sensitivity: ${testType.sensitivity}`,
+                    testType.standardInjection &&
+                      `Standard: ${testType.standardInjection}`,
+                    testType.sampleInjection &&
+                      `Sample: ${testType.sampleInjection}`,
+                  ].filter(Boolean);
+
+                  if (injections.length > 0) {
+                    injectionData.push(
+                      `TT${index + 1}: ${injections.join(", ")}`
+                    );
                   }
                 });
-              });
-              return Array.from(allMobilePhases).join('; ');
-            })(),
+                return injectionData.join("; ");
+              })(),
 
-            // Consolidated Injection Fields
-            "Injection Summary": (() => {
-              const injectionData: string[] = [];
-              testTypes.forEach((testType: any, index: number) => {
-                const injections = [
-                  testType.blankInjection && `Blank: ${testType.blankInjection}`,
-                  testType.systemSuitability && `Sys Suit: ${testType.systemSuitability}`,
-                  testType.sensitivity && `Sensitivity: ${testType.sensitivity}`,
-                  testType.standardInjection && `Standard: ${testType.standardInjection}`,
-                  testType.sampleInjection && `Sample: ${testType.sampleInjection}`,
-                ].filter(Boolean);
-                
-                if (injections.length > 0) {
-                  injectionData.push(`TT${index + 1}: ${injections.join(', ')}`);
-                }
-              });
-              return injectionData.join('; ');
-            })(),
+              // Consolidated Runtime Fields
+              "Runtime Summary": (() => {
+                const runtimeData: string[] = [];
+                testTypes.forEach((testType: any, index: number) => {
+                  const runtimes = [
+                    testType.washTime && `Wash: ${testType.washTime}`,
+                    testType.blankRunTime && `Blank: ${testType.blankRunTime}`,
+                    testType.standardRunTime &&
+                      `Standard: ${testType.standardRunTime}`,
+                    testType.sampleRunTime &&
+                      `Sample: ${testType.sampleRunTime}`,
+                  ].filter(Boolean);
 
-            // Consolidated Runtime Fields
-            "Runtime Summary": (() => {
-              const runtimeData: string[] = [];
-              testTypes.forEach((testType: any, index: number) => {
-                const runtimes = [
-                  testType.washTime && `Wash: ${testType.washTime}`,
-                  testType.blankRunTime && `Blank: ${testType.blankRunTime}`,
-                  testType.standardRunTime && `Standard: ${testType.standardRunTime}`,
-                  testType.sampleRunTime && `Sample: ${testType.sampleRunTime}`,
-                ].filter(Boolean);
-                
-                if (runtimes.length > 0) {
-                  runtimeData.push(`TT${index + 1}: ${runtimes.join(', ')}`);
-                }
-              });
-              return runtimeData.join('; ');
-            })(),
+                  if (runtimes.length > 0) {
+                    runtimeData.push(`TT${index + 1}: ${runtimes.join(", ")}`);
+                  }
+                });
+                return runtimeData.join("; ");
+              })(),
 
-            // Consolidated Stage Flags
-            "Stage Flags": (() => {
-              const stageFlags: string[] = [];
-              testTypes.forEach((testType: any, index: number) => {
-                const flags = getTestTypeFlags(testType);
-                if (flags !== '-') {
-                  stageFlags.push(`TT${index + 1}: ${flags}`);
-                }
-              });
-              return stageFlags.join('; ');
-            })(),
+              "Flow & Ratio Summary": (() => {
+                const flowRatioData: string[] = [];
+                testTypes.forEach((testType: any, index: number) => {
+                  const ratios =
+                    Array.isArray(testType.mobilePhaseRatios) &&
+                    testType.mobilePhaseRatios.filter(Boolean).length > 0
+                      ? `MPR: ${testType.mobilePhaseRatios
+                          .filter(Boolean)
+                          .join(":")}`
+                      : "";
+                  const rates =
+                    Array.isArray(testType.flowRates) &&
+                    testType.flowRates.filter(Boolean).length > 0
+                      ? `FR: ${testType.flowRates.join(", ")}`
+                      : "";
+                  const sysFlow = testType.systemFlowRate
+                    ? `Sys: ${testType.systemFlowRate}`
+                    : "";
+                  const washFlow = testType.washFlowRate
+                    ? `Wash: ${testType.washFlowRate}`
+                    : "";
+                  const summary = [ratios, rates, sysFlow, washFlow]
+                    .filter(Boolean)
+                    .join(" | ");
+                  if (summary) {
+                    flowRatioData.push(`TT${index + 1}: ${summary}`);
+                  }
+                });
+                return flowRatioData.join("\n") || "-";
+              })(),
 
-            // Consolidated Injection Counts
-            "Injection Counts": (() => {
-              const injCounts: string[] = [];
-              testTypes.forEach((testType: any, index: number) => {
-                const counts = [
-                  testType.amv && testType.numberOfInjectionsAMV && `AMV: ${testType.numberOfInjectionsAMV}`,
-                  testType.pv && testType.numberOfInjectionsPV && `PV: ${testType.numberOfInjectionsPV}`,
-                  testType.cv && testType.numberOfInjectionsCV && `CV: ${testType.numberOfInjectionsCV}`,
-                ].filter(Boolean);
-                
-                if (counts.length > 0) {
-                  injCounts.push(`TT${index + 1}: ${counts.join(', ')}`);
-                }
-              });
-              return injCounts.join('; ');
-            })(),
+              // Consolidated Stage Flags
+              "Stage Flags": (() => {
+                const stageFlags: string[] = [];
+                testTypes.forEach((testType: any, index: number) => {
+                  const flags = getTestTypeFlags(testType);
+                  if (flags !== "-") {
+                    stageFlags.push(`TT${index + 1}: ${flags}`);
+                  }
+                });
+                return stageFlags.join("; ");
+              })(),
 
-            // Outsourced Tests
-            "Outsourced Tests": testTypes.map((testType: any, index: number) => 
-              testType.isOutsourcedTest ? `TT${index + 1}: Yes` : ''
-            ).filter(Boolean).join('; ') || 'None',
+              // Consolidated Injection Counts
+              "Injection Counts": (() => {
+                const injCounts: string[] = [];
+                testTypes.forEach((testType: any, index: number) => {
+                  const counts = [
+                    testType.amv &&
+                      testType.numberOfInjectionsAMV &&
+                      `AMV: ${testType.numberOfInjectionsAMV}`,
+                    testType.pv &&
+                      testType.numberOfInjectionsPV &&
+                      `PV: ${testType.numberOfInjectionsPV}`,
+                    testType.cv &&
+                      testType.numberOfInjectionsCV &&
+                      `CV: ${testType.numberOfInjectionsCV}`,
+                  ].filter(Boolean);
 
-            // Metadata
-            "Created By": record.createdBy || "",
-            "Created At": record.createdAt
-              ? new Date(record.createdAt).toLocaleString()
-              : "",
-            "Updated At": record.updatedAt
-              ? new Date(record.updatedAt).toLocaleString()
-              : "",
-          };
+                  if (counts.length > 0) {
+                    injCounts.push(`TT${index + 1}: ${counts.join(", ")}`);
+                  }
+                });
+                return injCounts.join("; ");
+              })(),
 
-          consolidatedData.push(row);
+              // Outsourced Tests
+              "Outsourced Tests":
+                testTypes
+                  .map((testType: any, index: number) =>
+                    testType.isOutsourcedTest ? `TT${index + 1}: Yes` : ""
+                  )
+                  .filter(Boolean)
+                  .join("; ") || "None",
+
+              // Metadata
+              "Created By": record.createdBy || "",
+              "Created At": record.createdAt
+                ? new Date(record.createdAt).toLocaleString()
+                : "",
+              "Updated At": record.updatedAt
+                ? new Date(record.updatedAt).toLocaleString()
+                : "",
+            };
+
+            consolidatedData.push(row);
+          });
         });
       });
-    });
 
-    const consolidatedWorksheet = XLSX.utils.json_to_sheet(consolidatedData);
-    XLSX.utils.book_append_sheet(workbook, consolidatedWorksheet, "Summary_View");
+      const consolidatedWorksheet = XLSX.utils.json_to_sheet(consolidatedData);
+      XLSX.utils.book_append_sheet(
+        workbook,
+        consolidatedWorksheet,
+        "Summary_View"
+      );
 
-    // Generate file name
-    const fileName = `MFC_Master_${activeTab}_with_Merged_Cells_${
-      new Date().toISOString().replace(/[:.]/g, "-").split("T")[0]
-    }.xlsx`;
+      // Generate file name
+      const fileName = `MFC_Master_${activeTab}_with_Merged_Cells_${
+        new Date().toISOString().replace(/[:.]/g, "-").split("T")[0]
+      }.xlsx`;
 
-    // Save file
-    XLSX.writeFile(workbook, fileName);
+      // Save file
+      XLSX.writeFile(workbook, fileName);
 
-    alert(
-      `Excel file exported successfully: ${fileName}\n\nMerged cells sheet: ${excelData.length} rows\nSummary sheet: ${consolidatedData.length} rows\n\n2 sheets created:\n- ${sheetName} (with merged cells for repeated data)\n- Summary_View (consolidated view)`
-    );
-  } catch (error) {
-    console.error("Error exporting to Excel:", error);
-    setErrorMessage("Failed to export data to Excel. Please try again.");
-  } finally {
-    setIsLoading(false);
-  }
-};
-
+      alert(
+        `Excel file exported successfully: ${fileName}\n\nMerged cells sheet: ${excelData.length} rows\nSummary sheet: ${consolidatedData.length} rows\n\n2 sheets created:\n- ${sheetName} (with merged cells for repeated data)\n- Summary_View (consolidated view)`
+      );
+    } catch (error) {
+      console.error("Error exporting to Excel:", error);
+      setErrorMessage("Failed to export data to Excel. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Handle delete
   const handleDelete = async (record: IMFCMaster) => {
@@ -2158,7 +2282,7 @@ const exportToExcel = async () => {
                         </th>
                         {/* New Runtime & Wash Fields Group */}
                         <th
-                          colSpan={9}
+                          colSpan={13}
                           className="px-2 py-2 text-center font-medium text-gray-700 uppercase tracking-wider border border-gray-400 bg-green-100"
                         >
                           Runtime & Wash Fields
@@ -2215,6 +2339,7 @@ const exportToExcel = async () => {
                           Wash2
                         </th>
 
+                        {/* ADD THESE MISSING SUB-HEADERS */}
                         {/* Injection & Reference Fields sub-headers */}
                         <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-blue-50">
                           Blank Inj
@@ -2245,7 +2370,6 @@ const exportToExcel = async () => {
                         </th>
 
                         {/* Runtime & Wash Fields sub-headers */}
-                        {/* Updated Runtime & Wash Fields sub-headers */}
                         <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
                           Wash Time
                         </th>
@@ -2258,7 +2382,6 @@ const exportToExcel = async () => {
                         <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
                           Sample Run
                         </th>
-                        {/* New Runtime Fields */}
                         <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
                           Sys Suit Run
                         </th>
@@ -2273,6 +2396,18 @@ const exportToExcel = async () => {
                         </th>
                         <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
                           Ref2 Run
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                          MP Ratios
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                          Flow Rates
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                          Sys Flow
+                        </th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-700 border border-gray-400 bg-green-50">
+                          Wash Flow
                         </th>
                       </tr>
                     </thead>
@@ -2727,6 +2862,34 @@ const exportToExcel = async () => {
                                             {testType.reference2RunTime || "-"}
                                           </td>
 
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-purple-25">
+                                            {Array.isArray(
+                                              testType.mobilePhaseRatios
+                                            ) &&
+                                            testType.mobilePhaseRatios.filter(
+                                              Boolean
+                                            ).length > 0
+                                              ? testType.mobilePhaseRatios
+                                                  .filter(Boolean)
+                                                  .join(":")
+                                              : "-"}
+                                          </td>
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-purple-25">
+                                            {Array.isArray(
+                                              testType.flowRates
+                                            ) &&
+                                            testType.flowRates.filter(Boolean)
+                                              .length > 0
+                                              ? testType.flowRates.join(", ")
+                                              : "-"}
+                                          </td>
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-purple-25">
+                                            {testType.systemFlowRate || "-"}
+                                          </td>
+                                          <td className="px-2 py-2 border border-gray-300 text-xs text-center bg-purple-25">
+                                            {testType.washFlowRate || "-"}
+                                          </td>
+
                                           {/* NEW: AMV Injections */}
                                           <td className="px-2 py-2 border border-gray-300 text-xs text-center">
                                             {testType.amv
@@ -2782,7 +2945,7 @@ const exportToExcel = async () => {
                       ) : (
                         <tr>
                           <td
-                            colSpan={38}
+                            colSpan={43}
                             className="px-6 py-4 text-center text-gray-500 border border-gray-300"
                           >
                             No MFC records found

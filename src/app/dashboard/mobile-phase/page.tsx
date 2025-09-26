@@ -977,6 +977,8 @@ function MobilePhaseMaster() {
     const newMobilePhaseId = await generateMobilePhaseId();
     setIsFormEnabled(true);
     setIsEditMode(false);
+
+    // Clear form data completely
     setFormData({
       mobilePhaseId: newMobilePhaseId,
       mobilePhaseCode: newMobilePhaseId,
@@ -992,8 +994,40 @@ function MobilePhaseMaster() {
       bufferDesc: "",
       solventDesc: "",
     });
+
+    // IMPORTANT: Reset chemical input values to empty array
+    setChemicalInputValues(["", "", "", "", ""]);
+
+    // Reset selected mobile phase and index
     setSelectedMobilePhase(null);
     setCurrentMobilePhaseIndex(-1);
+
+    // Reset all dropdown states
+    setShowDropdown({
+      bufferName: false,
+      solventName: false,
+      chemicals: [false, false, false, false, false],
+    });
+
+    setShowDescDropdown({
+      bufferDesc: false,
+      solventDesc: false,
+      chemicalsDesc: [false, false, false, false, false],
+    });
+
+    setDropdownSelectedIndex({
+      bufferName: -1,
+      solventName: -1,
+      chemicals: [-1, -1, -1, -1, -1],
+      search: -1,
+    });
+
+    setDescDropdownSelectedIndex({
+      bufferDesc: -1,
+      solventDesc: -1,
+      chemicalsDesc: [-1, -1, -1, -1, -1],
+    });
+
     setShowFormModal(true);
     setTimeout(() => inputRef.current?.focus(), 100);
   };

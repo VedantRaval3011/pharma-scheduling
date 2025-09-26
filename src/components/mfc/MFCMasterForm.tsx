@@ -29,22 +29,21 @@ const testTypeSchema = z.object({
       "MP01 (first mobile phase) is required"
     ),
   mobilePhaseRatios: z
-  .array(z.number().min(0))
-  .min(1, "At least one mobile phase ratio is required")
-  .max(6, "Cannot have more than 6 mobile phase ratios")
-  .transform((ratios) => {
-    // Pad with zeros to ensure exactly 6 elements
-    const normalized = [0, 0, 0, 0, 0, 0];
-    ratios.forEach((ratio, index) => {
-      if (index < 6) {
-        normalized[index] = ratio;
-      }
-    });
-    return normalized;
-  })
-  .default([0, 0, 0, 0, 0, 0])
-  .optional(),
-
+    .array(z.number().min(0))
+    .min(1, "At least one mobile phase ratio is required")
+    .max(6, "Cannot have more than 6 mobile phase ratios")
+    .transform((ratios) => {
+      // Pad with zeros to ensure exactly 6 elements
+      const normalized = [0, 0, 0, 0, 0, 0];
+      ratios.forEach((ratio, index) => {
+        if (index < 6) {
+          normalized[index] = ratio;
+        }
+      });
+      return normalized;
+    })
+    .default([0, 0, 0, 0, 0, 0])
+    .optional(),
 
   flowRates: z
     .array(z.number().min(0))
@@ -904,203 +903,242 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
   };
 
   const MobilePhaseCodeFields = ({
-  testTypeIndex,
-  control,
-}: {
-  testTypeIndex: number;
-  control: any;
-}) => {
-  const phaseLabels = ["MP01", "MP02", "MP03", "MP04", "Wash 1", "Wash 2"];
-  const watchedValues = watch();
-  const mobilePhaseCodes =
-    watchedValues?.testTypes?.[testTypeIndex]?.mobilePhaseCodes || [];
+    testTypeIndex,
+    control,
+  }: {
+    testTypeIndex: number;
+    control: any;
+  }) => {
+    const phaseLabels = ["MP01", "MP02", "MP03", "MP04", "Wash 1", "Wash 2"];
+    const watchedValues = watch();
+    const mobilePhaseCodes =
+      watchedValues?.testTypes?.[testTypeIndex]?.mobilePhaseCodes || [];
 
-  return (
-    <div className="space-y-4">
-      {/* Mobile Phase Codes with their corresponding ratios/flow rates directly below */}
-      <div className="grid grid-cols-6 gap-2">
-        {[0, 1, 2, 3, 4, 5].map((index) => (
-          <div key={index} className="space-y-2">
-            {/* Mobile Phase Input */}
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">
-                {phaseLabels[index]}
-              </label>
-              <Controller
-                name={`testTypes.${testTypeIndex}.mobilePhaseCodes.${index}`}
-                control={control}
-                defaultValue=""
-                render={({ field }) => (
-                  <MobilePhaseDropdown
-                    value={field.value || ""}
-                    onChange={(value) => {
-                      field.onChange(value || "");
-                      handleTestTypeChange(
-                        testTypeIndex,
-                        `mobilePhaseCodes.${index}`,
-                        value || ""
-                      );
-                    }}
-                    placeholder={index === 0 ? "Required" : "Optional"}
-                    required={index === 0}
-                  />
+    return (
+      <div className="space-y-4">
+        {/* Mobile Phase Codes with their corresponding ratios/flow rates directly below */}
+        <div className="grid grid-cols-6 gap-2">
+          {[0, 1, 2, 3, 4, 5].map((index) => (
+            <div key={index} className="space-y-2">
+              {/* Mobile Phase Input */}
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">
+                  {phaseLabels[index]}
+                </label>
+                <Controller
+                  name={`testTypes.${testTypeIndex}.mobilePhaseCodes.${index}`}
+                  control={control}
+                  defaultValue=""
+                  render={({ field }) => (
+                    <MobilePhaseDropdown
+                      value={field.value || ""}
+                      onChange={(value) => {
+                        field.onChange(value || "");
+                        handleTestTypeChange(
+                          testTypeIndex,
+                          `mobilePhaseCodes.${index}`,
+                          value || ""
+                        );
+                      }}
+                      placeholder={index === 0 ? "Required" : "Optional"}
+                      required={index === 0}
+                    />
+                  )}
+                />
+              </div>
+              {/* Ratio/Flow Rate Input directly below */}
+              <div>
+                {index <= 3 ? (
+                  // Mobile Phase Ratio (MP01-MP04)
+                  <>
+                    <label className="block text-xs text-gray-500 mb-1">
+                      {phaseLabels[index]} Ratio
+                    </label>
+                    <Controller
+                      name={`testTypes.${testTypeIndex}.mobilePhaseRatios.${index}`}
+                      control={control}
+                      defaultValue=""
+                      render={({ field }) => (
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={field.value}
+                          onChange={(e) => {
+                            // Only update the field value, don't trigger parent state changes
+                            field.onChange(e.target.value);
+                          }}
+                          onBlur={(e) => {
+                            const stringValue = e.target.value;
+                            // Clean up and validate the value on blur
+                            const numericValue =
+                              stringValue === ""
+                                ? 0
+                                : parseFloat(stringValue) || 0;
+                            field.onChange(numericValue.toString());
+
+                            // Update parent state only on blur
+                            const currentRatios = watchedValues?.testTypes?.[
+                              testTypeIndex
+                            ]?.mobilePhaseRatios || [0, 0, 0, 0, 0, 0];
+                            const newRatios = [...currentRatios];
+                            newRatios[index] = numericValue;
+                            handleTestTypeChange(
+                              testTypeIndex,
+                              "mobilePhaseRatios",
+                              newRatios
+                            );
+                          }}
+                          disabled={!mobilePhaseCodes[index]}
+                          className={`w-full px-2 py-1 text-xs border rounded ${
+                            !mobilePhaseCodes[index]
+                              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                              : "border-gray-300"
+                          }`}
+                          placeholder="0.00"
+                        />
+                      )}
+                    />
+                  </>
+                ) : (
+                  // Wash Flow Rate (Wash1 and Wash2)
+                  <>
+                    <label className="block text-xs text-gray-500 mb-1">
+                      {phaseLabels[index]} Flow Rate
+                    </label>
+                    <Controller
+                      name={`testTypes.${testTypeIndex}.flowRates.${index - 4}`}
+                      control={control}
+                      defaultValue=""
+                      render={({ field }) => (
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={field.value}
+                          onChange={(e) => {
+                            // Only update the field value, don't trigger parent state changes
+                            field.onChange(e.target.value);
+                          }}
+                          onBlur={(e) => {
+                            const stringValue = e.target.value;
+                            // Clean up and validate the value on blur
+                            const numericValue =
+                              stringValue === ""
+                                ? 0
+                                : parseFloat(stringValue) || 0;
+                            field.onChange(numericValue.toString());
+
+                            // Update parent state only on blur
+                            const currentFlowRates = watchedValues?.testTypes?.[
+                              testTypeIndex
+                            ]?.flowRates || [0, 0];
+                            const newFlowRates = [...currentFlowRates];
+                            newFlowRates[index - 4] = numericValue;
+                            handleTestTypeChange(
+                              testTypeIndex,
+                              "flowRates",
+                              newFlowRates
+                            );
+                          }}
+                          disabled={!mobilePhaseCodes[index]}
+                          className={`w-full px-2 py-1 text-xs border rounded ${
+                            !mobilePhaseCodes[index]
+                              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                              : "border-gray-300"
+                          }`}
+                          placeholder="0.00"
+                        />
+                      )}
+                    />
+                  </>
                 )}
-              />
+              </div>
             </div>
+          ))}
+        </div>
+        {/* System Flow Rate and Wash Flow Rate in separate section */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              System Flow Rate
+            </label>
+            <Controller
+              name={`testTypes.${testTypeIndex}.systemFlowRate`}
+              control={control}
+              defaultValue=""
+              render={({ field }) => (
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={field.value}
+                  onChange={(e) => {
+                    // Only update the field value, don't trigger parent state changes
+                    field.onChange(e.target.value);
+                  }}
+                  onBlur={(e) => {
+                    const stringValue = e.target.value;
+                    // Clean up and validate the value on blur
+                    const numericValue =
+                      stringValue === "" ? 0 : parseFloat(stringValue) || 0;
+                    field.onChange(numericValue.toString());
 
-            {/* Ratio/Flow Rate Input directly below */}
-            <div>
-              {index <= 3 ? (
-                // Mobile Phase Ratio (MP01-MP04)
-                <>
-                  <label className="block text-xs text-gray-500 mb-1">
-                    {phaseLabels[index]} Ratio
-                  </label>
-                  <Controller
-                    name={`testTypes.${testTypeIndex}.mobilePhaseRatios.${index}`}
-                    control={control}
-                    defaultValue={0}
-                    render={({ field }) => (
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={field.value || 0}
-                        onChange={(e) => {
-                          const value = parseFloat(e.target.value) || 0;
-                          field.onChange(value);
-                          // Update the entire ratios array
-                          const currentRatios = watchedValues?.testTypes?.[
-                            testTypeIndex
-                          ]?.mobilePhaseRatios || [0, 0, 0, 0, 0, 0];
-                          const newRatios = [...currentRatios];
-                          newRatios[index] = value;
-                          handleTestTypeChange(
-                            testTypeIndex,
-                            "mobilePhaseRatios",
-                            newRatios
-                          );
-                        }}
-                        disabled={!mobilePhaseCodes[index]} // Only enable if mobile phase is selected
-                        className={`w-full px-2 py-1 text-xs border rounded ${
-                          !mobilePhaseCodes[index]
-                            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                            : "border-gray-300"
-                        }`}
-                        placeholder="0.00"
-                      />
-                    )}
-                  />
-                </>
-              ) : (
-                // Wash Flow Rate (Wash1 and Wash2)
-                <>
-                  <label className="block text-xs text-gray-500 mb-1">
-                    {phaseLabels[index]} Flow Rate
-                  </label>
-                  <Controller
-                    name={`testTypes.${testTypeIndex}.flowRates.${index - 4}`}
-                    control={control}
-                    defaultValue={0}
-                    render={({ field }) => (
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={field.value || 0}
-                        onChange={(e) => {
-                          const value = parseFloat(e.target.value) || 0;
-                          field.onChange(value);
-                          // Update the entire flow rates array
-                          const currentFlowRates = watchedValues?.testTypes?.[
-                            testTypeIndex
-                          ]?.flowRates || [0, 0];
-                          const newFlowRates = [...currentFlowRates];
-                          newFlowRates[index - 4] = value;
-                          handleTestTypeChange(
-                            testTypeIndex,
-                            "flowRates",
-                            newFlowRates
-                          );
-                        }}
-                        disabled={!mobilePhaseCodes[index]} // Only enable if wash is selected
-                        className={`w-full px-2 py-1 text-xs border rounded ${
-                          !mobilePhaseCodes[index]
-                            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                            : "border-gray-300"
-                        }`}
-                        placeholder="0.00"
-                      />
-                    )}
-                  />
-                </>
+                    // Update parent state only on blur
+                    handleTestTypeChange(
+                      testTypeIndex,
+                      "systemFlowRate",
+                      numericValue
+                    );
+                  }}
+                  className="w-full px-2 py-1 text-sm border rounded border-gray-300"
+                  placeholder="0.00"
+                />
               )}
-            </div>
+            />
           </div>
-        ))}
-      </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Wash Flow Rate
+            </label>
+            <Controller
+              name={`testTypes.${testTypeIndex}.washFlowRate`}
+              control={control}
+              defaultValue=""
+              render={({ field }) => (
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={field.value}
+                  onChange={(e) => {
+                    // Only update the field value, don't trigger parent state changes
+                    field.onChange(e.target.value);
+                  }}
+                  onBlur={(e) => {
+                    const stringValue = e.target.value;
+                    // Clean up and validate the value on blur
+                    const numericValue =
+                      stringValue === "" ? 0 : parseFloat(stringValue) || 0;
+                    field.onChange(numericValue.toString());
 
-      {/* System Flow Rate and Wash Flow Rate in separate section */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            System Flow Rate
-          </label>
-          <Controller
-            name={`testTypes.${testTypeIndex}.systemFlowRate`}
-            control={control}
-            defaultValue={0}
-            render={({ field }) => (
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={field.value || 0}
-                onChange={(e) => {
-                  const value = parseFloat(e.target.value) || 0;
-                  field.onChange(value);
-                  handleTestTypeChange(
-                    testTypeIndex,
-                    "systemFlowRate",
-                    value
-                  );
-                }}
-                className="w-full px-2 py-1 text-sm border rounded border-gray-300"
-                placeholder="0.00"
-              />
-            )}
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Wash Flow Rate
-          </label>
-          <Controller
-            name={`testTypes.${testTypeIndex}.washFlowRate`}
-            control={control}
-            defaultValue={0}
-            render={({ field }) => (
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={field.value || 0}
-                onChange={(e) => {
-                  const value = parseFloat(e.target.value) || 0;
-                  field.onChange(value);
-                  handleTestTypeChange(testTypeIndex, "washFlowRate", value);
-                }}
-                className="w-full px-2 py-1 text-sm border rounded border-gray-300"
-                placeholder="0.00"
-              />
-            )}
-          />
+                    // Update parent state only on blur
+                    handleTestTypeChange(
+                      testTypeIndex,
+                      "washFlowRate",
+                      numericValue
+                    );
+                  }}
+                  className="w-full px-2 py-1 text-sm border rounded border-gray-300"
+                  placeholder="0.00"
+                />
+              )}
+            />
+          </div>
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
   useEffect(() => {
     const loadColumnDisplayTexts = async () => {
@@ -1211,8 +1249,8 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
   };
 
   const onSubmitError = (errors: any) => {
-     console.log("🐛 Full Form Data:", getValues()); // Add this line
-  console.log("🐛 Validation Errors:", errors); 
+    console.log("🐛 Full Form Data:", getValues()); // Add this line
+    console.log("🐛 Validation Errors:", errors);
     let errorMessages: string[] = [];
 
     if (errors.apiName) {
@@ -2782,7 +2820,7 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
           onClick={onCancel}
         >
           <div
-            className="bg-white rounded-lg shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col"
+            className="bg-white rounded-lg shadow-2xl w-full max-w-6xl h-[80vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-t-lg">
@@ -2935,7 +2973,7 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
               </div>
 
               {/* NEW: Add MFC Status Section */}
-              <div className="mb-8">
+              {/* <div className="mb-8">
                 <label className="block text-sm font-medium text-gray-700 mb-4">
                   MFC Status & Configuration
                 </label>
@@ -2951,7 +2989,7 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
                     </span>
                   </label>
                 </div>
-              </div>
+              </div> */}
 
               {/* Visual Warning for Obsolete Status */}
               {watch("isObsolete") && (
@@ -3132,6 +3170,20 @@ const MFCMasterForm = forwardRef<unknown, MFCMasterFormProps>(
                   >
                     Add Product Code
                   </button>
+                </div>
+                <div className="mb-8">
+                  <div className="flex flex-wrap gap-6">
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        {...register("isObsolete")}
+                        className="h-5 w-5 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                      />
+                      <span className="ml-2 text-sm font-medium text-gray-700">
+                        Mark as Obsolete
+                      </span>
+                    </label>
+                  </div>
                 </div>
                 {errors.productIds?.message && (
                   <div className="mt-1 flex items-center text-sm text-red-600">
