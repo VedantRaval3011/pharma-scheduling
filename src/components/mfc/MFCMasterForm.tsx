@@ -28,6 +28,41 @@ const testTypeSchema = z.object({
       (codes) => codes[0] && codes[0].trim() !== "",
       "MP01 (first mobile phase) is required"
     ),
+  mobilePhaseRatios: z
+  .array(z.number().min(0))
+  .min(1, "At least one mobile phase ratio is required")
+  .max(6, "Cannot have more than 6 mobile phase ratios")
+  .transform((ratios) => {
+    // Pad with zeros to ensure exactly 6 elements
+    const normalized = [0, 0, 0, 0, 0, 0];
+    ratios.forEach((ratio, index) => {
+      if (index < 6) {
+        normalized[index] = ratio;
+      }
+    });
+    return normalized;
+  })
+  .default([0, 0, 0, 0, 0, 0])
+  .optional(),
+
+
+  flowRates: z
+    .array(z.number().min(0))
+    .length(2, "Must have exactly 2 flow rates for Wash1 and Wash2")
+    .default([0, 0])
+    .optional(),
+
+  systemFlowRate: z
+    .number()
+    .min(0, "System flow rate must be non-negative")
+    .default(0)
+    .optional(),
+
+  washFlowRate: z
+    .number()
+    .min(0, "Wash flow rate must be non-negative")
+    .default(0)
+    .optional(),
   detectorTypeId: z.string().min(1, "Detector Type is required"),
   pharmacopoeialId: z
     .array(z.string().min(1))
@@ -561,6 +596,10 @@ const transformInitialData = (
         selectMakeSpecific: testType.selectMakeSpecific || false,
         columnCode: testType.columnCode || "",
         mobilePhaseCodes: normalizeMobilePhaseCodes(testType.mobilePhaseCodes),
+        mobilePhaseRatios: testType.mobilePhaseRatios || [0, 0, 0, 0, 0, 0],
+        flowRates: testType.flowRates || [0, 0],
+        systemFlowRate: testType.systemFlowRate || 0,
+        washFlowRate: testType.washFlowRate || 0,
         numberOfInjectionsAMV: testType.numberOfInjectionsAMV || 0,
         numberOfInjectionsPV: testType.numberOfInjectionsPV || 0,
         numberOfInjectionsCV: testType.numberOfInjectionsCV || 0,
@@ -646,6 +685,10 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
           ? apiData.testTypes.map((tt) => ({
               ...tt,
               mobilePhaseCodes: normalizeMobilePhaseCodes(tt.mobilePhaseCodes),
+              mobilePhaseRatios: tt.mobilePhaseRatios || [0, 0, 0, 0, 0, 0],
+              flowRates: tt.flowRates || [0, 0],
+              systemFlowRate: tt.systemFlowRate || 0,
+              washFlowRate: tt.washFlowRate || 0,
               selectMakeSpecific: tt.selectMakeSpecific || false,
               washTime: tt.washTime || 0,
               numberOfInjectionsAMV: tt.numberOfInjectionsAMV || 0,
@@ -861,46 +904,203 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
   };
 
   const MobilePhaseCodeFields = ({
-    testTypeIndex,
-    control,
-  }: {
-    testTypeIndex: number;
-    control: any;
-  }) => {
-    const phaseLabels = ["MP01", "MP02", "MP03", "MP04", "Wash 1", "Wash 2"];
+  testTypeIndex,
+  control,
+}: {
+  testTypeIndex: number;
+  control: any;
+}) => {
+  const phaseLabels = ["MP01", "MP02", "MP03", "MP04", "Wash 1", "Wash 2"];
+  const watchedValues = watch();
+  const mobilePhaseCodes =
+    watchedValues?.testTypes?.[testTypeIndex]?.mobilePhaseCodes || [];
 
-    return (
+  return (
+    <div className="space-y-4">
+      {/* Mobile Phase Codes with their corresponding ratios/flow rates directly below */}
       <div className="grid grid-cols-6 gap-2">
         {[0, 1, 2, 3, 4, 5].map((index) => (
-          <div key={index}>
-            <label className="block text-xs text-gray-500 mb-1">
-              {phaseLabels[index]}
-            </label>
-            <Controller
-              name={`testTypes.${testTypeIndex}.mobilePhaseCodes.${index}`}
-              control={control}
-              defaultValue=""
-              render={({ field }) => (
-                <MobilePhaseDropdown
-                  value={field.value || ""}
-                  onChange={(value) => {
-                    field.onChange(value || "");
-                    handleTestTypeChange(
-                      testTypeIndex,
-                      `mobilePhaseCodes.${index}`,
-                      value || ""
-                    );
-                  }}
-                  placeholder={index === 0 ? "Required" : "Optional"}
-                  required={index === 0}
-                />
+          <div key={index} className="space-y-2">
+            {/* Mobile Phase Input */}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">
+                {phaseLabels[index]}
+              </label>
+              <Controller
+                name={`testTypes.${testTypeIndex}.mobilePhaseCodes.${index}`}
+                control={control}
+                defaultValue=""
+                render={({ field }) => (
+                  <MobilePhaseDropdown
+                    value={field.value || ""}
+                    onChange={(value) => {
+                      field.onChange(value || "");
+                      handleTestTypeChange(
+                        testTypeIndex,
+                        `mobilePhaseCodes.${index}`,
+                        value || ""
+                      );
+                    }}
+                    placeholder={index === 0 ? "Required" : "Optional"}
+                    required={index === 0}
+                  />
+                )}
+              />
+            </div>
+
+            {/* Ratio/Flow Rate Input directly below */}
+            <div>
+              {index <= 3 ? (
+                // Mobile Phase Ratio (MP01-MP04)
+                <>
+                  <label className="block text-xs text-gray-500 mb-1">
+                    {phaseLabels[index]} Ratio
+                  </label>
+                  <Controller
+                    name={`testTypes.${testTypeIndex}.mobilePhaseRatios.${index}`}
+                    control={control}
+                    defaultValue={0}
+                    render={({ field }) => (
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={field.value || 0}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value) || 0;
+                          field.onChange(value);
+                          // Update the entire ratios array
+                          const currentRatios = watchedValues?.testTypes?.[
+                            testTypeIndex
+                          ]?.mobilePhaseRatios || [0, 0, 0, 0, 0, 0];
+                          const newRatios = [...currentRatios];
+                          newRatios[index] = value;
+                          handleTestTypeChange(
+                            testTypeIndex,
+                            "mobilePhaseRatios",
+                            newRatios
+                          );
+                        }}
+                        disabled={!mobilePhaseCodes[index]} // Only enable if mobile phase is selected
+                        className={`w-full px-2 py-1 text-xs border rounded ${
+                          !mobilePhaseCodes[index]
+                            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                            : "border-gray-300"
+                        }`}
+                        placeholder="0.00"
+                      />
+                    )}
+                  />
+                </>
+              ) : (
+                // Wash Flow Rate (Wash1 and Wash2)
+                <>
+                  <label className="block text-xs text-gray-500 mb-1">
+                    {phaseLabels[index]} Flow Rate
+                  </label>
+                  <Controller
+                    name={`testTypes.${testTypeIndex}.flowRates.${index - 4}`}
+                    control={control}
+                    defaultValue={0}
+                    render={({ field }) => (
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={field.value || 0}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value) || 0;
+                          field.onChange(value);
+                          // Update the entire flow rates array
+                          const currentFlowRates = watchedValues?.testTypes?.[
+                            testTypeIndex
+                          ]?.flowRates || [0, 0];
+                          const newFlowRates = [...currentFlowRates];
+                          newFlowRates[index - 4] = value;
+                          handleTestTypeChange(
+                            testTypeIndex,
+                            "flowRates",
+                            newFlowRates
+                          );
+                        }}
+                        disabled={!mobilePhaseCodes[index]} // Only enable if wash is selected
+                        className={`w-full px-2 py-1 text-xs border rounded ${
+                          !mobilePhaseCodes[index]
+                            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                            : "border-gray-300"
+                        }`}
+                        placeholder="0.00"
+                      />
+                    )}
+                  />
+                </>
               )}
-            />
+            </div>
           </div>
         ))}
       </div>
-    );
-  };
+
+      {/* System Flow Rate and Wash Flow Rate in separate section */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            System Flow Rate
+          </label>
+          <Controller
+            name={`testTypes.${testTypeIndex}.systemFlowRate`}
+            control={control}
+            defaultValue={0}
+            render={({ field }) => (
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={field.value || 0}
+                onChange={(e) => {
+                  const value = parseFloat(e.target.value) || 0;
+                  field.onChange(value);
+                  handleTestTypeChange(
+                    testTypeIndex,
+                    "systemFlowRate",
+                    value
+                  );
+                }}
+                className="w-full px-2 py-1 text-sm border rounded border-gray-300"
+                placeholder="0.00"
+              />
+            )}
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Wash Flow Rate
+          </label>
+          <Controller
+            name={`testTypes.${testTypeIndex}.washFlowRate`}
+            control={control}
+            defaultValue={0}
+            render={({ field }) => (
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={field.value || 0}
+                onChange={(e) => {
+                  const value = parseFloat(e.target.value) || 0;
+                  field.onChange(value);
+                  handleTestTypeChange(testTypeIndex, "washFlowRate", value);
+                }}
+                className="w-full px-2 py-1 text-sm border rounded border-gray-300"
+                placeholder="0.00"
+              />
+            )}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
 
   useEffect(() => {
     const loadColumnDisplayTexts = async () => {
@@ -1011,6 +1211,8 @@ const ApiPopup: React.FC<ApiPopupProps> = ({
   };
 
   const onSubmitError = (errors: any) => {
+     console.log("🐛 Full Form Data:", getValues()); // Add this line
+  console.log("🐛 Validation Errors:", errors); 
     let errorMessages: string[] = [];
 
     if (errors.apiName) {

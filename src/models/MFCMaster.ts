@@ -5,9 +5,13 @@ export interface ITestType {
   selectMakeSpecific: boolean;
   columnCode: string;
   isColumnCodeLinkedToMfc: boolean;
-  mobilePhaseCodes: string[];  // Array of exactly 6 strings (can be empty)
+  mobilePhaseCodes: string[];   // Array of exactly 6 strings (can be empty)
+  mobilePhaseRatios: number[];  // Array of ratios corresponding to mobile phases
+  flowRates: number[];          // Array of flow rates (for washes MP05, MP06)
+   systemFlowRate?: number;      // System flow rate
+  washFlowRate?: number;        // Wash flow rate
   detectorTypeId: string;
-  pharmacopoeialId: string[]; // Changed to array for multi-select
+  pharmacopoeialId: string[];
   sampleInjection: number;
   standardInjection: number;
   blankInjection: number;
@@ -75,8 +79,8 @@ export interface IMFCMaster extends Document {
   createdAt: Date;
   updatedAt: Date;
   priority: 'urgent' | 'high' | 'normal';
-  isObsolete: boolean; // New field
-  isRawMaterial: boolean; // New field
+  isObsolete: boolean;
+  isRawMaterial: boolean;
 }
 
 const TestTypeSchema = new Schema<ITestType>({
@@ -84,6 +88,7 @@ const TestTypeSchema = new Schema<ITestType>({
   selectMakeSpecific: { type: Boolean, default: false },
   columnCode: { type: String, required: true },
   isColumnCodeLinkedToMfc: { type: Boolean, default: false },
+
   mobilePhaseCodes: {
     type: [String],
     default: ["", "", "", "", "", ""],
@@ -96,8 +101,34 @@ const TestTypeSchema = new Schema<ITestType>({
         "Mobile phase codes must have exactly 6 elements with MP01 (first element) required",
     },
   },
+
+  mobilePhaseRatios: {
+    type: [Number],
+    default: [0, 0, 0, 0, 0, 0],
+    validate: {
+      validator: function (arr: number[]): boolean {
+        return arr.length === 6;
+      },
+      message: "Mobile phase ratios must have exactly 6 elements",
+    },
+  },
+
+  // 🔹 New Flow Rates field
+  flowRates: {
+    type: [Number],
+    default: [0, 0], // Only for MP05 and MP06
+    validate: {
+      validator: function (arr: number[]): boolean {
+        return arr.length === 2;
+      },
+      message: "Flow rates must have exactly 2 elements (for MP05 and MP06)",
+    },
+  },
+  
+systemFlowRate: { type: Number, default: 0 },
+washFlowRate: { type: Number, default: 0 },
   detectorTypeId: { type: String, required: true },
-  pharmacopoeialId: { type: [String], required: true }, // Changed to array for multi-select
+  pharmacopoeialId: { type: [String], required: true },
   sampleInjection: { type: Number, default: 0 },
   standardInjection: { type: Number, default: 0 },
   blankInjection: { type: Number, default: 0 },
@@ -111,17 +142,16 @@ const TestTypeSchema = new Schema<ITestType>({
   runTime: { type: Number, default: 0 },
   uniqueRuntimes: { type: Boolean, default: false },
 
-  // Existing runtimes
   blankRunTime: { type: Number, default: 0 },
   standardRunTime: { type: Number, default: 0 },
   sampleRunTime: { type: Number, default: 0 },
 
-  // New runtimes
   systemSuitabilityRunTime: { type: Number, default: 0 },
   sensitivityRunTime: { type: Number, default: 0 },
   placeboRunTime: { type: Number, default: 0 },
   reference1RunTime: { type: Number, default: 0 },
   reference2RunTime: { type: Number, default: 0 },
+
   washTime: { type: Number, default: 0 },
   testApplicability: { type: Boolean, default: false },
   numberOfInjections: { type: Number, default: 0 },
@@ -138,7 +168,6 @@ const TestTypeSchema = new Schema<ITestType>({
   isLinked: { type: Boolean, default: false },
   priority: { type: String, enum: ['urgent', 'high', 'normal'], default: 'normal' },
 
-  // New field
   isOutsourcedTest: { type: Boolean, default: false },
 });
 
@@ -164,11 +193,10 @@ const MFCMasterSchema = new Schema<IMFCMaster>({
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
   priority: { type: String, enum: ['urgent', 'high', 'normal'], default: 'normal' },
-  isObsolete: { type: Boolean, default: false }, // New field
-  isRawMaterial: { type: Boolean, default: false }, // New field
+  isObsolete: { type: Boolean, default: false },
+  isRawMaterial: { type: Boolean, default: false },
 });
 
-// Compound + unique index
 MFCMasterSchema.index({ companyId: 1, locationId: 1 });
 MFCMasterSchema.index(
   { mfcNumber: 1, companyId: 1, locationId: 1 },
