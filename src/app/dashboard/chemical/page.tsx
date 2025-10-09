@@ -12,7 +12,7 @@ interface Chemical {
   chemicalName: string;
   isSolvent: boolean;
   isBuffer: boolean;
-  desc: string;
+  desc: string[]; // Changed from string to string[]
   companyId: string;
   locationId: string;
   createdBy: string;
@@ -26,11 +26,19 @@ function ChemicalMaster() {
   const [chemicals, setChemicals] = useState<Chemical[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [formData, setFormData] = useState({ chemicalName: "", isSolvent: false, isBuffer: false, desc: "" });
+  const [formData, setFormData] = useState({
+    chemicalName: "",
+    isSolvent: false,
+    isBuffer: false,
+    desc: [] as string[], // Changed to array
+  });
+  const [descInput, setDescInput] = useState(""); // New: temp input for desc items
   const [isFormEnabled, setIsFormEnabled] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentChemicalIndex, setCurrentChemicalIndex] = useState(-1);
-  const [selectedChemical, setSelectedChemical] = useState<Chemical | null>(null);
+  const [selectedChemical, setSelectedChemical] = useState<Chemical | null>(
+    null
+  );
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
@@ -48,6 +56,7 @@ function ChemicalMaster() {
   const [filterBuffer, setFilterBuffer] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const descInputRef = useRef<HTMLInputElement>(null); // New: ref for desc input
   const searchInputRef = useRef<HTMLInputElement>(null);
   const auditSearchInputRef = useRef<HTMLInputElement>(null);
 
@@ -78,7 +87,7 @@ function ChemicalMaster() {
     setError("");
 
     try {
-     const chemicalUrl = `/api/admin/chemical?companyId=${companyId}&locationId=${locationId}`;
+      const chemicalUrl = `/api/admin/chemical?companyId=${companyId}&locationId=${locationId}`;
 
       const response = await fetch(chemicalUrl, {
         method: "GET",
@@ -105,7 +114,9 @@ function ChemicalMaster() {
             return isValid;
           })
           .sort((a: Chemical, b: Chemical) =>
-            a.chemicalName.toLowerCase().localeCompare(b.chemicalName.toLowerCase())
+            a.chemicalName
+              .toLowerCase()
+              .localeCompare(b.chemicalName.toLowerCase())
           );
 
         setChemicals(validChemicals);
@@ -132,7 +143,11 @@ function ChemicalMaster() {
     }
   };
 
-  const logAuditAction = async (action: string, data: any, previousData?: any) => {
+  const logAuditAction = async (
+    action: string,
+    data: any,
+    previousData?: any
+  ) => {
     try {
       if (!companyId || !locationId) {
         return;
@@ -188,7 +203,9 @@ function ChemicalMaster() {
         queryParams.append("endDate", auditEndDate);
       }
 
-      const response = await fetch(`/api/admin/chemical/audit?${queryParams.toString()}`);
+      const response = await fetch(
+        `/api/admin/chemical/audit?${queryParams.toString()}`
+      );
       const data = await response.json();
 
       if (data.success) {
@@ -209,12 +226,15 @@ function ChemicalMaster() {
 
   // Filter chemicals for general chemical input dropdown (when neither checkbox is selected)
   const filteredChemicals = chemicals.filter((chemical) =>
-    chemical.chemicalName.toLowerCase().startsWith(formData.chemicalName.toLowerCase())
+    chemical.chemicalName
+      .toLowerCase()
+      .startsWith(formData.chemicalName.toLowerCase())
   );
 
   const displayedChemicals = chemicals.filter((chemical) => {
     if (!filterSolvent && !filterBuffer) return true;
-    if (filterSolvent && filterBuffer) return chemical.isSolvent || chemical.isBuffer;
+    if (filterSolvent && filterBuffer)
+      return chemical.isSolvent || chemical.isBuffer;
     if (filterSolvent) return chemical.isSolvent;
     if (filterBuffer) return chemical.isBuffer;
     return false;
@@ -223,13 +243,64 @@ function ChemicalMaster() {
   const handleAddNew = () => {
     setIsFormEnabled(true);
     setIsEditMode(false);
-    setFormData({ chemicalName: "", isSolvent: false, isBuffer: false, desc: "" });
+    setFormData({
+      chemicalName: "",
+      isSolvent: false,
+      isBuffer: false,
+      desc: [],
+    });
+    setDescInput(""); // Clear desc input
     setSelectedChemical(null);
     setCurrentChemicalIndex(-1);
     setShowDropdown(false);
     setTimeout(() => {
       inputRef.current?.focus();
     }, 100);
+  };
+
+  // New: Add desc item to array
+  const handleAddDescItem = () => {
+    const trimmedInput = descInput.trim();
+    if (!trimmedInput) return;
+
+    // Check for duplicates (case-insensitive)
+    const isDuplicate = formData.desc.some(
+      (item) => item.toLowerCase() === trimmedInput.toLowerCase()
+    );
+
+    // Check if matches chemical name (case-insensitive)
+    const matchesChemicalName =
+      formData.chemicalName.toLowerCase() === trimmedInput.toLowerCase();
+
+    if (isDuplicate) {
+      setError("This description already exists in the list");
+      return;
+    }
+
+    if (matchesChemicalName) {
+      setError("Description cannot match the chemical name");
+      return;
+    }
+
+    if (trimmedInput.length > 200) {
+      setError("Description item cannot exceed 200 characters");
+      return;
+    }
+
+    setFormData({
+      ...formData,
+      desc: [...formData.desc, trimmedInput],
+    });
+    setDescInput("");
+    setError("");
+  };
+
+  // New: Remove desc item from array
+  const handleRemoveDescItem = (index: number) => {
+    setFormData({
+      ...formData,
+      desc: formData.desc.filter((_, i) => i !== index),
+    });
   };
 
   const handleSave = async () => {
@@ -244,14 +315,30 @@ function ChemicalMaster() {
         return;
       }
 
+      // Validate chemical name is not empty
+      if (!formData.chemicalName.trim()) {
+        setError("Chemical name is required");
+        return;
+      }
+
+      // Check if chemical name matches any desc item (case-insensitive)
+      const nameMatchesDesc = formData.desc.some(
+        (item) => item.toLowerCase() === formData.chemicalName.toLowerCase()
+      );
+
+      if (nameMatchesDesc) {
+        setError("Chemical name cannot match any description item");
+        return;
+      }
+
       const url = "/api/admin/chemical";
       const method = isEditMode && selectedChemical ? "PUT" : "POST";
       const body = {
         id: isEditMode && selectedChemical ? selectedChemical._id : undefined,
-        chemicalName: formData.chemicalName,
+        chemicalName: formData.chemicalName.trim(),
         isSolvent: formData.isSolvent,
         isBuffer: formData.isBuffer,
-        desc: formData.desc,
+        desc: formData.desc, // Send as array
         companyId,
         locationId,
       };
@@ -287,12 +374,19 @@ function ChemicalMaster() {
             : null
         );
 
-        setFormData({ chemicalName: "", isSolvent: false, isBuffer: false, desc: "" });
+        setFormData({
+          chemicalName: "",
+          isSolvent: false,
+          isBuffer: false,
+          desc: [],
+        });
+        setDescInput("");
         setIsFormEnabled(false);
         setIsEditMode(false);
         setSelectedChemical(null);
         setCurrentChemicalIndex(-1);
         setShowDropdown(false);
+        setError("");
         await fetchChemicals();
       } else {
         setError(data.error || "Failed to save chemical");
@@ -303,12 +397,19 @@ function ChemicalMaster() {
   };
 
   const handleClear = () => {
-    setFormData({ chemicalName: "", isSolvent: false, isBuffer: false, desc: "" });
+    setFormData({
+      chemicalName: "",
+      isSolvent: false,
+      isBuffer: false,
+      desc: [],
+    });
+    setDescInput("");
     setIsFormEnabled(false);
     setIsEditMode(false);
     setSelectedChemical(null);
     setCurrentChemicalIndex(-1);
     setShowDropdown(false);
+    setError("");
   };
 
   const handleExit = () => {
@@ -325,8 +426,9 @@ function ChemicalMaster() {
         chemicalName: chemical.chemicalName,
         isSolvent: chemical.isSolvent,
         isBuffer: chemical.isBuffer,
-        desc: chemical.desc || "",
+        desc: chemical.desc || [],
       });
+      setDescInput("");
     }
   };
 
@@ -340,8 +442,9 @@ function ChemicalMaster() {
         chemicalName: chemical.chemicalName,
         isSolvent: chemical.isSolvent,
         isBuffer: chemical.isBuffer,
-        desc: chemical.desc || "",
+        desc: chemical.desc || [],
       });
+      setDescInput("");
     } else if (currentChemicalIndex === -1 && displayedChemicals.length > 0) {
       setCurrentChemicalIndex(0);
       const chemical = displayedChemicals[0];
@@ -350,8 +453,9 @@ function ChemicalMaster() {
         chemicalName: chemical.chemicalName,
         isSolvent: chemical.isSolvent,
         isBuffer: chemical.isBuffer,
-        desc: chemical.desc || "",
+        desc: chemical.desc || [],
       });
+      setDescInput("");
     }
   };
 
@@ -370,8 +474,9 @@ function ChemicalMaster() {
         chemicalName: selectedChemical.chemicalName,
         isSolvent: selectedChemical.isSolvent,
         isBuffer: selectedChemical.isBuffer,
-        desc: selectedChemical.desc || "",
+        desc: selectedChemical.desc || [],
       });
+      setDescInput("");
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
@@ -379,14 +484,22 @@ function ChemicalMaster() {
   const handleDelete = async () => {
     if (!selectedChemical) return;
 
-    if (!confirm(`Are you sure you want to delete "${selectedChemical.chemicalName}"?`)) return;
+    if (
+      !confirm(
+        `Are you sure you want to delete "${selectedChemical.chemicalName}"?`
+      )
+    )
+      return;
 
     try {
-      const response = await fetch(`/api/admin/chemical?id=${selectedChemical._id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-      });
+      const response = await fetch(
+        `/api/admin/chemical?id=${selectedChemical._id}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+        }
+      );
 
       const data = await response.json();
       if (data.success) {
@@ -400,7 +513,13 @@ function ChemicalMaster() {
         });
 
         await fetchChemicals();
-        setFormData({ chemicalName: "", isSolvent: false, isBuffer: false, desc: "" });
+        setFormData({
+          chemicalName: "",
+          isSolvent: false,
+          isBuffer: false,
+          desc: [],
+        });
+        setDescInput("");
         setSelectedChemical(null);
         setCurrentChemicalIndex(-1);
         setIsFormEnabled(false);
@@ -441,9 +560,13 @@ function ChemicalMaster() {
             ${displayedChemicals
               .map(
                 (chemical) =>
-                  `<tr><td>${chemical.chemicalName}</td><td>${chemical.isSolvent ? 'Yes' : 'No'}</td><td>${chemical.isBuffer ? 'Yes' : 'No'}</td><td>${chemical.desc || ""}</td><td>${new Date(
-                    chemical.createdAt
-                  ).toLocaleDateString("en-GB")}</td></tr>`
+                  `<tr><td>${chemical.chemicalName}</td><td>${
+                    chemical.isSolvent ? "Yes" : "No"
+                  }</td><td>${chemical.isBuffer ? "Yes" : "No"}</td><td>${
+                    chemical.desc?.join(", ") || ""
+                  }</td><td>${new Date(chemical.createdAt).toLocaleDateString(
+                    "en-GB"
+                  )}</td></tr>`
               )
               .join("")}
           </table>
@@ -478,16 +601,21 @@ function ChemicalMaster() {
         break;
       case "Enter":
         e.preventDefault();
-        if (dropdownSelectedIndex >= 0 && filteredChemicals[dropdownSelectedIndex]) {
+        if (
+          dropdownSelectedIndex >= 0 &&
+          filteredChemicals[dropdownSelectedIndex]
+        ) {
           const chemical = filteredChemicals[dropdownSelectedIndex];
           setFormData({
             chemicalName: chemical.chemicalName,
             isSolvent: chemical.isSolvent,
             isBuffer: chemical.isBuffer,
-            desc: chemical.desc || "",
+            desc: chemical.desc || [],
           });
           setSelectedChemical(chemical);
-          setCurrentChemicalIndex(chemicals.findIndex((c) => c._id === chemical._id));
+          setCurrentChemicalIndex(
+            chemicals.findIndex((c) => c._id === chemical._id)
+          );
           setShowDropdown(false);
           setDropdownSelectedIndex(-1);
         }
@@ -499,11 +627,24 @@ function ChemicalMaster() {
     }
   };
 
+  // New: Handle keyboard navigation for desc input
+  const handleDescInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddDescItem();
+    }
+  };
+
   const handleSearchKeyDown = (e: React.KeyboardEvent) => {
     const searchResults = displayedChemicals.filter(
       (chemical) =>
-        chemical.chemicalName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (chemical.desc && chemical.desc.toLowerCase().includes(searchTerm.toLowerCase()))
+        chemical.chemicalName
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        (chemical.desc &&
+          chemical.desc.some((d) =>
+            d.toLowerCase().includes(searchTerm.toLowerCase())
+          ))
     );
 
     switch (e.key) {
@@ -519,16 +660,21 @@ function ChemicalMaster() {
         break;
       case "Enter":
         e.preventDefault();
-        if (dropdownSelectedIndex >= 0 && searchResults[dropdownSelectedIndex]) {
+        if (
+          dropdownSelectedIndex >= 0 &&
+          searchResults[dropdownSelectedIndex]
+        ) {
           const chemical = searchResults[dropdownSelectedIndex];
           setFormData({
             chemicalName: chemical.chemicalName,
             isSolvent: chemical.isSolvent,
             isBuffer: chemical.isBuffer,
-            desc: chemical.desc || "",
+            desc: chemical.desc || [],
           });
           setSelectedChemical(chemical);
-          setCurrentChemicalIndex(displayedChemicals.findIndex((c) => c._id === chemical._id));
+          setCurrentChemicalIndex(
+            displayedChemicals.findIndex((c) => c._id === chemical._id)
+          );
           setShowSearchModal(false);
           setDropdownSelectedIndex(-1);
           setSearchTerm("");
@@ -639,70 +785,141 @@ function ChemicalMaster() {
                   }`}
                   style={{
                     borderStyle: "inset",
-                    boxShadow: isFormEnabled ? "inset 1px 1px 2px rgba(0,0,0,0.1)" : "none",
+                    boxShadow: isFormEnabled
+                      ? "inset 1px 1px 2px rgba(0,0,0,0.1)"
+                      : "none",
                   }}
                   placeholder="Enter or select chemical name"
                 />
 
                 {/* Dropdown for chemical selection */}
-                {showDropdown && filteredChemicals.length > 0 && isFormEnabled && !isEditMode && (
-                  <div
-                    className="absolute z-10 w-full mt-1 bg-white border border-[#a6c8ff] rounded-md shadow-lg max-h-48 overflow-y-auto"
-                    style={{ backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)" }}
-                  >
-                    {filteredChemicals.map((chemical, index) => (
-                      <div
-                        key={chemical._id}
-                        className={`px-3 py-2 cursor-pointer ${
-                          index === dropdownSelectedIndex
-                            ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]"
-                            : "hover:bg-[#e6f0fa]"
-                        }`}
-                        onClick={() => {
-                          setFormData({
-                            chemicalName: chemical.chemicalName,
-                            isSolvent: chemical.isSolvent,
-                            isBuffer: chemical.isBuffer,
-                            desc: chemical.desc || "",
-                          });
-                          setSelectedChemical(chemical);
-                          setCurrentChemicalIndex(chemicals.findIndex((c) => c._id === chemical._id));
-                          setShowDropdown(false);
-                          setDropdownSelectedIndex(-1);
-                        }}
-                      >
-                        <div className="font-medium text-gray-800">{chemical.chemicalName}</div>
-                        <div className="text-xs text-gray-500">
-                          {chemical.isSolvent && <span className="bg-blue-100 text-blue-800 px-1 rounded mr-1">Solvent</span>}
-                          {chemical.isBuffer && <span className="bg-green-100 text-green-800 px-1 rounded mr-1">Buffer</span>}
+                {showDropdown &&
+                  filteredChemicals.length > 0 &&
+                  isFormEnabled &&
+                  !isEditMode && (
+                    <div
+                      className="absolute z-10 w-full mt-1 bg-white border border-[#a6c8ff] rounded-md shadow-lg max-h-48 overflow-y-auto"
+                      style={{
+                        backgroundImage:
+                          "linear-gradient(to bottom, #ffffff, #f5faff)",
+                      }}
+                    >
+                      {filteredChemicals.map((chemical, index) => (
+                        <div
+                          key={chemical._id}
+                          className={`px-3 py-2 cursor-pointer ${
+                            index === dropdownSelectedIndex
+                              ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]"
+                              : "hover:bg-[#e6f0fa]"
+                          }`}
+                          onClick={() => {
+                            setFormData({
+                              chemicalName: chemical.chemicalName,
+                              isSolvent: chemical.isSolvent,
+                              isBuffer: chemical.isBuffer,
+                              desc: chemical.desc || [],
+                            });
+                            setSelectedChemical(chemical);
+                            setCurrentChemicalIndex(
+                              chemicals.findIndex((c) => c._id === chemical._id)
+                            );
+                            setShowDropdown(false);
+                            setDropdownSelectedIndex(-1);
+                          }}
+                        >
+                          <div className="font-medium text-gray-800">
+                            {chemical.chemicalName}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {chemical.isSolvent && (
+                              <span className="bg-blue-100 text-blue-800 px-1 rounded mr-1">
+                                Solvent
+                              </span>
+                            )}
+                            {chemical.isBuffer && (
+                              <span className="bg-green-100 text-green-800 px-1 rounded mr-1">
+                                Buffer
+                              </span>
+                            )}
+                          </div>
+                          {chemical.desc && chemical.desc.length > 0 && (
+                            <div className="text-sm text-gray-500">
+                              {chemical.desc.join(", ")}
+                            </div>
+                          )}
                         </div>
-                        {chemical.desc && (
-                          <div className="text-sm text-gray-500">{chemical.desc}</div>
+                      ))}
+                    </div>
+                  )}
+              </div>
+
+              {/* Updated Description Section - Now supports multiple items */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description Items
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    ref={descInputRef}
+                    type="text"
+                    value={descInput}
+                    disabled={!isFormEnabled}
+                    onChange={(e) => setDescInput(e.target.value)}
+                    onKeyDown={handleDescInputKeyDown}
+                    className={`flex-1 px-3 py-2 border border-[#a6c8ff] rounded focus:ring-2 focus:ring-[#66a3ff] focus:outline-none ${
+                      isFormEnabled ? "bg-white" : "bg-[#f0f0f0]"
+                    }`}
+                    style={{
+                      borderStyle: "inset",
+                      boxShadow: isFormEnabled
+                        ? "inset 1px 1px 2px rgba(0,0,0,0.1)"
+                        : "none",
+                    }}
+                    placeholder="Enter description item (max 200 chars)"
+                    maxLength={200}
+                  />
+                  <button
+                    type="button"
+                    disabled={!isFormEnabled}
+                    onClick={handleAddDescItem}
+                    className={`px-4 py-2 rounded font-medium ${
+                      isFormEnabled
+                        ? "bg-gradient-to-b from-[#0055a4] to-[#0088d1] text-white hover:from-[#0088d1] hover:to-[#0055a4]"
+                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    }`}
+                    style={{
+                      border: "1px solid #004080",
+                      boxShadow: isFormEnabled
+                        ? "0 1px 2px rgba(0,0,0,0.2)"
+                        : "none",
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
+
+                {/* Display added desc items */}
+                {formData.desc.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {formData.desc.map((item, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between bg-[#e6f0fa] px-3 py-2 rounded border border-[#a6c8ff]"
+                      >
+                        <span className="text-sm text-gray-700">{item}</span>
+                        {isFormEnabled && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDescItem(index)}
+                            className="text-red-600 hover:text-red-800 font-bold"
+                          >
+                            ×
+                          </button>
                         )}
                       </div>
                     ))}
                   </div>
                 )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                <input
-                  type="text"
-                  value={formData.desc}
-                  disabled={!isFormEnabled}
-                  onChange={(e) => setFormData({ ...formData, desc: e.target.value })}
-                  className={`w-full px-3 py-2 border border-[#a6c8ff] rounded focus:ring-2 focus:ring-[#66a3ff] focus:outline-none ${
-                    isFormEnabled ? "bg-white" : "bg-[#f0f0f0]"
-                  }`}
-                  style={{
-                    borderStyle: "inset",
-                    boxShadow: isFormEnabled ? "inset 1px 1px 2px rgba(0,0,0,0.1)" : "none",
-                  }}
-                  placeholder="Enter description (optional)"
-                />
               </div>
 
               <div className="flex items-center space-x-2">
@@ -711,9 +928,9 @@ function ChemicalMaster() {
                   checked={formData.isSolvent}
                   disabled={!isFormEnabled}
                   onChange={(e) => {
-                    setFormData({ 
-                      ...formData, 
-                      isSolvent: e.target.checked
+                    setFormData({
+                      ...formData,
+                      isSolvent: e.target.checked,
                     });
                     setShowDropdown(false);
                   }}
@@ -730,9 +947,9 @@ function ChemicalMaster() {
                   checked={formData.isBuffer}
                   disabled={!isFormEnabled}
                   onChange={(e) => {
-                    setFormData({ 
-                      ...formData, 
-                      isBuffer: e.target.checked
+                    setFormData({
+                      ...formData,
+                      isBuffer: e.target.checked,
                     });
                     setShowDropdown(false);
                   }}
@@ -772,7 +989,9 @@ function ChemicalMaster() {
           >
             <div
               className="p-4 border-b border-[#a6c8ff]"
-              style={{ backgroundImage: "linear-gradient(to bottom, #f0f0f0, #ffffff)" }}
+              style={{
+                backgroundImage: "linear-gradient(to bottom, #f0f0f0, #ffffff)",
+              }}
             >
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-gray-800">
@@ -856,7 +1075,7 @@ function ChemicalMaster() {
                               chemicalName: chemical.chemicalName,
                               isSolvent: chemical.isSolvent,
                               isBuffer: chemical.isBuffer,
-                              desc: chemical.desc || "",
+                              desc: chemical.desc || [],
                             });
                           }
                         }}
@@ -867,18 +1086,37 @@ function ChemicalMaster() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-gray-600">{chemical.isSolvent ? "Yes" : "No"}</div>
+                          <div className="text-gray-600">
+                            {chemical.isSolvent ? "Yes" : "No"}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-gray-600">{chemical.isBuffer ? "Yes" : "No"}</div>
+                          <div className="text-gray-600">
+                            {chemical.isBuffer ? "Yes" : "No"}
+                          </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="text-gray-600 max-w-xs truncate">
-                            {chemical.desc || "—"}
+                          <div className="text-gray-600 max-w-xs">
+                            {chemical.desc && chemical.desc.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {chemical.desc.map((item, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="bg-[#e6f0fa] px-2 py-1 rounded text-xs border border-[#a6c8ff]"
+                                  >
+                                    {item}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              "—"
+                            )}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(chemical.createdAt).toLocaleDateString("en-GB")}
+                          {new Date(chemical.createdAt).toLocaleDateString(
+                            "en-GB"
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -925,14 +1163,20 @@ function ChemicalMaster() {
 
             <div
               className="max-h-48 overflow-y-auto border border-[#a6c8ff] rounded mt-2"
-              style={{ backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)" }}
+              style={{
+                backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
+              }}
             >
               {displayedChemicals
                 .filter(
                   (chemical) =>
-                    chemical.chemicalName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    chemical.chemicalName
+                      .toLowerCase()
+                      .includes(searchTerm.toLowerCase()) ||
                     (chemical.desc &&
-                      chemical.desc.toLowerCase().includes(searchTerm.toLowerCase()))
+                      chemical.desc.some((d) =>
+                        d.toLowerCase().includes(searchTerm.toLowerCase())
+                      ))
                 )
                 .map((chemical, index) => (
                   <div
@@ -947,24 +1191,38 @@ function ChemicalMaster() {
                         chemicalName: chemical.chemicalName,
                         isSolvent: chemical.isSolvent,
                         isBuffer: chemical.isBuffer,
-                        desc: chemical.desc || "",
+                        desc: chemical.desc || [],
                       });
                       setSelectedChemical(chemical);
                       setCurrentChemicalIndex(
-                        displayedChemicals.findIndex((c) => c._id === chemical._id)
+                        displayedChemicals.findIndex(
+                          (c) => c._id === chemical._id
+                        )
                       );
                       setShowSearchModal(false);
                       setDropdownSelectedIndex(-1);
                       setSearchTerm("");
                     }}
                   >
-                    <div className="font-medium text-gray-800">{chemical.chemicalName}</div>
-                    <div className="text-xs">
-                      {chemical.isSolvent && <span className="bg-blue-100 text-blue-800 px-1 rounded mr-1">Solvent</span>}
-                      {chemical.isBuffer && <span className="bg-green-100 text-green-800 px-1 rounded mr-1">Buffer</span>}
+                    <div className="font-medium text-gray-800">
+                      {chemical.chemicalName}
                     </div>
-                    {chemical.desc && (
-                      <div className="text-sm text-gray-500">{chemical.desc}</div>
+                    <div className="text-xs">
+                      {chemical.isSolvent && (
+                        <span className="bg-blue-100 text-blue-800 px-1 rounded mr-1">
+                          Solvent
+                        </span>
+                      )}
+                      {chemical.isBuffer && (
+                        <span className="bg-green-100 text-green-800 px-1 rounded mr-1">
+                          Buffer
+                        </span>
+                      )}
+                    </div>
+                    {chemical.desc && chemical.desc.length > 0 && (
+                      <div className="text-sm text-gray-500">
+                        {chemical.desc.join(", ")}
+                      </div>
                     )}
                   </div>
                 ))}
@@ -1004,7 +1262,10 @@ function ChemicalMaster() {
             }}
           >
             <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Audit Trail {selectedChemical ? `for ${selectedChemical.chemicalName}` : "(All Chemicals)"}
+              Audit Trail{" "}
+              {selectedChemical
+                ? `for ${selectedChemical.chemicalName}`
+                : "(All Chemicals)"}
             </h3>
 
             <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1090,7 +1351,9 @@ function ChemicalMaster() {
 
             <div
               className="max-h-64 overflow-y-auto border border-[#a6c8ff] rounded"
-              style={{ backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)" }}
+              style={{
+                backgroundImage: "linear-gradient(to bottom, #ffffff, #f5faff)",
+              }}
             >
               <table className="w-full text-sm">
                 <thead
@@ -1098,26 +1361,45 @@ function ChemicalMaster() {
                   style={{ borderBottom: "1px solid #a6c8ff" }}
                 >
                   <tr>
-                    <th className="px-3 py-2 text-left text-gray-700">Timestamp</th>
+                    <th className="px-3 py-2 text-left text-gray-700">
+                      Timestamp
+                    </th>
                     <th className="px-3 py-2 text-left text-gray-700">User</th>
-                    <th className="px-3 py-2 text-left text-gray-700">Action</th>
-                    <th className="px-3 py-2 text-left text-gray-700">Chemical Name</th>
-                    <th className="px-3 py-2 text-left text-gray-700">Solvent</th>
-                    <th className="px-3 py-2 text-left text-gray-700">Buffer</th>
-                    <th className="px-3 py-2 text-left text-gray-700">Description</th>
-                    <th className="px-3 py-2 text-left text-gray-700">Previous Chemical Name</th>
-                    <th className="px-3 py-2 text-left text-gray-700">Previous Solvent</th>
-                    <th className="px-3 py-2 text-left text-gray-700">Previous Buffer</th>
-                    <th className="px-3 py-2 text-left text-gray-700">Previous Description</th>
+                    <th className="px-3 py-2 text-left text-gray-700">
+                      Action
+                    </th>
+                    <th className="px-3 py-2 text-left text-gray-700">
+                      Chemical Name
+                    </th>
+                    <th className="px-3 py-2 text-left text-gray-700">
+                      Solvent
+                    </th>
+                    <th className="px-3 py-2 text-left text-gray-700">
+                      Buffer
+                    </th>
+                    <th className="px-3 py-2 text-left text-gray-700">
+                      Description
+                    </th>
+                    <th className="px-3 py-2 text-left text-gray-700">
+                      Previous Chemical Name
+                    </th>
+                    <th className="px-3 py-2 text-left text-gray-700">
+                      Previous Solvent
+                    </th>
+                    <th className="px-3 py-2 text-left text-gray-700">
+                      Previous Buffer
+                    </th>
+                    <th className="px-3 py-2 text-left text-gray-700">
+                      Previous Description
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#a6c8ff]">
                   {auditLogs.map((log: any, index) => (
-                    <tr
-                      key={index}
-                      className="hover:bg-[#e6f0fa]"
-                    >
-                      <td className="px-3 py-2">{new Date(log.timestamp).toLocaleString("en-GB")}</td>
+                    <tr key={index} className="hover:bg-[#e6f0fa]">
+                      <td className="px-3 py-2">
+                        {new Date(log.timestamp).toLocaleString("en-GB")}
+                      </td>
                       <td className="px-3 py-2">{log.username}</td>
                       <td className="px-3 py-2">
                         <span
@@ -1135,28 +1417,49 @@ function ChemicalMaster() {
                         </span>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="max-w-xs truncate">{log.data.chemicalName || "—"}</div>
+                        <div className="max-w-xs truncate">
+                          {log.data.chemicalName || "—"}
+                        </div>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="max-w-xs truncate">{log.data.isSolvent ? "Yes" : "No"}</div>
+                        <div className="max-w-xs truncate">
+                          {log.data.isSolvent ? "Yes" : "No"}
+                        </div>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="max-w-xs truncate">{log.data.isBuffer ? "Yes" : "No"}</div>
+                        <div className="max-w-xs truncate">
+                          {log.data.isBuffer ? "Yes" : "No"}
+                        </div>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="max-w-xs truncate">{log.data.desc || "—"}</div>
+                        <div className="max-w-xs truncate">
+                          {log.data.desc && Array.isArray(log.data.desc)
+                            ? log.data.desc.join(", ")
+                            : "—"}
+                        </div>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="max-w-xs truncate">{log.previousData?.chemicalName || "—"}</div>
+                        <div className="max-w-xs truncate">
+                          {log.previousData?.chemicalName || "—"}
+                        </div>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="max-w-xs truncate">{log.previousData?.isSolvent ? "Yes" : "No"}</div>
+                        <div className="max-w-xs truncate">
+                          {log.previousData?.isSolvent ? "Yes" : "No"}
+                        </div>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="max-w-xs truncate">{log.previousData?.isBuffer ? "Yes" : "No"}</div>
+                        <div className="max-w-xs truncate">
+                          {log.previousData?.isBuffer ? "Yes" : "No"}
+                        </div>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="max-w-xs truncate">{log.previousData?.desc || "—"}</div>
+                        <div className="max-w-xs truncate">
+                          {log.previousData?.desc &&
+                          Array.isArray(log.previousData.desc)
+                            ? log.previousData.desc.join(", ")
+                            : "—"}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1206,43 +1509,81 @@ function ChemicalMaster() {
 
             <div className="space-y-4 text-sm">
               <div>
-                <h4 className="font-semibold text-[#0055a4]">Keyboard Shortcuts:</h4>
+                <h4 className="font-semibold text-[#0055a4]">
+                  Keyboard Shortcuts:
+                </h4>
                 <ul className="ml-4 mt-2 space-y-1">
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F1</kbd> - Add New Chemical
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F1
+                    </kbd>{" "}
+                    - Add New Chemical
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F2</kbd> - Save Current Entry
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F2
+                    </kbd>{" "}
+                    - Save Current Entry
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F3</kbd> - Clear Form
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F3
+                    </kbd>{" "}
+                    - Clear Form
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F4</kbd> - Exit to Dashboard
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F4
+                    </kbd>{" "}
+                    - Exit to Dashboard
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F5</kbd> - Navigate Up
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F5
+                    </kbd>{" "}
+                    - Navigate Up
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F6</kbd> - Navigate Down
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F6
+                    </kbd>{" "}
+                    - Navigate Down
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F7</kbd> - Search Chemicals
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F7
+                    </kbd>{" "}
+                    - Search Chemicals
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F9</kbd> - Edit Selected Chemical
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F9
+                    </kbd>{" "}
+                    - Edit Selected Chemical
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F10</kbd> - Delete Selected Chemical
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F10
+                    </kbd>{" "}
+                    - Delete Selected Chemical
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F11</kbd> - View Audit Trail
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F11
+                    </kbd>{" "}
+                    - View Audit Trail
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">F12</kbd> - Print Report
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      F12
+                    </kbd>{" "}
+                    - Print Report
                   </li>
                   <li>
-                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">Ctrl+H</kbd> - Show Help
+                    <kbd className="bg-[#f0f0f0] px-2 py-1 rounded border border-[#a6c8ff]">
+                      Ctrl+H
+                    </kbd>{" "}
+                    - Show Help
                   </li>
                 </ul>
               </div>
@@ -1250,49 +1591,116 @@ function ChemicalMaster() {
               <div>
                 <h4 className="font-semibold text-[#0055a4]">How to Use:</h4>
                 <ul className="ml-4 mt-2 space-y-1">
-                  <li>• Use <b>Add (F1)</b> to enable form for new chemical entry</li>
-                  <li>• Use <b>Edit (F9)</b> to modify selected chemical</li>
-                  <li>• Use <b>Save (F2)</b> to save new or edited chemical</li>
-                  <li>• Use <b>Clear (F3)</b> to reset form and disable inputs</li>
-                  <li>• Use <b>Up (F5)/Down (F6)</b> to navigate chemicals alphabetically</li>
-                  <li>• Use <b>Search (F7)</b> for full-text search with keyboard navigation</li>
-                  <li>• Use <b>Delete (F10)</b> to remove selected chemical</li>
-                  <li>• Use <b>Audit (F11)</b> to view all changes</li>
-                  <li>• Use <b>Print (F12)</b> to generate chemical report</li>
-                  <li>• Use <b>Exit (F4)</b> to return to dashboard</li>
-                  <li>• Use <b>Filter Checkboxes</b> to show only Solvents, Buffers, or both</li>
+                  <li>
+                    • Use <b>Add (F1)</b> to enable form for new chemical entry
+                  </li>
+                  <li>
+                    • Use <b>Edit (F9)</b> to modify selected chemical
+                  </li>
+                  <li>
+                    • Use <b>Save (F2)</b> to save new or edited chemical
+                  </li>
+                  <li>
+                    • Use <b>Clear (F3)</b> to reset form and disable inputs
+                  </li>
+                  <li>
+                    • Use <b>Up (F5)/Down (F6)</b> to navigate chemicals
+                    alphabetically
+                  </li>
+                  <li>
+                    • Use <b>Search (F7)</b> for full-text search with keyboard
+                    navigation
+                  </li>
+                  <li>
+                    • Use <b>Delete (F10)</b> to remove selected chemical
+                  </li>
+                  <li>
+                    • Use <b>Audit (F11)</b> to view all changes
+                  </li>
+                  <li>
+                    • Use <b>Print (F12)</b> to generate chemical report
+                  </li>
+                  <li>
+                    • Use <b>Exit (F4)</b> to return to dashboard
+                  </li>
+                  <li>
+                    • Use <b>Filter Checkboxes</b> to show only Solvents,
+                    Buffers, or both
+                  </li>
                 </ul>
               </div>
 
               <div>
-                <h4 className="font-semibold text-[#0055a4]">Field Behavior:</h4>
+                <h4 className="font-semibold text-[#0055a4]">
+                  Field Behavior:
+                </h4>
                 <ul className="ml-4 mt-2 space-y-1">
-                  <li>• <b>Chemical Name</b> - Enter any chemical name</li>
-                  <li>• <b>Is Solvent</b> - Check if the chemical is a solvent</li>
-                  <li>• <b>Is Buffer</b> - Check if the chemical is a buffer</li>
-                  <li>• <b>Description</b> - Optional field for additional information</li>
-                  <li>• <b>Dropdown</b> - Shows matching chemicals while typing (add mode only)</li>
-                  <li>• <b>Auto-selection</b> - Selecting from dropdown sets all properties</li>
+                  <li>
+                    • <b>Chemical Name</b> - Enter any chemical name (must be
+                    unique within company/location)
+                  </li>
+                  <li>
+                    • <b>Is Solvent</b> - Check if the chemical is a solvent
+                  </li>
+                  <li>
+                    • <b>Is Buffer</b> - Check if the chemical is a buffer
+                  </li>
+                  <li>
+                    • <b>Description Items</b> - Add multiple description items
+                    (max 200 chars each)
+                  </li>
+                  <li>
+                    • <b>Description Rules</b> - Each item must be unique across
+                    ALL chemicals in company/location
+                  </li>
+                  <li>
+                    • <b>Validation</b> - Chemical name cannot match any
+                    description item
+                  </li>
+                  <li>
+                    • <b>Press Enter</b> - In description field to add item
+                  </li>
+                  <li>
+                    • <b>Dropdown</b> - Shows matching chemicals while typing
+                    (add mode only)
+                  </li>
+                  <li>
+                    • <b>Auto-selection</b> - Selecting from dropdown sets all
+                    properties
+                  </li>
                 </ul>
               </div>
 
               <div>
-                <h4 className="font-semibold text-[#0055a4]">Status Indicators:</h4>
+                <h4 className="font-semibold text-[#0055a4]">
+                  Status Indicators:
+                </h4>
                 <ul className="ml-4 mt-2 space-y-1">
                   <li>
-                    • <span className="text-[#008800]">Green text</span> - Form is enabled for input
+                    • <span className="text-[#008800]">Green text</span> - Form
+                    is enabled for input
                   </li>
                   <li>
-                    • <span className="text-[#0055a4]">Blue background</span> - Selected chemical in list
+                    • <span className="text-[#0055a4]">Blue background</span> -
+                    Selected chemical in list
                   </li>
                   <li>
-                    • <span className="text-gray-500">Gray fields</span> - Read-only mode
+                    • <span className="text-gray-500">Gray fields</span> -
+                    Read-only mode
                   </li>
                   <li>
-                    • <span className="bg-blue-100 text-blue-800 px-1 rounded">Blue tags</span> - Solvent chemicals
+                    •{" "}
+                    <span className="bg-blue-100 text-blue-800 px-1 rounded">
+                      Blue tags
+                    </span>{" "}
+                    - Solvent chemicals
                   </li>
                   <li>
-                    • <span className="bg-green-100 text-green-800 px-1 rounded">Green tags</span> - Buffer chemicals
+                    •{" "}
+                    <span className="bg-green-100 text-green-800 px-1 rounded">
+                      Green tags
+                    </span>{" "}
+                    - Buffer chemicals
                   </li>
                 </ul>
               </div>
@@ -1304,7 +1712,11 @@ function ChemicalMaster() {
                   <li>• Use arrow keys in dropdowns for quick navigation</li>
                   <li>• Type to filter dropdown options in real-time</li>
                   <li>• Escape key closes any open dropdown</li>
-                  <li>• Chemical name field always shows "Chemical Name" label</li>
+                  <li>
+                    • Description items are validated for uniqueness globally
+                    within company/location
+                  </li>
+                  <li>• Description items cannot match the chemical name</li>
                   <li>• All actions are logged in audit trail</li>
                   <li>• Contact support at support@company.com for issues</li>
                 </ul>

@@ -5,7 +5,20 @@ const chemicalSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Chemical name is required'],
     trim: true,
-    maxlength: [100, 'Chemical name cannot exceed 100 characters']
+    maxlength: [100, 'Chemical name cannot exceed 100 characters'],
+    validate: {
+      validator: function(this: any, value: string) {
+        // Validate that chemicalName is not in the desc array of THIS chemical
+        if (this.desc && Array.isArray(this.desc)) {
+          const normalizedName = value.toLowerCase().trim();
+          return !this.desc.some((d: string) => 
+            d.toLowerCase().trim() === normalizedName
+          );
+        }
+        return true;
+      },
+      message: 'Chemical name cannot be the same as any of its own description/alias values'
+    }
   },
   isSolvent: {
     type: Boolean,
@@ -16,10 +29,38 @@ const chemicalSchema = new mongoose.Schema({
     default: false
   },
   desc: {
-    type: String,
-    trim: true,
-    maxlength: [500, 'Description cannot exceed 500 characters'],
-    default: ''
+    type: [String],
+    default: [],
+    validate: {
+      validator: function(this: any, arr: string[]) {
+        // Validate each string in the array
+        if (!Array.isArray(arr)) return false;
+        
+        // Check max length for each item
+        const allValid = arr.every(item => 
+          typeof item === 'string' && item.length <= 200
+        );
+        
+        if (!allValid) return false;
+        
+        // Check that no desc item matches the chemical name
+        if (this.chemicalName) {
+          const normalizedName = this.chemicalName.toLowerCase().trim();
+          const hasMatch = arr.some((d: string) => 
+            d.toLowerCase().trim() === normalizedName
+          );
+          if (hasMatch) return false;
+        }
+        
+        // Check for duplicates within the desc array (case-insensitive)
+        const normalized = arr.map(d => d.toLowerCase().trim());
+        const uniqueSet = new Set(normalized);
+        if (normalized.length !== uniqueSet.size) return false;
+        
+        return true;
+      },
+      message: 'Description array contains invalid entries: items must be strings (max 200 chars), unique, and cannot match the chemical name'
+    }
   },
   companyId: {
     type: String,
@@ -34,6 +75,9 @@ const chemicalSchema = new mongoose.Schema({
   createdBy: {
     type: String,
     required: [true, 'Created by is required']
+  },
+  updatedBy: {
+    type: String
   }
 }, {
   timestamps: true,

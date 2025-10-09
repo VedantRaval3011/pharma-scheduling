@@ -18,7 +18,7 @@ interface Chemical {
   chemicalName: string;
   isSolvent: boolean;
   isBuffer: boolean;
-  desc: string;
+  desc: string[]; // ✅ Changed from string to string[]
 }
 
 interface MobilePhase {
@@ -269,122 +269,26 @@ function MobilePhaseMaster() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Helper function to create display options for chemicals
-  const createChemicalDisplayOptions = (chemical: Chemical) => {
-    const options = [];
+  // Helper function to get first description or join all descriptions
+  const getChemicalDesc = (chemical: Chemical | undefined): string => {
+    if (!chemical) return "";
 
-    // Add chemical name option
-    if (chemical.chemicalName) {
-      options.push({
-        id: chemical._id,
-        display: chemical.chemicalName,
-        type: "name",
-        chemical: chemical,
-      });
+    const desc = chemical.desc;
+
+    // Handle undefined/null
+    if (!desc) return "";
+
+    // Handle array (new format)
+    if (Array.isArray(desc)) {
+      return desc.length > 0 ? desc.join(", ") : "";
     }
 
-    // Add description option (if different from chemical name)
-    if (chemical.desc && chemical.desc !== chemical.chemicalName) {
-      options.push({
-        id: chemical._id,
-        display: chemical.desc,
-        type: "desc",
-        chemical: chemical,
-      });
+    // Handle string (old format - backward compatibility)
+    if (typeof desc === "string") {
+      return desc;
     }
 
-    return options;
-  };
-
-  // Helper function to get all chemical display options
-  const getAllChemicalOptions = (chemicalsList: Chemical[]) => {
-    return chemicalsList.flatMap((chemical) =>
-      createChemicalDisplayOptions(chemical)
-    );
-  };
-
-  // Enhanced function to sync chemical name with description (when selecting from name dropdown)
-  const syncChemicalNameToDesc = (chemicalName: string, field: string) => {
-    const foundChemical = chemicals.find(
-      (c) => c.chemicalName === chemicalName
-    );
-    if (foundChemical) {
-      if (field === "bufferName") {
-        setFormData((prev) => ({
-          ...prev,
-          bufferDesc: foundChemical.desc || "",
-        }));
-      } else if (field === "solventName") {
-        setFormData((prev) => ({
-          ...prev,
-          solventDesc: foundChemical.desc || "",
-        }));
-      }
-    }
-  };
-
-  // Enhanced function to sync description to chemical name (when typing or selecting desc)
-  const syncDescToChemicalName = (desc: string, field: string) => {
-    const foundChemical = chemicals.find(
-      (c) => c.desc && c.desc.toLowerCase() === desc.toLowerCase()
-    );
-    if (foundChemical) {
-      if (field === "bufferDesc") {
-        setFormData((prev) => ({
-          ...prev,
-          bufferName: foundChemical.chemicalName,
-        }));
-      } else if (field === "solventDesc") {
-        setFormData((prev) => ({
-          ...prev,
-          solventName: foundChemical.chemicalName,
-        }));
-      }
-    }
-  };
-
-  // Enhanced function for chemicals array with auto-sync
-  const syncChemicalArrayDesc = (
-    index: number,
-    desc: string,
-    isDescInput: boolean = false
-  ) => {
-    if (isDescInput) {
-      // User typed in description field, find chemical by desc
-      const foundChemical = chemicals.find(
-        (c) => c.desc && c.desc.toLowerCase() === desc.toLowerCase()
-      );
-      if (foundChemical) {
-        const newChemicals = [...formData.chemicals];
-        newChemicals[index] = foundChemical._id;
-        setFormData((prev) => ({ ...prev, chemicals: newChemicals }));
-      }
-    } else {
-      // User selected chemical, update description
-      const foundChemical = chemicals.find((c) => c._id === desc);
-      if (foundChemical) {
-        const newChemicalsDesc = [...formData.chemicalsDesc];
-        newChemicalsDesc[index] = foundChemical.desc || "";
-        setFormData((prev) => ({ ...prev, chemicalsDesc: newChemicalsDesc }));
-      }
-    }
-  };
-
-  // Function to get filtered description options
-  const getDescriptionOptions = (inputValue: string, chemicalType: string) => {
-    return chemicals.filter((c) => {
-      const hasCorrectType =
-        chemicalType === "buffer"
-          ? c.isBuffer
-          : chemicalType === "solvent"
-          ? c.isSolvent
-          : true;
-      const hasDesc = c.desc && c.desc.trim() !== "";
-      const matchesInput = c.desc
-        ?.toLowerCase()
-        .includes(inputValue.toLowerCase());
-      return hasCorrectType && hasDesc && matchesInput;
-    });
+    return "";
   };
 
   const fetchChemicals = async () => {
@@ -907,8 +811,8 @@ function MobilePhaseMaster() {
         // Sort by first chemical description
         const aChemicalDesc = chemicals.find((c) => c._id === a.chemicals[0]);
         const bChemicalDesc = chemicals.find((c) => c._id === b.chemicals[0]);
-        aValue = (aChemicalDesc?.desc || "").toLowerCase();
-        bValue = (bChemicalDesc?.desc || "").toLowerCase();
+        aValue = getChemicalDesc(aChemicalDesc).toLowerCase();
+        bValue = getChemicalDesc(bChemicalDesc).toLowerCase();
         break;
       case "pHValue":
         aValue = a.pHValue || 0;
@@ -1202,7 +1106,7 @@ function MobilePhaseMaster() {
         pHValue: mp.pHValue?.toString() || "",
         description: mp.description || "",
         chemicalsDesc: mp.chemicals
-          .map((id) => chemicals.find((c) => c._id === id)?.desc || "")
+          .map((id) => getChemicalDesc(chemicals.find((c) => c._id === id)))
           .concat(Array(5 - mp.chemicals.length).fill("")),
         bufferDesc: mp.bufferDesc || "",
         solventDesc: mp.solventDesc || "",
@@ -1266,7 +1170,7 @@ function MobilePhaseMaster() {
         pHValue: mp.pHValue?.toString() || "",
         description: mp.description || "",
         chemicalsDesc: mp.chemicals
-          .map((id) => chemicals.find((c) => c._id === id)?.desc || "")
+          .map((id) => getChemicalDesc(chemicals.find((c) => c._id === id)))
           .concat(Array(5 - mp.chemicals.length).fill("")),
         bufferDesc: mp.bufferDesc || "",
         solventDesc: mp.solventDesc || "",
@@ -1302,7 +1206,7 @@ function MobilePhaseMaster() {
         pHValue: mp.pHValue?.toString() || "",
         description: mp.description || "",
         chemicalsDesc: mp.chemicals
-          .map((id) => chemicals.find((c) => c._id === id)?.desc || "")
+          .map((id) => getChemicalDesc(chemicals.find((c) => c._id === id)))
           .concat(Array(5 - mp.chemicals.length).fill("")),
         solventDesc: mp.solventDesc || "",
         bufferDesc: mp.bufferDesc || "",
@@ -1336,7 +1240,7 @@ function MobilePhaseMaster() {
         pHValue: mp.pHValue?.toString() || "",
         description: mp.description || "",
         chemicalsDesc: mp.chemicals
-          .map((id) => chemicals.find((c) => c._id === id)?.desc || "")
+          .map((id) => getChemicalDesc(chemicals.find((c) => c._id === id)))
           .concat(Array(5 - mp.chemicals.length).fill("")),
         solventDesc: mp.solventDesc || "",
         bufferDesc: mp.bufferDesc || "",
@@ -1364,7 +1268,7 @@ function MobilePhaseMaster() {
       pHValue: mp.pHValue?.toString() || "",
       description: mp.description || "",
       chemicalsDesc: mp.chemicals
-        .map((id) => chemicals.find((c) => c._id === id)?.desc || "")
+        .map((id) => getChemicalDesc(chemicals.find((c) => c._id === id)))
         .concat(Array(5 - mp.chemicals.length).fill("")),
       solventDesc: mp.solventDesc || "",
       bufferDesc: mp.bufferDesc || "",
@@ -1412,7 +1316,7 @@ function MobilePhaseMaster() {
         pHValue: selectedMobilePhase.pHValue?.toString() || "",
         description: selectedMobilePhase.description || "",
         chemicalsDesc: selectedMobilePhase.chemicals
-          .map((id) => chemicals.find((c) => c._id === id)?.desc || "")
+          .map((id) => getChemicalDesc(chemicals.find((c) => c._id === id)))
           .concat(Array(5 - selectedMobilePhase.chemicals.length).fill("")),
         bufferDesc: selectedMobilePhase.bufferDesc || "",
         solventDesc: selectedMobilePhase.solventDesc || "",
@@ -1600,28 +1504,34 @@ function MobilePhaseMaster() {
         return chemicals.filter(
           (c) =>
             c.isBuffer &&
-            c.desc &&
-            c.desc.trim() !== "" &&
+            getChemicalDesc(c) &&
+            getChemicalDesc(c).trim() !== "" &&
             (formData.bufferDesc === "" ||
-              c.desc.toLowerCase().includes(formData.bufferDesc.toLowerCase()))
+              getChemicalDesc(c)
+                .toLowerCase()
+                .includes(formData.bufferDesc.toLowerCase()))
         );
       } else if (field === "solventDesc") {
         return chemicals.filter(
           (c) =>
             c.isSolvent &&
-            c.desc &&
-            c.desc.trim() !== "" &&
+            getChemicalDesc(c) &&
+            getChemicalDesc(c).trim() !== "" &&
             (formData.solventDesc === "" ||
-              c.desc.toLowerCase().includes(formData.solventDesc.toLowerCase()))
+              getChemicalDesc(c)
+                .toLowerCase()
+                .includes(formData.solventDesc.toLowerCase()))
         );
       } else if (field === "chemicalsDesc") {
         const currentDesc = formData.chemicalsDesc[index || 0] || "";
         return chemicals.filter(
           (c) =>
-            c.desc &&
-            c.desc.trim() !== "" &&
+            getChemicalDesc(c) &&
+            getChemicalDesc(c).trim() !== "" &&
             (currentDesc === "" ||
-              c.desc.toLowerCase().includes(currentDesc.toLowerCase()))
+              getChemicalDesc(c)
+                .toLowerCase()
+                .includes(currentDesc.toLowerCase()))
         );
       }
       return [];
@@ -1747,7 +1657,7 @@ function MobilePhaseMaster() {
             if (field === "bufferDesc") {
               setFormData((prev) => ({
                 ...prev,
-                bufferDesc: selectedOption.desc || "",
+                bufferDesc: getChemicalDesc(selectedOption) || "",
                 bufferName: selectedOption.chemicalName,
               }));
               setShowDescDropdown((prev) => ({ ...prev, bufferDesc: false }));
@@ -1758,7 +1668,7 @@ function MobilePhaseMaster() {
             } else if (field === "solventDesc") {
               setFormData((prev) => ({
                 ...prev,
-                solventDesc: selectedOption.desc || "",
+                solventDesc: getChemicalDesc(selectedOption) || "",
                 solventName: selectedOption.chemicalName,
               }));
               setShowDescDropdown((prev) => ({ ...prev, solventDesc: false }));
@@ -1770,7 +1680,7 @@ function MobilePhaseMaster() {
               const newChemicals = [...formData.chemicals];
               const newChemicalsDesc = [...formData.chemicalsDesc];
               newChemicals[index] = selectedOption._id;
-              newChemicalsDesc[index] = selectedOption.desc || "";
+              newChemicalsDesc[index] = getChemicalDesc(selectedOption) || "";
               setFormData((prev) => ({
                 ...prev,
                 chemicals: newChemicals,
@@ -1789,7 +1699,7 @@ function MobilePhaseMaster() {
               setFormData((prev) => ({
                 ...prev,
                 bufferName: selectedOption.chemicalName,
-                bufferDesc: selectedOption.desc || "",
+                bufferDesc: getChemicalDesc(selectedOption) || "",
               }));
               setShowDropdown((prev) => ({ ...prev, bufferName: false }));
               setDropdownSelectedIndex((prev) => ({ ...prev, bufferName: -1 }));
@@ -1797,7 +1707,7 @@ function MobilePhaseMaster() {
               setFormData((prev) => ({
                 ...prev,
                 solventName: selectedOption.chemicalName,
-                solventDesc: selectedOption.desc || "",
+                solventDesc: getChemicalDesc(selectedOption) || "",
               }));
               setShowDropdown((prev) => ({ ...prev, solventName: false }));
               setDropdownSelectedIndex((prev) => ({
@@ -1808,7 +1718,7 @@ function MobilePhaseMaster() {
               const newChemicals = [...formData.chemicals];
               const newChemicalsDesc = [...formData.chemicalsDesc];
               newChemicals[index] = selectedOption._id;
-              newChemicalsDesc[index] = selectedOption.desc || "";
+              newChemicalsDesc[index] = getChemicalDesc(selectedOption) || "";
               setFormData((prev) => ({
                 ...prev,
                 chemicals: newChemicals,
@@ -1942,7 +1852,7 @@ function MobilePhaseMaster() {
             pHValue: mp.pHValue?.toString() || "",
             description: mp.description || "",
             chemicalsDesc: mp.chemicals
-              .map((id) => chemicals.find((c) => c._id === id)?.desc || "")
+              .map((id) => getChemicalDesc(chemicals.find((c) => c._id === id)))
               .concat(Array(5 - mp.chemicals.length).fill("")),
             solventDesc: mp.solventDesc || "",
             bufferDesc: mp.bufferDesc || "",
@@ -2237,15 +2147,17 @@ function MobilePhaseMaster() {
                                   mp.dilutionFactor?.toString() || "",
                                 pHValue: mp.pHValue?.toString() || "",
                                 description: mp.description || "",
+                                // ✅ CORRECT
                                 chemicalsDesc: mp.chemicals
-                                  .map(
-                                    (id) =>
+                                  .map((id) =>
+                                    getChemicalDesc(
                                       chemicals.find((c) => c._id === id)
-                                        ?.desc || ""
+                                    )
                                   )
                                   .concat(
                                     Array(5 - mp.chemicals.length).fill("")
                                   ),
+
                                 bufferDesc: mp.bufferDesc || "",
                                 solventDesc: mp.solventDesc || "",
                               });
@@ -2559,7 +2471,8 @@ function MobilePhaseMaster() {
                         if (exactMatch) {
                           setFormData((prev) => ({
                             ...prev,
-                            bufferDesc: exactMatch.desc || "",
+                            bufferDesc: getChemicalDesc(exactMatch), // Returns string, not array
+                            bufferName: exactMatch.chemicalName,
                           }));
                         }
 
@@ -2609,7 +2522,7 @@ function MobilePhaseMaster() {
                               onClick={() => {
                                 setFormData({
                                   ...formData,
-                                  bufferDesc: chemical.desc || "",
+                                  bufferDesc: getChemicalDesc(chemical) || "",
                                   bufferName: chemical.chemicalName, // This ensures name updates
                                 });
                                 setShowDescDropdown({
@@ -2627,7 +2540,8 @@ function MobilePhaseMaster() {
                               </div>
                               <div className="text-xs text-gray-500 mt-1 flex items-center">
                                 Description:{" "}
-                                {chemical.desc || "No description available"}
+                                {getChemicalDesc(chemical) ||
+                                  "No description available"}
                               </div>
                             </div>
                           ))}
@@ -2676,8 +2590,9 @@ function MobilePhaseMaster() {
                         const exactMatch = chemicals.find(
                           (c) =>
                             c.isBuffer &&
-                            c.desc &&
-                            c.desc.toLowerCase() === newDesc.toLowerCase()
+                            getChemicalDesc(c) &&
+                            getChemicalDesc(c).toLowerCase() ===
+                              newDesc.toLowerCase()
                         );
                         if (exactMatch) {
                           setFormData((prev) => ({
@@ -2716,13 +2631,15 @@ function MobilePhaseMaster() {
                           const availableDescs = chemicals
                             .filter(
                               (c) =>
-                                c.isBuffer && c.desc && c.desc.trim() !== ""
+                                c.isBuffer &&
+                                getChemicalDesc(c) &&
+                                getChemicalDesc(c).trim() !== ""
                             )
                             .filter(
                               (c) =>
                                 formData.bufferDesc === "" ||
-                                c
-                                  .desc!.toLowerCase()
+                                getChemicalDesc(c)
+                                  .toLowerCase()
                                   .includes(formData.bufferDesc.toLowerCase())
                             );
 
@@ -2738,7 +2655,7 @@ function MobilePhaseMaster() {
                                 onClick={() => {
                                   setFormData({
                                     ...formData,
-                                    bufferDesc: chemical.desc || "",
+                                    bufferDesc: getChemicalDesc(chemical) || "",
                                     bufferName: chemical.chemicalName,
                                   });
                                   setShowDescDropdown({
@@ -2752,7 +2669,7 @@ function MobilePhaseMaster() {
                                 }}
                               >
                                 <div className="font-semibold text-gray-800 text-sm">
-                                  {chemical.desc}
+                                  {getChemicalDesc(chemical)}
                                 </div>
                                 <div className="text-xs text-gray-500 mt-1 flex items-center">
                                   Chemical: {chemical.chemicalName}
@@ -2816,7 +2733,8 @@ function MobilePhaseMaster() {
                         if (exactMatch) {
                           setFormData((prev) => ({
                             ...prev,
-                            solventDesc: exactMatch.desc || "",
+                            solventDesc: getChemicalDesc(exactMatch),
+                            solventName: exactMatch.chemicalName,
                           }));
                         }
 
@@ -2866,7 +2784,7 @@ function MobilePhaseMaster() {
                               onClick={() => {
                                 setFormData({
                                   ...formData,
-                                  solventDesc: chemical.desc || "",
+                                  solventDesc: getChemicalDesc(chemical) || "",
                                   solventName: chemical.chemicalName, // This ensures name updates
                                 });
                                 setShowDescDropdown({
@@ -2884,7 +2802,8 @@ function MobilePhaseMaster() {
                               </div>
                               <div className="text-xs text-gray-500 mt-1 flex items-center">
                                 Description:{" "}
-                                {chemical.desc || "No description available"}
+                                {getChemicalDesc(chemical) ||
+                                  "No description available"}
                               </div>
                             </div>
                           ))}
@@ -2915,8 +2834,9 @@ function MobilePhaseMaster() {
                         const exactMatch = chemicals.find(
                           (c) =>
                             c.isSolvent &&
-                            c.desc &&
-                            c.desc.toLowerCase() === newDesc.toLowerCase()
+                            getChemicalDesc(c) &&
+                            getChemicalDesc(c).toLowerCase() ===
+                              newDesc.toLowerCase()
                         );
                         if (exactMatch) {
                           setFormData((prev) => ({
@@ -2955,13 +2875,15 @@ function MobilePhaseMaster() {
                           const availableDescs = chemicals
                             .filter(
                               (c) =>
-                                c.isSolvent && c.desc && c.desc.trim() !== ""
+                                c.isSolvent &&
+                                getChemicalDesc(c) &&
+                                getChemicalDesc(c).trim() !== ""
                             )
                             .filter(
                               (c) =>
                                 formData.solventDesc === "" ||
-                                c
-                                  .desc!.toLowerCase()
+                                getChemicalDesc(c)
+                                  .toLowerCase()
                                   .includes(formData.solventDesc.toLowerCase())
                             );
 
@@ -2978,7 +2900,8 @@ function MobilePhaseMaster() {
                                 onClick={() => {
                                   setFormData({
                                     ...formData,
-                                    solventDesc: chemical.desc || "",
+                                    solventDesc:
+                                      getChemicalDesc(chemical) || "",
                                     solventName: chemical.chemicalName,
                                   });
                                   setShowDescDropdown({
@@ -2992,7 +2915,7 @@ function MobilePhaseMaster() {
                                 }}
                               >
                                 <div className="font-semibold text-gray-800 text-sm">
-                                  {chemical.desc}
+                                  {getChemicalDesc(chemical)}
                                 </div>
                                 <div className="text-xs text-gray-500 mt-1 flex items-center">
                                   Chemical: {chemical.chemicalName}
@@ -3069,7 +2992,8 @@ function MobilePhaseMaster() {
                                   ...formData.chemicalsDesc,
                                 ];
                                 newChemicals[index] = exactMatch._id;
-                                newChemicalsDesc[index] = exactMatch.desc || "";
+                                newChemicalsDesc[index] =
+                                  getChemicalDesc(exactMatch);
 
                                 setFormData({
                                   ...formData,
@@ -3154,7 +3078,7 @@ function MobilePhaseMaster() {
 
                                         newChemicals[index] = chemical._id;
                                         newChemicalsDesc[index] =
-                                          chemical.desc || "";
+                                          getChemicalDesc(chemical) || "";
                                         newInputValues[index] =
                                           chemical.chemicalName; // Sync the display value
 
@@ -3213,8 +3137,9 @@ function MobilePhaseMaster() {
                               // Auto-sync chemical when typing description - WITH INPUT VALUE UPDATE
                               const foundChemical = chemicals.find(
                                 (c) =>
-                                  c.desc &&
-                                  c.desc.toLowerCase() === newDesc.toLowerCase()
+                                  getChemicalDesc(c) &&
+                                  getChemicalDesc(c).toLowerCase() ===
+                                    newDesc.toLowerCase()
                               );
 
                               if (foundChemical) {
@@ -3265,21 +3190,24 @@ function MobilePhaseMaster() {
                               <div className="absolute z-30 w-full mt-1 bg-white border-2 border-purple-300 rounded-lg shadow-xl max-h-36 overflow-y-auto">
                                 {(() => {
                                   const availableDescs = chemicals
-                                    .filter(
-                                      (c) => c.desc && c.desc.trim() !== ""
-                                    )
-                                    .filter(
-                                      (c) =>
+                                    .filter((c) => {
+                                      const desc = getChemicalDesc(c);
+                                      return desc && desc.trim() !== "";
+                                    })
+                                    .filter((c) => {
+                                      const desc = getChemicalDesc(c);
+                                      return (
                                         formData.chemicalsDesc[index] === "" ||
-                                        c
-                                          .desc!.toLowerCase()
+                                        desc
+                                          .toLowerCase()
                                           .includes(
                                             formData.chemicalsDesc[
                                               index
                                             ]!.toLowerCase()
                                           )
-                                    )
-                                    .slice(0, 8); // Limit for performance
+                                      );
+                                    })
+                                    .slice(0, 8);
 
                                   return availableDescs.length > 0 ? (
                                     availableDescs.map((chemical, cIndex) => (
@@ -3306,7 +3234,7 @@ function MobilePhaseMaster() {
 
                                           newChemicals[index] = chemical._id;
                                           newChemicalsDesc[index] =
-                                            chemical.desc || "";
+                                            getChemicalDesc(chemical) || "";
                                           newInputValues[index] =
                                             chemical.chemicalName; // This is the key fix - update display value
 
@@ -3332,7 +3260,7 @@ function MobilePhaseMaster() {
                                         }}
                                       >
                                         <div className="font-normal text-xs">
-                                          {chemical.desc}
+                                          {getChemicalDesc(chemical)}
                                         </div>
                                         <div className="text-xs text-gray-500 truncate">
                                           {chemical.chemicalName}

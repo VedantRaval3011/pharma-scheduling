@@ -3,26 +3,33 @@ import mongoose from "mongoose";
 import Column from "@/models/column";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import connectDB from "@/lib/db";
 import Make from "@/models/make";
-import { PrefixSuffix } from "@/models/PrefixSuffix";
+import { PrefixSuffix } from '@/models/PrefixSuffix';
 
-const ensureModelsRegistered = () => {
-  // This forces Mongoose to register the models if they haven't been already
-  if (!mongoose.models.Make) {
-    require("@/models/make");
-  }
-  if (!mongoose.models.PrefixSuffix) {
-    require("@/models/PrefixSuffix");
-  }
-};
+interface IDescription {
+  descriptionId: mongoose.Types.ObjectId;
+  prefixId?: mongoose.Types.ObjectId | null;
+  carbonType: string;
+  linkedCarbonType: string;
+  innerDiameter: number;
+  length: number;
+  particleSize: number;
+  suffixId?: mongoose.Types.ObjectId | null;
+  makeId: mongoose.Types.ObjectId;
+  columnId: string;
+  installationDate: string;
+  usePrefix: boolean;
+  useSuffix: boolean;
+  usePrefixForNewCode: boolean;
+  useSuffixForNewCode: boolean;
+  isObsolete: boolean;
+}
 
 export async function GET(req: NextRequest) {
-  console.log("=== GET /api/admin/column-description START ===");
-  
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user) {
-      console.log("Authentication failed - no session");
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
         { status: 401 }
@@ -31,156 +38,148 @@ export async function GET(req: NextRequest) {
 
     const companyId = req.nextUrl.searchParams.get("companyId");
     const locationId = req.nextUrl.searchParams.get("locationId");
-    const descriptionId = req.nextUrl.searchParams.get("descriptionId");
 
-    console.log("Query params:", { companyId, locationId, descriptionId });
-
-    if (!companyId || !locationId || !descriptionId) {
-      console.log("Missing required query params");
+    if (!companyId || !locationId) {
       return NextResponse.json(
-        { success: false, error: "Company ID, Location ID, and Description ID are required" },
+        { success: false, error: "Company ID and Location ID are required" },
         { status: 400 }
       );
     }
 
-    await mongoose.connect(process.env.MONGODB_URI!);
-    ensureModelsRegistered();
-    console.log("Database connected successfully");
+    await connectDB();
+    
+    // Fetch columns without population
+    const columns = await Column.find({ companyId, locationId })
+      .sort({
+        columnCode: 1,
+      });
 
-    // Find the column that contains the description with the given descriptionId
-    const column = await Column.findOne({
-      companyId,
-      locationId,
-      "descriptions.descriptionId": descriptionId
+    // Collect all unique IDs for batch fetching
+    const makeIds = new Set<string>();
+    const prefixIds = new Set<string>();
+    const suffixIds = new Set<string>();
+
+    columns.forEach(column => {
+      column.descriptions.forEach((desc: any) => {
+        if (desc.makeId) makeIds.add(desc.makeId.toString());
+        if (desc.prefixId) prefixIds.add(desc.prefixId.toString());
+        if (desc.suffixId) suffixIds.add(desc.suffixId.toString());
+      });
     });
-
-    if (!column) {
-      console.log("Column or description not found");
-      return NextResponse.json(
-        { success: false, error: "Description not found" },
-        { status: 404 }
-      );
-    }
-
-    // ✅ FIXED: Remove reference to column.partNumber
-    console.log("Found parent column:", column.columnCode, "with", column.descriptions.length, "descriptions");
-
-    // Find the specific description within the column
-    const description = column.descriptions.find(
-      (desc: any) => desc.descriptionId && desc.descriptionId.toString() === descriptionId
-    );
-
-    if (!description) {
-      console.log("Description not found in column");
-      return NextResponse.json(
-        { success: false, error: "Description not found" },
-        { status: 404 }
-      );
-    }
-
-    // ✅ UPDATED: Log description with partNumber from description level
-    console.log("Found description with partNumber:", description.partNumber || 'N/A');
-    console.log("Description details:", JSON.stringify(description, null, 2));
-
-    // Collect related IDs for batch fetching
-    const relatedIds = {
-      makeIds: description.makeId ? [description.makeId.toString()] : [],
-      prefixIds: description.prefixId ? [description.prefixId.toString()] : [],
-      suffixIds: description.suffixId ? [description.suffixId.toString()] : []
-    };
-
-    console.log("Related IDs to fetch:", relatedIds);
 
     // Batch fetch all related data
     const [makes, prefixSuffixes] = await Promise.all([
-      Make.find({ _id: { $in: relatedIds.makeIds } }).lean(),
-      PrefixSuffix.find({
-        _id: { $in: [...relatedIds.prefixIds, ...relatedIds.suffixIds] }
+      Make.find({ _id: { $in: Array.from(makeIds) } }).lean(),
+      PrefixSuffix.find({ 
+        _id: { $in: [...Array.from(prefixIds), ...Array.from(suffixIds)] } 
       }).lean()
     ]);
 
-    console.log("Fetched makes:", makes);
-    console.log("Fetched prefixSuffixes:", prefixSuffixes);
-
     // Create lookup maps for fast access
-    const makeMap = new Map();
-    makes.forEach((make) => {
-      makeMap.set(String(make._id), make);
-    });
+    const makeMap = new Map(makes.map(make => [(make._id as mongoose.Types.ObjectId).toString(), make]));
+    const prefixSuffixMap = new Map(prefixSuffixes.map(ps => [(ps._id as mongoose.Types.ObjectId).toString(), ps]));
 
-    const prefixSuffixMap = new Map();
-    prefixSuffixes.forEach((ps) => {
-      prefixSuffixMap.set(String(ps._id), ps);
-    });
+    // Ensure all descriptions have descriptionId and update if needed
+    const updatedColumns = await Promise.all(
+      columns.map(async (column) => {
+        let needsUpdate = false;
+        const updatedDescriptions = column.descriptions.map((desc: any) => {
+          if (!desc.descriptionId) {
+            desc.descriptionId = new mongoose.Types.ObjectId();
+            needsUpdate = true;
+            console.log(
+              `Generated new descriptionId for column ${column.columnCode}:`,
+              desc.descriptionId
+            );
+          }
+          return desc;
+        });
 
-    // Manually join related data
-    const make = description.makeId ? makeMap.get(description.makeId.toString()) : null;
-    const prefix = description.prefixId ? prefixSuffixMap.get(description.prefixId.toString()) : null;
-    const suffix = description.suffixId ? prefixSuffixMap.get(description.suffixId.toString()) : null;
+        if (needsUpdate) {
+          column.descriptions = updatedDescriptions;
+          column.markModified("descriptions");
+          await column.save();
+          console.log(
+            `Updated column ${column.columnCode} with missing descriptionIds`
+          );
+        }
 
-    console.log("Joined data:", { make, prefix, suffix });
+        return column;
+      })
+    );
 
-    // ✅ UPDATED: Transform the response with partNumber at description level
-    const responseData = {
-      // ✅ Parent column information (removed partNumber from here)
-      column: {
-        _id: column._id,
-        columnCode: column.columnCode,
-        companyId: column.companyId,
-        locationId: column.locationId,
-        createdAt: column.createdAt,
-        updatedAt: column.updatedAt,
-      },
-      // ✅ Description data (subdocument) - now includes partNumber
-      description: {
-        descriptionId: description.descriptionId,
-        partNumber: description.partNumber || null, // ✅ ADDED: partNumber from description
-        prefixId: description.prefixId ? {
-          _id: description.prefixId,
-          name: prefix?.name || null,
-        } : null,
-        carbonType: description.carbonType,
-        linkedCarbonType: description.linkedCarbonType,
-        innerDiameter: description.innerDiameter,
-        length: description.length,
-        particleSize: description.particleSize,
-        suffixId: description.suffixId ? {
-          _id: description.suffixId,
-          name: suffix?.name || null,
-        } : null,
-        makeId: description.makeId ? {
-          _id: description.makeId,
-          make: make?.make || null,
-          description: make?.description || null,
-        } : null,
-        columnId: description.columnId,
-        installationDate: description.installationDate,
-        usePrefix: description.usePrefix,
-        useSuffix: description.useSuffix,
-        usePrefixForNewCode: description.usePrefixForNewCode,
-        useSuffixForNewCode: description.useSuffixForNewCode,
-        isObsolete: description.isObsolete,
-        // NEW optional fields - pH range with proper null handling
-        description: description.description || null,
-        phMin: description.phMin !== undefined ? description.phMin : null,
-        phMax: description.phMax !== undefined ? description.phMax : null,
+    // Transform the response to ensure descriptionId is properly included
+    const transformedColumns = updatedColumns.map((column) => {
+      const columnObj = column.toObject();
+
+      // Force generate and save descriptionId for any descriptions that don't have it
+      let needsResave = false;
+      columnObj.descriptions = columnObj.descriptions.map((desc: any) => {
+        // Generate descriptionId if missing
+        if (!desc.descriptionId) {
+          desc.descriptionId = new mongoose.Types.ObjectId();
+          needsResave = true;
+          console.log(`Force generating descriptionId: ${desc.descriptionId}`);
+        }
+
+        // Manually join related data
+        const make = desc.makeId ? makeMap.get(desc.makeId.toString()) : null;
+        const prefix = desc.prefixId ? prefixSuffixMap.get(desc.prefixId.toString()) : null;
+        const suffix = desc.suffixId ? prefixSuffixMap.get(desc.suffixId.toString()) : null;
+
+        return {
+          descriptionId: desc.descriptionId, // Explicitly include descriptionId
+          prefixId: desc.prefixId ? {
+            _id: desc.prefixId,
+            name: prefix?.name || null
+          } : null,
+          carbonType: desc.carbonType,
+          linkedCarbonType: desc.linkedCarbonType,
+          innerDiameter: desc.innerDiameter,
+          length: desc.length,
+          particleSize: desc.particleSize,
+          suffixId: desc.suffixId ? {
+            _id: desc.suffixId,
+            name: suffix?.name || null
+          } : null,
+          makeId: desc.makeId ? {
+            _id: desc.makeId,
+            make: make?.make || null,
+            description: make?.description || null
+          } : null,
+          columnId: desc.columnId,
+          installationDate: desc.installationDate,
+          usePrefix: desc.usePrefix,
+          useSuffix: desc.useSuffix,
+          usePrefixForNewCode: desc.usePrefixForNewCode,
+          useSuffixForNewCode: desc.useSuffixForNewCode,
+          isObsolete: desc.isObsolete,
+        };
+      });
+
+      // If we had to generate new descriptionIds, save the document
+      if (needsResave) {
+        // Update the actual document in the database
+        Column.findByIdAndUpdate(
+          column._id,
+          {
+            descriptions: columnObj.descriptions.map((d: any) => ({
+              ...d,
+              descriptionId: d.descriptionId,
+            })),
+          },
+          { new: true }
+        ).catch((err) =>
+          console.error("Failed to update descriptionIds:", err)
+        );
       }
-    };
 
-    console.log("Final response data:", JSON.stringify(responseData, null, 2));
-    console.log("=== GET /api/admin/column-description SUCCESS ===");
-
-    // ✅ UPDATED: Success message uses description.partNumber instead of column.partNumber
-    return NextResponse.json({ 
-      success: true, 
-      data: responseData,
-      message: `Description retrieved successfully from column ${column.columnCode}${description.partNumber ? ` (Part: ${description.partNumber})` : ''}`
+      return columnObj;
     });
+
+    return NextResponse.json({ success: true, data: transformedColumns });
   } catch (error: any) {
-    console.error("=== GET /api/admin/column-description ERROR ===");
-    console.error("Error details:", error);
-    console.error("Error stack:", error.stack);
-    
+    console.error("GET /api/admin/columns-simple error:", error);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }

@@ -31,12 +31,37 @@ function validateChemicalData(data: any) {
     errors.push('isBuffer must be a boolean');
   }
   
-  // Enhanced desc validation with debugging
+  // Validate desc array
   if (data.desc !== undefined && data.desc !== null) {
-    if (typeof data.desc !== 'string') {
-      errors.push('Description must be a string');
-    } else if (data.desc.length > 500) {
-      errors.push('Description cannot exceed 500 characters');
+    if (!Array.isArray(data.desc)) {
+      errors.push('Description must be an array');
+    } else {
+      // Validate each item in the array
+      data.desc.forEach((item: any, index: number) => {
+        if (typeof item !== 'string') {
+          errors.push(`Description item at index ${index} must be a string`);
+        } else if (item.trim().length === 0) {
+          errors.push(`Description item at index ${index} cannot be empty`);
+        } else if (item.length > 200) {
+          errors.push(`Description item at index ${index} cannot exceed 200 characters`);
+        }
+      });
+      
+      // Check for duplicates within the array (case-insensitive)
+      const normalized = data.desc.map((d: string) => d.toLowerCase().trim());
+      const uniqueSet = new Set(normalized);
+      if (normalized.length !== uniqueSet.size) {
+        errors.push('Description array cannot contain duplicate values');
+      }
+      
+      // Check if any desc item matches chemical name
+      if (data.chemicalName) {
+        const normalizedName = data.chemicalName.toLowerCase().trim();
+        const hasMatch = normalized.some((d: string) => d === normalizedName);
+        if (hasMatch) {
+          errors.push('Chemical name cannot be the same as any description/alias');
+        }
+      }
     }
   }
   
@@ -77,8 +102,8 @@ export async function POST(request: NextRequest) {
     console.log("POST: Description field debug:", {
       desc: desc,
       descType: typeof desc,
-      descLength: desc ? desc.length : 'null/undefined',
-      descTrimmed: desc ? desc.trim() : 'null/undefined'
+      isArray: Array.isArray(desc),
+      descLength: desc ? desc.length : 'null/undefined'
     });
 
     // Validate input data
@@ -91,18 +116,52 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check for existing Chemical
+    // Check for existing Chemical with same name (uniqueness check within company/location)
     const existingChemical = await Chemical.findOne({ 
       chemicalName: chemicalName.trim(), 
       companyId, 
       locationId 
     });
     if (existingChemical) {
-      console.error("POST: Chemical already exists", { chemicalName, companyId, locationId });
+      console.error("POST: Chemical name already exists", { chemicalName, companyId, locationId });
       return NextResponse.json(
-        { success: false, error: 'Chemical already exists' },
+        { success: false, error: 'Chemical with this name already exists for this company and location' },
         { status: 409 }
       );
+    }
+
+    // Check if any desc value already exists in other chemicals for same company/location
+    if (Array.isArray(desc) && desc.length > 0) {
+      const trimmedDesc = desc.map((d: string) => d.trim()).filter((d: string) => d.length > 0);
+      
+      if (trimmedDesc.length > 0) {
+        // Find chemicals that have any of these desc values
+        const chemicalsWithSameDesc = await Chemical.find({
+          companyId,
+          locationId,
+          $or: trimmedDesc.map((d: string) => ({
+            desc: { $regex: new RegExp(`^${d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+          }))
+        });
+
+        if (chemicalsWithSameDesc.length > 0) {
+          const descValuesLower = trimmedDesc.map((d: string) => d.toLowerCase());
+          const conflictingDesc = chemicalsWithSameDesc.flatMap(c => 
+            c.desc.filter((d: string) => 
+              descValuesLower.includes(d.toLowerCase())
+            )
+          );
+          
+          console.error("POST: Desc value already exists", { conflictingDesc });
+          return NextResponse.json(
+            { 
+              success: false, 
+              error: `Description/alias "${conflictingDesc[0]}" already exists in another chemical for this company and location` 
+            },
+            { status: 409 }
+          );
+        }
+      }
     }
 
     // Prepare chemical data with explicit desc handling
@@ -110,7 +169,9 @@ export async function POST(request: NextRequest) {
       chemicalName: chemicalName.trim(),
       isSolvent,
       isBuffer,
-      desc: desc ? desc.trim() : '', // Ensure desc is always a string
+      desc: Array.isArray(desc) 
+        ? desc.map((d: string) => d.trim()).filter((d: string) => d.length > 0)
+        : [],
       companyId,
       locationId,
       createdBy: session.user?.id || "system"
@@ -168,8 +229,8 @@ export async function PUT(request: NextRequest) {
     console.log("PUT: Description field debug:", {
       desc: desc,
       descType: typeof desc,
-      descLength: desc ? desc.length : 'null/undefined',
-      descTrimmed: desc ? desc.trim() : 'null/undefined'
+      isArray: Array.isArray(desc),
+      descLength: desc ? desc.length : 'null/undefined'
     });
 
     if (!id) {
@@ -193,6 +254,16 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Validate input data
+    const validationErrors = validateChemicalData({ chemicalName, isSolvent, isBuffer, desc, companyId, locationId });
+    if (validationErrors.length > 0) {
+      console.error("PUT: Validation errors:", validationErrors);
+      return NextResponse.json(
+        { success: false, error: validationErrors.join(', '), validationErrors },
+        { status: 400 }
+      );
+    }
+
     await connectDB();
 
     // Get the existing Chemical for comparison
@@ -210,7 +281,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Check if the new name conflicts with another Chemical
+    // Check if the new name conflicts with another Chemical (uniqueness check within company/location)
     const duplicateChemical = await Chemical.findOne({
       chemicalName: chemicalName.trim(),
       companyId,
@@ -219,11 +290,46 @@ export async function PUT(request: NextRequest) {
     });
 
     if (duplicateChemical) {
-      console.error("PUT: Chemical already exists", { chemicalName, companyId, locationId });
+      console.error("PUT: Chemical name already exists", { chemicalName, companyId, locationId });
       return NextResponse.json(
-        { success: false, error: "Chemical name already exists" },
+        { success: false, error: "Chemical with this name already exists for this company and location" },
         { status: 409 }
       );
+    }
+
+    // Check if any desc value already exists in other chemicals for same company/location
+    if (Array.isArray(desc) && desc.length > 0) {
+      const trimmedDesc = desc.map((d: string) => d.trim()).filter((d: string) => d.length > 0);
+      
+      if (trimmedDesc.length > 0) {
+        // Find chemicals that have any of these desc values (excluding current chemical)
+        const chemicalsWithSameDesc = await Chemical.find({
+          companyId,
+          locationId,
+          _id: { $ne: id }, // Exclude current chemical
+          $or: trimmedDesc.map((d: string) => ({
+            desc: { $regex: new RegExp(`^${d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+          }))
+        });
+
+        if (chemicalsWithSameDesc.length > 0) {
+          const descValuesLower = trimmedDesc.map((d: string) => d.toLowerCase());
+          const conflictingDesc = chemicalsWithSameDesc.flatMap(c => 
+            c.desc.filter((d: string) => 
+              descValuesLower.includes(d.toLowerCase())
+            )
+          );
+          
+          console.error("PUT: Desc value already exists", { conflictingDesc });
+          return NextResponse.json(
+            { 
+              success: false, 
+              error: `Description/alias "${conflictingDesc[0]}" already exists in another chemical for this company and location` 
+            },
+            { status: 409 }
+          );
+        }
+      }
     }
 
     // Prepare update data with explicit desc handling
@@ -231,7 +337,9 @@ export async function PUT(request: NextRequest) {
       chemicalName: chemicalName.trim(),
       isSolvent,
       isBuffer,
-      desc: desc ? desc.trim() : '', // Ensure desc is always a string
+      desc: Array.isArray(desc) 
+        ? desc.map((d: string) => d.trim()).filter((d: string) => d.length > 0)
+        : [],
       updatedBy: session.user?.id || "system",
       updatedAt: new Date(),
     };
@@ -278,7 +386,6 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// GET and DELETE methods remain the same...
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -310,7 +417,8 @@ export async function GET(request: NextRequest) {
     console.log("GET: Sample chemical with desc:", chemicals[0] ? {
       name: chemicals[0].chemicalName,
       desc: chemicals[0].desc,
-      descType: typeof chemicals[0].desc
+      descType: typeof chemicals[0].desc,
+      isArray: Array.isArray(chemicals[0].desc)
     } : "No chemicals found");
 
     return NextResponse.json({
