@@ -55,7 +55,7 @@ interface Test {
   numberOfInjectionsPV?: number;
   numberOfInjectionsCV?: number;
   uniqueRuntimes?: boolean;
-  apiId?: string; 
+  apiId?: string;
 }
 
 interface Generic {
@@ -224,18 +224,19 @@ function resolveApiForTest(
 
   // For batches with multiple APIs creating identical tests,
   // we need to map tests to their corresponding APIs
-  const allApiTests: Array<{ apiId: string; test: Test; apiLabel: string }> = [];
-  
+  const allApiTests: Array<{ apiId: string; test: Test; apiLabel: string }> =
+    [];
+
   for (const generic of batch.generics) {
     for (const rawApi of generic.apis ?? []) {
-      const apiIdentifier = rawApi?.apiName ||  null;
+      const apiIdentifier = rawApi?.apiName || null;
       if (!apiIdentifier) continue;
-      
+
       for (const tt of rawApi.testTypes ?? []) {
         allApiTests.push({
           apiId: apiIdentifier,
           test: tt,
-          apiLabel: apiMaster[apiIdentifier] || apiIdentifier
+          apiLabel: apiMaster[apiIdentifier] || apiIdentifier,
         });
       }
     }
@@ -248,9 +249,9 @@ function resolveApiForTest(
 
   for (const apiTest of allApiTests) {
     const tt = apiTest.test;
-    
+
     // Check if this is an exact match
-    const exactMatch = 
+    const exactMatch =
       tt?.testName === test.testName &&
       tt?.columnCode === test.columnCode &&
       tt?.detectorTypeId === test.detectorTypeId &&
@@ -258,30 +259,36 @@ function resolveApiForTest(
       tt?.runTime === test.runTime &&
       tt?.sampleInjection === test.sampleInjection &&
       tt?.standardInjection === test.standardInjection;
-    
+
     if (exactMatch) {
       // If we have a test index and this is a batch with duplicate tests,
       // use the index to determine which API this test belongs to
-      if (testIndex !== undefined && allApiTests.filter(at => 
-        at.test.testName === test.testName &&
-        at.test.columnCode === test.columnCode
-      ).length > 1) {
+      if (
+        testIndex !== undefined &&
+        allApiTests.filter(
+          (at) =>
+            at.test.testName === test.testName &&
+            at.test.columnCode === test.columnCode
+        ).length > 1
+      ) {
         // Get all matching API tests
-        const matchingApiTests = allApiTests.filter(at => {
+        const matchingApiTests = allApiTests.filter((at) => {
           const t = at.test;
-          return t?.testName === test.testName &&
-                 t?.columnCode === test.columnCode &&
-                 t?.detectorTypeId === test.detectorTypeId;
+          return (
+            t?.testName === test.testName &&
+            t?.columnCode === test.columnCode &&
+            t?.detectorTypeId === test.detectorTypeId
+          );
         });
-        
+
         if (matchingApiTests[testIndex]) {
           return {
             apiId: matchingApiTests[testIndex].apiId,
-            apiLabel: matchingApiTests[testIndex].apiLabel
+            apiLabel: matchingApiTests[testIndex].apiLabel,
           };
         }
       }
-      
+
       // Calculate score for best match
       const ttPhase = normalizePhases(tt?.mobilePhaseCodes);
       const equalPhase = ttPhase === targetPhase;
@@ -289,18 +296,20 @@ function resolveApiForTest(
         tt?.pharmacopoeialId as any,
         test?.pharmacopoeialId as any
       );
-      const runtimeClose = Math.abs((tt?.runTime ?? 0) - (test?.runTime ?? 0)) <= 1;
+      const runtimeClose =
+        Math.abs((tt?.runTime ?? 0) - (test?.runTime ?? 0)) <= 1;
 
-      const score = (exactMatch ? 10 : 0) +
-                   (equalPhase ? 5 : 0) +
-                   (pharmOverlap ? 1 : 0) +
-                   (runtimeClose ? 1 : 0);
+      const score =
+        (exactMatch ? 10 : 0) +
+        (equalPhase ? 5 : 0) +
+        (pharmOverlap ? 1 : 0) +
+        (runtimeClose ? 1 : 0);
 
       if (score > bestScore) {
         bestScore = score;
         bestMatch = {
           apiId: apiTest.apiId,
-          apiLabel: apiTest.apiLabel
+          apiLabel: apiTest.apiLabel,
         };
       }
     }
@@ -495,26 +504,27 @@ const DraggableTestRow: React.FC<{
   };
 
   const batch = batchData.find((b) => b._id === test.batchId);
- let apiName = "N/A";
+  let apiName = "N/A";
 
   // ✅ FIXED: Always use apiId as the primary key for lookup, with no fallbacks that could cause collisions
   if (test.apiId) {
     // Direct lookup from apiMaster using the ID
     apiName = apiMaster[test.apiId] || "Unknown API";
-  } 
+  }
   // Only if apiId is not available, try to resolve from batch data
   else if (batch?.generics && test.originalTest) {
-  // Pass the test index to help with resolution
-  const testIndexInBatch = batch.tests.findIndex(t => 
-    t.testName === test.originalTest?.testName &&
-    t.columnCode === test.originalTest?.columnCode
-  );
-  const { apiId, apiLabel } = resolveApiForTest(
-    batch, 
-    test.originalTest, 
-    apiMaster,
-    testIndexInBatch >= 0 ? testIndexInBatch : undefined
-  );
+    // Pass the test index to help with resolution
+    const testIndexInBatch = batch.tests.findIndex(
+      (t) =>
+        t.testName === test.originalTest?.testName &&
+        t.columnCode === test.originalTest?.columnCode
+    );
+    const { apiId, apiLabel } = resolveApiForTest(
+      batch,
+      test.originalTest,
+      apiMaster,
+      testIndexInBatch >= 0 ? testIndexInBatch : undefined
+    );
     // If we get an apiId from resolution, use it to look up the name
     if (apiId && apiMaster[apiId]) {
       apiName = apiMaster[apiId];
@@ -523,7 +533,6 @@ const DraggableTestRow: React.FC<{
       apiName = apiLabel || "N/A";
     }
   }
-
 
   return (
     <tr
@@ -977,15 +986,11 @@ export default function EnhancedSchedulingAlgorithm() {
     };
   };
 
-  
-
   // ALL YOUR EXISTING FETCH FUNCTIONS (unchanged)
   const fetchAPIMaster = async () => {
     try {
-      const companyId =
-        localStorage.getItem("companyId") 
-      const locationId =
-        localStorage.getItem("locationId")
+      const companyId = localStorage.getItem("companyId");
+      const locationId = localStorage.getItem("locationId");
       const response = await fetch(
         `/api/admin/api?companyId=${companyId}&locationId=${locationId}`
       );
@@ -1011,10 +1016,8 @@ export default function EnhancedSchedulingAlgorithm() {
 
   const fetchColumnMaster = async () => {
     try {
-      const companyId =
-        localStorage.getItem("companyId")
-      const locationId =
-        localStorage.getItem("locationId") 
+      const companyId = localStorage.getItem("companyId");
+      const locationId = localStorage.getItem("locationId");
 
       const response = await fetch(
         `/api/admin/column/getAll?companyId=${companyId}&locationId=${locationId}`
@@ -1096,8 +1099,6 @@ export default function EnhancedSchedulingAlgorithm() {
     return detectorMaster[value] || value;
   };
 
-
-  
   const calculateExecutionTime = (
     test: Test
   ): { time: number; breakdown: CalculationBreakdown } => {
@@ -1127,10 +1128,10 @@ export default function EnhancedSchedulingAlgorithm() {
 
   const fetchBatchData = async () => {
     try {
-      const companyId = "220E43EA-E525-4DDD-9155-631AAAD6A880";
-      const locationId = "0ae9d80c-add2-423e-9d28-b5b44b097867";
+      const companyId = localStorage.getItem("companyId");
+      const locationId = localStorage.getItem("locationId");
       const response = await fetch(
-        `http://localhost:3000/api/batch-input?companyId=${companyId}&locationId=${locationId}`
+        `/api/batch-input?companyId=${companyId}&locationId=${locationId}`
       );
 
       if (!response.ok)
@@ -1241,47 +1242,53 @@ export default function EnhancedSchedulingAlgorithm() {
       }
 
       const allTests: ScheduledTest[] = [];
-batches.forEach((batch) => {
-  batch.tests.forEach((test, testIndex) => {
-    const { time: executionTime, breakdown } = calculateExecutionTime(test);
-    if (
-      !isNaN(executionTime) &&
-      executionTime > 0 &&
-      test.testStatus.toLowerCase() === "not started"
-    ) {
-      // Pass testIndex to help resolve the correct API for duplicate tests
-      const { apiId, apiLabel } = resolveApiForTest(batch, test, apiMaster, testIndex);
-      
-      // Create a unique ID that includes both test index AND api information
-      // This ensures tests with same parameters but different APIs get unique IDs
-      const uniqueTestId = apiId 
-        ? `${batch._id}-${testIndex}-${apiId}`
-        : `${batch._id}-${testIndex}-${uuidv4()}`;
+      batches.forEach((batch) => {
+        batch.tests.forEach((test, testIndex) => {
+          const { time: executionTime, breakdown } =
+            calculateExecutionTime(test);
+          if (
+            !isNaN(executionTime) &&
+            executionTime > 0 &&
+            test.testStatus.toLowerCase() === "not started"
+          ) {
+            // Pass testIndex to help resolve the correct API for duplicate tests
+            const { apiId, apiLabel } = resolveApiForTest(
+              batch,
+              test,
+              apiMaster,
+              testIndex
+            );
 
-      allTests.push({
-        id: uniqueTestId,
-        batchId: batch._id,
-        batchNumber: batch.batchNumber,
-        productCode: batch.productCode,
-        productName: batch.productName,
-        testName: test.testName,
-        columnCode: test.columnCode,
-        detectorTypeId: test.detectorTypeId,
-        mobilePhaseCodes: test.mobilePhaseCodes,
-        priority: batch.priority,
-        executionTime,
-        originalExecutionTime: executionTime,
-        washTime: safeNumber(test.washTime),
-        bracketingFrequency: safeNumber(test.bracketingFrequency, 6),
-        isGrouped: false,
-        originalTest: test,
-        calculationBreakdown: breakdown,
-        apiId: apiId ?? undefined,
-        apiLabel: apiLabel ?? undefined,
+            // Create a unique ID that includes both test index AND api information
+            // This ensures tests with same parameters but different APIs get unique IDs
+            const uniqueTestId = apiId
+              ? `${batch._id}-${testIndex}-${apiId}`
+              : `${batch._id}-${testIndex}-${uuidv4()}`;
+
+            allTests.push({
+              id: uniqueTestId,
+              batchId: batch._id,
+              batchNumber: batch.batchNumber,
+              productCode: batch.productCode,
+              productName: batch.productName,
+              testName: test.testName,
+              columnCode: test.columnCode,
+              detectorTypeId: test.detectorTypeId,
+              mobilePhaseCodes: test.mobilePhaseCodes,
+              priority: batch.priority,
+              executionTime,
+              originalExecutionTime: executionTime,
+              washTime: safeNumber(test.washTime),
+              bracketingFrequency: safeNumber(test.bracketingFrequency, 6),
+              isGrouped: false,
+              originalTest: test,
+              calculationBreakdown: breakdown,
+              apiId: apiId ?? undefined,
+              apiLabel: apiLabel ?? undefined,
+            });
+          }
+        });
       });
-    }
-  });
-});
 
       console.log("All valid tests found:", allTests.length);
 
@@ -1317,66 +1324,86 @@ batches.forEach((batch) => {
       let hplcIndex = 0;
 
       // Replace the existing sortedTests.forEach loop with:
-sortedTests.forEach((test) => {
-  let assigned = false;
-  
-  // Try to assign to existing HPLC with matching column AND detector
-  for (const schedule of schedules) {
-    if (schedule.tests.length > 0) {
-      // Check if this HPLC already has tests
-      const firstTest = schedule.tests[0];
-      const columnMatches = firstTest.columnCode === test.columnCode;
-      const detectorMatches = firstTest.detectorTypeId === test.detectorTypeId;
-      const withinTimeLimit = (schedule.totalTime + test.executionTime) <= 4320; // 72 hours = 4320 minutes
-      
-      if (columnMatches && detectorMatches && withinTimeLimit) {
-        schedule.tests.push(test);
-        schedule.totalTime += test.executionTime;
-        assignedTestIds.add(test.id);
-        assigned = true;
-        console.log(`Assigned test ${test.testName} to existing ${schedule.hplcName} (Column: ${test.columnCode}, Detector: ${getDetectorName(test.detectorTypeId)})`);
-        break;
-      }
-    }
-  }
-  
-  // If not assigned, try to assign to empty HPLC with compatible detector
-  if (!assigned) {
-    const availableSchedule = schedules.find(schedule => {
-      if (schedule.tests.length > 0) return false; // Skip HPLCs that already have tests
-      
-      // Check if HPLC has compatible detector
-      const hplc = hplcMaster.find(h => h._id === schedule.hplcId);
-      const hasCompatibleDetector = hplc?.detector.some(d => 
-        d._id === test.detectorTypeId || d.detectorType === test.detectorTypeId
-      );
-      
-      return hasCompatibleDetector && test.executionTime <= 4320;
-    });
-    
-    if (availableSchedule) {
-      availableSchedule.tests.push(test);
-      availableSchedule.totalTime += test.executionTime;
-      assignedTestIds.add(test.id);
-      assigned = true;
-      console.log(`Assigned test ${test.testName} to new ${availableSchedule.hplcName} (Column: ${test.columnCode}, Detector: ${getDetectorName(test.detectorTypeId)})`);
-    }
-  }
-  
-  // If still not assigned, add to unscheduled
-  if (!assigned) {
-    const reason = test.executionTime > 4320 
-      ? `Exceeds 72-hour limit (${(test.executionTime/60).toFixed(1)} hours)`
-      : `No HPLC available with compatible detector (${getDetectorName(test.detectorTypeId)}) and matching column`;
-      
-    unscheduled.push({
-      ...test,
-      groupReason: reason,
-    });
-    console.log(`Unscheduled: ${test.testName} - ${reason}`);
-  }
-});
+      sortedTests.forEach((test) => {
+        let assigned = false;
 
+        // Try to assign to existing HPLC with matching column AND detector
+        for (const schedule of schedules) {
+          if (schedule.tests.length > 0) {
+            // Check if this HPLC already has tests
+            const firstTest = schedule.tests[0];
+            const columnMatches = firstTest.columnCode === test.columnCode;
+            const detectorMatches =
+              firstTest.detectorTypeId === test.detectorTypeId;
+            const withinTimeLimit =
+              schedule.totalTime + test.executionTime <= 4320; // 72 hours = 4320 minutes
+
+            if (columnMatches && detectorMatches && withinTimeLimit) {
+              schedule.tests.push(test);
+              schedule.totalTime += test.executionTime;
+              assignedTestIds.add(test.id);
+              assigned = true;
+              console.log(
+                `Assigned test ${test.testName} to existing ${
+                  schedule.hplcName
+                } (Column: ${test.columnCode}, Detector: ${getDetectorName(
+                  test.detectorTypeId
+                )})`
+              );
+              break;
+            }
+          }
+        }
+
+        // If not assigned, try to assign to empty HPLC with compatible detector
+        if (!assigned) {
+          const availableSchedule = schedules.find((schedule) => {
+            if (schedule.tests.length > 0) return false; // Skip HPLCs that already have tests
+
+            // Check if HPLC has compatible detector
+            const hplc = hplcMaster.find((h) => h._id === schedule.hplcId);
+            const hasCompatibleDetector = hplc?.detector.some(
+              (d) =>
+                d._id === test.detectorTypeId ||
+                d.detectorType === test.detectorTypeId
+            );
+
+            return hasCompatibleDetector && test.executionTime <= 4320;
+          });
+
+          if (availableSchedule) {
+            availableSchedule.tests.push(test);
+            availableSchedule.totalTime += test.executionTime;
+            assignedTestIds.add(test.id);
+            assigned = true;
+            console.log(
+              `Assigned test ${test.testName} to new ${
+                availableSchedule.hplcName
+              } (Column: ${test.columnCode}, Detector: ${getDetectorName(
+                test.detectorTypeId
+              )})`
+            );
+          }
+        }
+
+        // If still not assigned, add to unscheduled
+        if (!assigned) {
+          const reason =
+            test.executionTime > 4320
+              ? `Exceeds 72-hour limit (${(test.executionTime / 60).toFixed(
+                  1
+                )} hours)`
+              : `No HPLC available with compatible detector (${getDetectorName(
+                  test.detectorTypeId
+                )}) and matching column`;
+
+          unscheduled.push({
+            ...test,
+            groupReason: reason,
+          });
+          console.log(`Unscheduled: ${test.testName} - ${reason}`);
+        }
+      });
 
       schedules.forEach((schedule) => {
         if (schedule.tests.length > 1) {
@@ -1451,9 +1478,9 @@ sortedTests.forEach((test) => {
 
     allTests.forEach((test, index) => {
       // Prefer unique apiNameId if available, fallback to label
-const apiKey = test.apiId 
-  ? `${test.apiId}-${index}` 
-  : `${test.apiLabel}-${index}` || "NA";
+      const apiKey = test.apiId
+        ? `${test.apiId}-${index}`
+        : `${test.apiLabel}-${index}` || "NA";
 
       if (!apiTestMap.has(apiKey)) {
         apiTestMap.set(apiKey, []);
@@ -1471,9 +1498,7 @@ const apiKey = test.apiId
 
     allTests.forEach((test, index) => {
       const mobilePhaseKey = getMobilePhaseKey(test.mobilePhaseCodes);
-    const key = `${test.columnCode}-${mobilePhaseKey}-${test.detectorTypeId}-${index}`;
-;
-
+      const key = `${test.columnCode}-${mobilePhaseKey}-${test.detectorTypeId}-${index}`;
       if (!columnMobilePhaseGroups.has(key)) {
         columnMobilePhaseGroups.set(key, []);
       }
@@ -1711,8 +1736,6 @@ const apiKey = test.apiId
   useEffect(() => {
     fetchInitialData();
   }, []);
-
-  
 
   const fetchInitialData = async () => {
     setLoading(true);
