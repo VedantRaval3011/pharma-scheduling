@@ -464,14 +464,20 @@ export async function PUT(
       batch.tests = processedTests;
       console.log("Successfully assigned processed tests to batch");
     }
+    const parseOptionalDate = (value: unknown): Date | null | undefined => {
+  if (value === undefined) return undefined; // don't touch existing value
+  if (value === null || value === "") return null; // explicitly clear it
+  const d = new Date(value as string);
+  return isNaN(d.getTime()) ? null : d; // prevent Invalid Date
+};
 
     // Update other batch fields
     if (body.productCode !== undefined) batch.productCode = body.productCode;
     if (body.productName !== undefined) batch.productName = body.productName;
     if (body.genericName !== undefined) batch.genericName = body.genericName;
     if (body.batchNumber !== undefined) batch.batchNumber = body.batchNumber;
-    if (body.manufacturingDate !== undefined)
-      batch.manufacturingDate = new Date(body.manufacturingDate);
+const mfg = parseOptionalDate(body.manufacturingDate);
+if (mfg !== undefined) batch.manufacturingDate = mfg;
     if (body.priority !== undefined) batch.priority = body.priority;
     if (body.typeOfSample !== undefined) batch.typeOfSample = body.typeOfSample;
     if (body.departmentName !== undefined)
@@ -483,8 +489,9 @@ export async function PUT(
     if (body.pharmacopoeialName !== undefined)
       batch.pharmacopoeialName = body.pharmacopoeialName;
     if (body.batchStatus !== undefined) batch.batchStatus = body.batchStatus;
-    if (body.withdrawalDate !== undefined)
-      batch.withdrawalDate = new Date(body.withdrawalDate);
+    const wd = parseOptionalDate(body.withdrawalDate);
+if (wd !== undefined) batch.withdrawalDate = wd;
+
     if (body.wash !== undefined) batch.wash = body.wash;
     if (body.isObsolete !== undefined) batch.isObsolete = body.isObsolete;
     if (body.isRawMaterial !== undefined)
