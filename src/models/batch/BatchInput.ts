@@ -105,6 +105,13 @@ const BatchTestSchema = new Schema(
 const BatchAPISchema = new Schema(
   {
     apiName: { type: String, required: true },
+    testStatus: {
+      type: String,
+      enum: ["Not Started", "In Progress", "Closed"],
+      default: "Not Started",
+    },
+    startedAt: { type: Date },
+    endedAt: { type: Date },
     testTypes: [BatchTestSchema], // nested testTypes
   },
   { _id: false }

@@ -185,18 +185,20 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    // ✅ Process generics (with APIs + nested tests)
-    const processedGenerics = (generics || []).map((generic: any) => ({
-      genericName: generic.genericName,
-      apis: (generic.apis || []).map((api: any) => ({
-        apiName: api.apiName,
-        testTypes: (api.testTypes || []).map((test: any) => ({
-          ...processedTests.find(
-            (t: ITestType) => t.testTypeId === test.testTypeId
-          ),
-        })),
-      })),
-    }));
+const processedGenerics = (generics || []).map((generic: any) => ({
+  genericName: generic.genericName,
+  apis: (generic.apis || []).map((api: any) => ({
+    apiName: api.apiName,
+    testStatus: api.testStatus || "Not Started", // ✅ Add this
+    startedAt: api.startedAt ? new Date(api.startedAt) : undefined,
+    endedAt: api.endedAt ? new Date(api.endedAt) : undefined,
+    testTypes: (api.testTypes || []).map((test: any) => ({
+      ...processedTests.find(
+        (t: ITestType) => t.testTypeId === test.testTypeId
+      ),
+    })),
+  })),
+  }));
 
     // ✅ Full batch data
     const batchData = {

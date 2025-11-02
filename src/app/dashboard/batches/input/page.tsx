@@ -161,6 +161,7 @@ interface BatchData {
     reference2RunTime: number;
     outsourced: boolean;
     continueTests: boolean;
+    testStatus: "Not Started" | "In Progress" | "Completed";
   }>;
   batchStatus: "Not Started" | "In Progress" | "Closed";
 }
@@ -873,7 +874,9 @@ export default function BatchInputForm() {
 
     setFormData({
       ...batch,
-       manufacturingDate: batch.manufacturingDate ? new Date(batch.manufacturingDate).toISOString().substring(0,10) : '',
+      manufacturingDate: batch.manufacturingDate
+        ? new Date(batch.manufacturingDate).toISOString().substring(0, 10)
+        : "",
       pharmacopoeialName: pharmacopoeialName,
       generics: batch.generics || [], // Load generics data
     });
@@ -943,6 +946,10 @@ export default function BatchInputForm() {
 
                   outsourced: availableTest.isOutsourcedTest ?? false,
                   continueTests: !(availableTest.isOutsourcedTest ?? false),
+                  testStatus: "Not Started" as
+                    | "Not Started"
+                    | "In Progress"
+                    | "Completed",
                 };
               }
             });
@@ -1286,6 +1293,10 @@ export default function BatchInputForm() {
 
         outsourced: isOutsourced,
         continueTests: continueTests,
+        testStatus: "Not Started" as
+          | "Not Started"
+          | "In Progress"
+          | "Completed", // ✅ Type assertion
       };
     });
 
@@ -1454,7 +1465,11 @@ export default function BatchInputForm() {
 
                   outsourced: correspondingFilteredTest.outsourced,
                   continueTests: correspondingFilteredTest.continueTests,
-                  testStatus: "Not Started",
+                  testStatus: (correspondingFilteredTest.testStatus ||
+                    "Not Started") as
+                    | "Not Started"
+                    | "In Progress"
+                    | "Completed",
                 };
 
                 apiMap.get(apiKey)!.tests.push(enhancedTestData);
@@ -2086,31 +2101,28 @@ export default function BatchInputForm() {
                             >
                               <div className="truncate">{testingLocation}</div>
                             </td>
-                            {/* Sticky Test Status */}
-                            {testIndex === 0 && (
-                              <td
-                                className={`px-1 py-1 text-[11px] align-top sticky right-0 z-10 ${
-                                  selectedBatch?._id === batch._id
-                                    ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]"
-                                    : batchIndex % 2 === 0
-                                    ? "bg-white"
-                                    : "bg-gray-50"
+                            {/* TEST STATUS - Show for each test (no rowspan) */}
+                            <td
+                              className={`sticky right-0 min-w-[80px] px-1 py-1 text-[11px] z-10 ${
+                                selectedBatch?._id === batch._id
+                                  ? "bg-gradient-to-r from-[#a6c8ff] to-[#sc0dcff]"
+                                  : batchIndex % 2 === 0
+                                  ? "bg-white"
+                                  : "bg-gray-50"
+                              }`}
+                            >
+                              <span
+                                className={`inline-flex px-1 py-0.5 text-[9px] font-semibold rounded-full ${
+                                  test.testStatus === "Completed"
+                                    ? "bg-green-100 text-green-800"
+                                    : test.testStatus === "In Progress"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : "bg-yellow-100 text-yellow-800"
                                 }`}
-                                rowSpan={testCount}
                               >
-                                <span
-                                  className={`inline-flex px-1 py-0.5 text-[9px] font-semibold rounded-full ${
-                                    batch.batchStatus === "Closed"
-                                      ? "bg-gray-100 text-gray-800"
-                                      : batch.batchStatus === "In Progress"
-                                      ? "bg-blue-100 text-blue-800"
-                                      : "bg-yellow-100 text-yellow-800"
-                                  }`}
-                                >
-                                  {batch.batchStatus}
-                                </span>
-                              </td>
-                            )}
+                                {test.testStatus || "Not Started"}
+                              </span>
+                            </td>
                           </tr>
                         );
                       });
@@ -2616,26 +2628,27 @@ export default function BatchInputForm() {
                               </div>
                             </td>
 
-                            {testIndex === 0 && (
-                              <td
-                                className="sticky right-0 min-w-[80px] px-1 py-1 text-[11px] align-top bg-[#d6e1f1] z-10"
-                                rowSpan={testCount}
+                            <td
+                              className={`sticky right-0 min-w-[80px] px-1 py-1 text-[11px] z-10 ${
+                                selectedBatch?._id === batch._id
+                                  ? "bg-gradient-to-r from-[#a6c8ff] to-[#c0dcff]"
+                                  : batchIndex % 2 === 0
+                                  ? "bg-white"
+                                  : "bg-gray-50"
+                              }`}
+                            >
+                              <span
+                                className={`inline-flex px-1 py-0.5 text-[9px] font-semibold rounded-full ${
+                                  test.testStatus === "Completed"
+                                    ? "bg-green-100 text-green-800"
+                                    : test.testStatus === "In Progress"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : "bg-yellow-100 text-yellow-800"
+                                }`}
                               >
-                                <div className="truncate">
-                                  <span
-                                    className={`inline-flex px-1 py-0.5 text-[8px] font-semibold rounded-full ${
-                                      batch.batchStatus === "Closed"
-                                        ? "bg-gray-100 text-gray-800"
-                                        : batch.batchStatus === "In Progress"
-                                        ? "bg-blue-100 text-blue-800"
-                                        : "bg-yellow-100 text-yellow-800"
-                                    }`}
-                                  >
-                                    {batch.batchStatus}
-                                  </span>
-                                </div>
-                              </td>
-                            )}
+                                {test.testStatus || "Not Started"}
+                              </span>
+                            </td>
                           </tr>
                         );
                       });
