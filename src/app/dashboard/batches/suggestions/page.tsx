@@ -440,6 +440,14 @@ const calculateInjectionDisplayForGroup = (
   const isFirstTest = testIndexInGroup === 0;
   const isLastTest = testIndexInGroup === totalTestsInGroup - 1;
 
+  // Count how many sample injections have occurred before this test in group
+  const samplesBefore = testIndexInGroup * (Number(test.originalTest?.sampleInjection || 0));
+  const totalSamplesIncludingThis = samplesBefore + (Number(test.originalTest?.sampleInjection || 0));
+
+  // Determine if BKT should appear after every 6 samples
+  const requiresPeriodicBkt = totalSamplesIncludingThis % 6 === 0;
+
+  // Other injections existence check
   const hasSystemSuit = (test.originalTest?.systemSuitability || 0) > 0;
   const hasSensitivity = (test.originalTest?.sensitivity || 0) > 0;
   const hasPlacebo = (test.originalTest?.placebo || 0) > 0;
@@ -447,23 +455,27 @@ const calculateInjectionDisplayForGroup = (
   const hasRef2 = (test.originalTest?.reference2 || 0) > 0;
 
   return {
-    // Core injections
     blank: isFirstTest,
     standard: isFirstTest,
     sample: true,
-    bracketing: !isFirstTest && isLastTest,
+    // ✅ Bracketing logic:
+    // 1. No BKT for first product,
+    // 2. BKT if total sample injections reach 6, 12, 18...,
+    // 3. Always add one at the very end.
+    bracketing: (!isFirstTest && requiresPeriodicBkt) || isLastTest,
 
-    // Other injections (only green for first test in group)
+    // Other injections (only first row of group)
     systemSuitability: isFirstTest && hasSystemSuit,
     sensitivity: isFirstTest && hasSensitivity,
     placebo: isFirstTest && hasPlacebo,
     reference1: isFirstTest && hasRef1,
     reference2: isFirstTest && hasRef2,
 
-    // Wash always after last test
+    // Wash always only on last test
     wash: isLastTest,
   };
 };
+
 
 const calculateOptimizedRuntimeForGroup = (group: GroupInfo): number => {
   if (!group.tests || group.tests.length === 0) return 0;
