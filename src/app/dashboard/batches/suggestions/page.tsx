@@ -107,11 +107,11 @@ interface VisualGroup {
 }
 
 interface FutureSequence {
+  id: string;
   sequenceName: string; // e.g., "F-1-a"
   hplcId: string;
   hplcName: string;
   day: number; // 1-7
-  instrumentLetter: string; // a, b, c, d
   startTime: Date;
   endTime: Date;
   tests: ScheduledTest[];
@@ -120,6 +120,8 @@ interface FutureSequence {
   detector: string;
   column: string;
   mobilePhaseCodes: string[];
+  isNightRun: boolean; // NEW: Indicates if sequence runs overnight
+  sequenceCategory: "SHORT" | "MEDIUM" | "LONG"; // NEW: Runtime category
 }
 
 interface FutureSequencePlan {
@@ -428,25 +430,80 @@ const calculateInjectionDisplayForGroup = (
   standard: boolean;
   sample: boolean;
   bracketing: boolean;
+  systemSuitability: boolean;
+  sensitivity: boolean;
+  placebo: boolean;
+  reference1: boolean;
+  reference2: boolean;
+  wash: boolean;
 } => {
-  const isFirstTestInGroup = testIndexInGroup === 0;
-  const isLastTestInGroup = testIndexInGroup === totalTestsInGroup - 1;
+  const isFirstTest = testIndexInGroup === 0;
+  const isLastTest = testIndexInGroup === totalTestsInGroup - 1;
 
-  // Cumulative sample count WITHIN GROUP (2 samples per test)
-  const cumulativeSamplesInGroup = (testIndexInGroup + 1) * 2;
-
-  // Bracketing occurs after every 6 samples WITHIN GROUP
-  const needsBracketing =
-    isFirstTestInGroup || // First test in group gets BKT after standards
-    cumulativeSamplesInGroup % 6 === 0 || // Every 6 samples within group
-    isLastTestInGroup; // Last test in group always gets BKT
+  const hasSystemSuit = (test.originalTest?.systemSuitability || 0) > 0;
+  const hasSensitivity = (test.originalTest?.sensitivity || 0) > 0;
+  const hasPlacebo = (test.originalTest?.placebo || 0) > 0;
+  const hasRef1 = (test.originalTest?.reference1 || 0) > 0;
+  const hasRef2 = (test.originalTest?.reference2 || 0) > 0;
 
   return {
-    blank: isFirstTestInGroup,
-    standard: isFirstTestInGroup,
-    sample: true, // All products get samples
-    bracketing: needsBracketing,
+    // Core injections
+    blank: isFirstTest,
+    standard: isFirstTest,
+    sample: true,
+    bracketing: !isFirstTest && isLastTest,
+
+    // Other injections (only green for first test in group)
+    systemSuitability: isFirstTest && hasSystemSuit,
+    sensitivity: isFirstTest && hasSensitivity,
+    placebo: isFirstTest && hasPlacebo,
+    reference1: isFirstTest && hasRef1,
+    reference2: isFirstTest && hasRef2,
+
+    // Wash always after last test
+    wash: isLastTest,
   };
+};
+
+const calculateOptimizedRuntimeForGroup = (group: GroupInfo): number => {
+  if (!group.tests || group.tests.length === 0) return 0;
+
+  let groupRuntime = 0;
+  const totalTests = group.tests.length;
+
+  group.tests.forEach((test, testIndex) => {
+    const display = calculateInjectionDisplayForGroup(
+      testIndex,
+      totalTests,
+      test
+    );
+
+    // Use unique runtimes if defined, otherwise fallback to general runTime
+    const rt = Number(test.originalTest?.runTime || 0);
+    const blankRT = Number(test.originalTest?.blankRunTime || rt);
+    const stdRT = Number(test.originalTest?.standardRunTime || rt);
+    const smpRT = Number(test.originalTest?.sampleRunTime || rt);
+    const sysSuitRT = Number(test.originalTest?.systemSuitabilityRunTime || rt);
+    const sensRT = Number(test.originalTest?.sensitivityRunTime || rt);
+    const plcRT = Number(test.originalTest?.placeboRunTime || rt);
+    const ref1RT = Number(test.originalTest?.reference1RunTime || rt);
+    const ref2RT = Number(test.originalTest?.reference2RunTime || rt);
+    const washRT = Number(test.originalTest?.washTime || 0);
+
+    // Only include green ones
+    if (display.blank) groupRuntime += blankRT;
+    if (display.standard) groupRuntime += stdRT;
+    if (display.sample) groupRuntime += smpRT;
+    if (display.bracketing) groupRuntime += rt;
+    if (display.systemSuitability) groupRuntime += sysSuitRT;
+    if (display.sensitivity) groupRuntime += sensRT;
+    if (display.placebo) groupRuntime += plcRT;
+    if (display.reference1) groupRuntime += ref1RT;
+    if (display.reference2) groupRuntime += ref2RT;
+    if (display.wash) groupRuntime += washRT; // ✅ last test only
+  });
+
+  return groupRuntime;
 };
 
 // NEW: Draggable Test Row Component - This keeps your exact table structure
@@ -806,21 +863,89 @@ const DraggableTestRow: React.FC<{
         </span>
       </td>
 
-      {/* Remaining injections moved after */}
-      <td className="px-1 py-1 text-center text-gray-700 text-10px border-r border-gray-200">
-        {test.originalTest?.systemSuitability || 0}
+      {/* System Suitability */}
+      <td className="px-1 py-1 text-center text-10px border-r border-gray-200">
+        {(() => {
+          const val = Number(test.originalTest?.systemSuitability || 0);
+          const isActive = injectionDisplay.systemSuitability && val > 0;
+          return (
+            <span
+              className={
+                isActive ? "text-green-600 font-semibold" : "text-gray-400"
+              }
+            >
+              {val}
+            </span>
+          );
+        })()}
       </td>
-      <td className="px-1 py-1 text-center text-gray-700 text-10px border-r border-gray-200">
-        {test.originalTest?.sensitivity || 0}
+
+      {/* Sensitivity */}
+      <td className="px-1 py-1 text-center text-10px border-r border-gray-200">
+        {(() => {
+          const val = Number(test.originalTest?.sensitivity || 0);
+          const isActive = injectionDisplay.sensitivity && val > 0;
+          return (
+            <span
+              className={
+                isActive ? "text-green-600 font-semibold" : "text-gray-400"
+              }
+            >
+              {val}
+            </span>
+          );
+        })()}
       </td>
-      <td className="px-1 py-1 text-center text-gray-700 text-10px border-r border-gray-200">
-        {test.originalTest?.placebo || 0}
+
+      {/* Placebo */}
+      <td className="px-1 py-1 text-center text-10px border-r border-gray-200">
+        {(() => {
+          const val = Number(test.originalTest?.placebo || 0);
+          const isActive = injectionDisplay.placebo && val > 0;
+          return (
+            <span
+              className={
+                isActive ? "text-green-600 font-semibold" : "text-gray-400"
+              }
+            >
+              {val}
+            </span>
+          );
+        })()}
       </td>
-      <td className="px-1 py-1 text-center text-gray-700 text-10px border-r border-gray-200">
-        {test.originalTest?.reference1 || 0}
+
+      {/* Reference 1 */}
+      <td className="px-1 py-1 text-center text-10px border-r border-gray-200">
+        {(() => {
+          const val = Number(test.originalTest?.reference1 || 0);
+          const isActive = injectionDisplay.reference1 && val > 0;
+          return (
+            <span
+              className={
+                isActive ? "text-green-600 font-semibold" : "text-gray-400"
+              }
+            >
+              {val}
+            </span>
+          );
+        })()}
       </td>
-      <td className="px-1 py-1 text-center text-gray-700 text-10px border-r border-gray-200">
-        {test.originalTest?.reference2 || 0}
+
+      {/* Reference 2 */}
+      <td className="px-1 py-1 text-center text-10px border-r border-gray-200">
+        {(() => {
+          const val = Number(test.originalTest?.reference2 || 0);
+          const isActive = injectionDisplay.reference2 && val > 0;
+          return (
+            <span
+              className={
+                isActive ? "text-green-600 font-semibold" : "text-gray-400"
+              }
+            >
+              {val}
+            </span>
+          );
+        })()}
       </td>
 
       {/* All runtime columns */}
@@ -851,22 +976,101 @@ const DraggableTestRow: React.FC<{
       <td className="px-1 py-1 text-center text-gray-700 text-10px border-r border-gray-200">
         {test.originalTest?.reference2RunTime || 0}m
       </td>
-      <td className="px-1 py-1 text-center text-gray-700 text-10px border-r border-gray-200">
-        {test.washTime || 0}m
+      {/* Wash Time */}
+      <td className="px-1 py-1 text-center text-10px border-r border-gray-200">
+        {(() => {
+          const val = Number(test.originalTest?.washTime || 0);
+          const isActive = injectionDisplay.wash && val > 0;
+          return (
+            <span
+              className={
+                isActive ? "text-green-600 font-semibold" : "text-gray-400"
+              }
+            >
+              {val}
+            </span>
+          );
+        })()}
       </td>
 
       {/* Time column */}
+      {/* Time column (GREEN-only) */}
       <td className="px-1 py-1 text-center text-gray-700 border-r border-gray-200">
-        <div className="text-10px">{test.executionTime.toFixed(0)}m</div>
+        {(() => {
+          const minutes = minutesForGreenInjections(
+            test,
+            testIndexInGroup,
+            totalTestsInGroup
+          );
+          return <div className="text-10px">{Math.round(minutes)}m</div>;
+        })()}
         {test.isGrouped && test.timeSaved && (
           <div className="text-10px text-green-600">
-            -{test.timeSaved.toFixed(0)}m
+            -{Math.round(test.timeSaved)}m
           </div>
         )}
       </td>
     </tr>
   );
 };
+
+function minutesForGreenInjections(
+  test: ScheduledTest,
+  testIndexInGroup: number,
+  totalTestsInGroup: number
+): number {
+  const d = calculateInjectionDisplayForGroup(
+    testIndexInGroup,
+    totalTestsInGroup,
+    test
+  );
+
+  // Normalize runtimes
+  const rt = Number(test.originalTest?.runTime || 0); // generic RT
+  const blankRT = Number(test.originalTest?.blankRunTime || rt);
+  const stdRT = Number(test.originalTest?.standardRunTime || rt);
+  const smpRT = Number(test.originalTest?.sampleRunTime || rt);
+  const sysRT = Number(test.originalTest?.systemSuitabilityRunTime || rt);
+  const snsRT = Number(test.originalTest?.sensitivityRunTime || rt);
+  const plcRT = Number(test.originalTest?.placeboRunTime || rt);
+  const r1RT = Number(test.originalTest?.reference1RunTime || rt);
+  const r2RT = Number(test.originalTest?.reference2RunTime || rt);
+  const washRT = Number(test.originalTest?.washTime || 0);
+
+  // Normalize counts (as integers)
+  const blankCnt = Number(test.originalTest?.blankInjection || 0);
+  const stdCnt = Number(test.originalTest?.standardInjection || 0);
+  const smpCnt = Number(test.originalTest?.sampleInjection || 0);
+  const brkCnt = Number(test.bracketingFrequency || 0); // often 0 for first row per your rule
+
+  let total = 0;
+
+  // Core (only if green)
+  if (d.blank && blankCnt > 0) total += blankRT * blankCnt;
+  if (d.standard && stdCnt > 0) total += stdRT * stdCnt;
+  if (d.sample && smpCnt > 0) total += smpRT * smpCnt;
+  // Bracketing: only last row should be green; count its frequency if any
+  const bracketRT = rt; // or Number(test.originalTest?.bracketRunTime || rt) if you have it
+  if (d.bracketing && brkCnt > 0) total += bracketRT * brkCnt;
+
+  // “Other” injections — counted only on FIRST row if value > 0 (green there, gray elsewhere)
+  const sysCnt = Number(test.originalTest?.systemSuitability || 0);
+  const snsCnt = Number(test.originalTest?.sensitivity || 0);
+  const plcCnt = Number(test.originalTest?.placebo || 0);
+  const r1Cnt = Number(test.originalTest?.reference1 || 0);
+  const r2Cnt = Number(test.originalTest?.reference2 || 0);
+
+  if (d.systemSuitability && sysCnt > 0) total += sysRT;
+  if (d.sensitivity && snsCnt > 0) total += snsRT;
+  if (d.placebo && plcCnt > 0) total += plcRT;
+  if (d.reference1 && r1Cnt > 0) total += r1RT;
+  if (d.reference2 && r2Cnt > 0) total += r2RT;
+
+  // Wash — only last row is green; first row must **not** count it
+  if (d.wash && washRT > 0) total += washRT;
+
+  return total;
+}
 
 // Main component
 export default function EnhancedSchedulingAlgorithm() {
@@ -902,6 +1106,43 @@ export default function EnhancedSchedulingAlgorithm() {
   // NEW: Drag and drop state
   const [activeTest, setActiveTest] = useState<ScheduledTest | null>(null);
   const [draggedOverHPLC, setDraggedOverHPLC] = useState<string | null>(null);
+
+  // Time constants for day-night scheduling
+  const WORK_HOURS = {
+    START: 9, // 9 AM
+    END: 17, // 5 PM
+    EVENING_THRESHOLD: 16, // 4 PM - start considering long sequences
+  };
+
+  const SEQUENCE_CATEGORIES = {
+    SHORT: 180, // 0-3 hours (180 minutes)
+    MEDIUM: 360, // 3-6 hours (360 minutes)
+    LONG: Infinity, // 6+ hours
+  };
+
+  // Helper to categorize sequence by runtime
+  const categorizeSequenceByRuntime = (
+    totalMinutes: number
+  ): "SHORT" | "MEDIUM" | "LONG" => {
+    if (totalMinutes <= SEQUENCE_CATEGORIES.SHORT) return "SHORT";
+    if (totalMinutes <= SEQUENCE_CATEGORIES.MEDIUM) return "MEDIUM";
+    return "LONG";
+  };
+
+  // Helper to check if current time is in evening slot
+  const isEveningSlot = (currentTime: Date): boolean => {
+    const hour = currentTime.getHours();
+    return hour >= WORK_HOURS.EVENING_THRESHOLD && hour < WORK_HOURS.END;
+  };
+
+  // Helper to get time remaining in work day
+  const getTimeRemainingInWorkDay = (currentTime: Date): number => {
+    const hour = currentTime.getHours();
+    const minutes = currentTime.getMinutes();
+    const currentMinutes = hour * 60 + minutes;
+    const endMinutes = WORK_HOURS.END * 60;
+    return Math.max(0, endMinutes - currentMinutes);
+  };
 
   // Sensors for drag detection
   const sensors = useSensors(
@@ -1111,28 +1352,6 @@ export default function EnhancedSchedulingAlgorithm() {
     };
   };
 
-  // Helper function to determine which injections are active for a test in a group
-  const calculateInjectionDisplayForGroup = (
-    testIndexInGroup: number,
-    totalTestsInGroup: number,
-    test: ScheduledTest
-  ): {
-    blank: boolean;
-    standard: boolean;
-    sample: boolean;
-    bracketing: boolean;
-  } => {
-    const isFirstTest = testIndexInGroup === 0;
-    const isLastTest = testIndexInGroup === totalTestsInGroup - 1;
-
-    return {
-      blank: isFirstTest, // Only first test has blank
-      standard: isFirstTest, // Only first test has standard
-      sample: true, // All tests have samples
-      bracketing: isLastTest, // Only last test has final bracketing
-    };
-  };
-
   const calculateGroupedCounts = (
     tests: ScheduledTest[],
     washInterval: number = 6
@@ -1204,20 +1423,27 @@ export default function EnhancedSchedulingAlgorithm() {
 
         // Accumulate counts for display
         Object.entries(breakdown.injectionCounts).forEach(([type, count]) => {
-          if (groupedCounts.hasOwnProperty(type)) {
+          if (!groupedCounts.hasOwnProperty(type)) return;
+
+          // For "other injections", include only one instance across the group
+          if (
+            [
+              "sensitivity",
+              "systemSuitability",
+              "placebo",
+              "reference1",
+              "reference2",
+            ].includes(type)
+          ) {
+            // Only count once for the entire group if any product has ≥ 1
+            if (count > 0) groupedCounts[type] = 1;
+          } else {
+            // For all other injection types (sample, standard, blank, bracketing), sum normally
             groupedCounts[type] += count;
           }
         });
       }
     });
-
-    // Add wash time at the end (only once)
-    const firstTestWashTime = tests[0]?.originalTest
-      ? safeNumber(tests[0].originalTest.washTime)
-      : 0;
-
-    // Note: optimizedTotalTime already includes one wash time from the calculation
-    // originalTotalTime includes wash time for each test
 
     const totalGroupedInjections = Object.values(groupedCounts).reduce(
       (sum, count) => sum + count,
@@ -1304,12 +1530,8 @@ export default function EnhancedSchedulingAlgorithm() {
 
   const fetchDetectorMaster = async () => {
     try {
-      const companyId =
-        localStorage.getItem("companyId") ||
-        "220E43EA-E525-4DDD-9155-631AAAD6A880";
-      const locationId =
-        localStorage.getItem("locationId") ||
-        "0ae9d80c-add2-423e-9d28-b5b44b097867";
+      const companyId = localStorage.getItem("companyId");
+      const locationId = localStorage.getItem("locationId");
 
       const res = await fetch(
         `/api/admin/detector-type?companyId=${companyId}&locationId=${locationId}`
@@ -2097,22 +2319,28 @@ export default function EnhancedSchedulingAlgorithm() {
     return { tests: processedTests, groups };
   };
 
- const planFutureSequences = (
+  const planFutureSequences = (
     currentSchedules: HPLCSchedule[],
     holdTableTests: ScheduledTest[],
     currentTime: Date,
     daysToSchedule: number = 7
   ): FutureSequencePlan => {
     const futurePlan: FutureSequencePlan = {};
-    const instrumentLetters = ["a", "b", "c", "d"];
-    const MAX_RUNTIME = 4320; // 72 hours in minutes
+    const MAX_RUNTIME = 4320; // 72 hours
     const MAX_MOBILE_PHASES_AND_WASHES = 4;
 
-    // Sort hold table by priority (Urgent > High > Normal > Low)
+    // Smart sorting: Priority first, then runtime (ascending) for day scheduling
     let remainingTests = [...holdTableTests].sort((a, b) => {
       const priorityA = getPriorityValue(a.priority);
       const priorityB = getPriorityValue(b.priority);
-      return priorityB - priorityA;
+
+      // First sort by priority
+      if (priorityA !== priorityB) {
+        return priorityB - priorityA;
+      }
+
+      // Then by runtime (ascending) - shorter tests first for day scheduling
+      return a.executionTime - b.executionTime;
     });
 
     console.log(
@@ -2121,19 +2349,36 @@ export default function EnhancedSchedulingAlgorithm() {
       "tests from hold table"
     );
 
-    // ✅ NEW: Round-robin approach - iterate through days and HPLCs together
+    // Categorize tests by runtime for smart scheduling
+    const testsByCategory = {
+      SHORT: remainingTests.filter(
+        (t) => categorizeSequenceByRuntime(t.executionTime) === "SHORT"
+      ),
+      MEDIUM: remainingTests.filter(
+        (t) => categorizeSequenceByRuntime(t.executionTime) === "MEDIUM"
+      ),
+      LONG: remainingTests.filter(
+        (t) => categorizeSequenceByRuntime(t.executionTime) === "LONG"
+      ),
+    };
+
+    console.log(
+      `Test categories: ${testsByCategory.SHORT.length} SHORT, ${testsByCategory.MEDIUM.length} MEDIUM, ${testsByCategory.LONG.length} LONG`
+    );
+
+    // Day-by-day scheduling with round-robin HPLC assignment
     for (let day = 1; day <= daysToSchedule; day++) {
       console.log(`\n=== Planning Day ${day} ===`);
-      
+
       // Calculate day boundaries
       const dayStartTime = new Date(currentTime);
-      dayStartTime.setHours(0, 0, 0, 0);
+      dayStartTime.setHours(WORK_HOURS.START, 0, 0, 0);
       dayStartTime.setDate(dayStartTime.getDate() + (day - 1));
 
       const dayEndTime = new Date(dayStartTime);
       dayEndTime.setDate(dayEndTime.getDate() + 1);
 
-      // ✅ For each HPLC, try to schedule tests for this day
+      // Process each HPLC for this day
       currentSchedules.forEach((schedule, index) => {
         const hplc = hplcMaster.find((h) => h._id === schedule.hplcId);
         const hplcDetectorIds = hplc?.detector?.map((d) => d._id) || [];
@@ -2145,7 +2390,7 @@ export default function EnhancedSchedulingAlgorithm() {
 
         // Calculate when this HPLC will be free
         let hplcFreeTime = new Date(currentTime);
-        
+
         if (day === 1) {
           // Day 1: Account for current schedule
           if (schedule.totalTime > 0) {
@@ -2158,9 +2403,10 @@ export default function EnhancedSchedulingAlgorithm() {
           const previousDaySequences = futurePlan[schedule.hplcId].filter(
             (seq) => seq.day === day - 1
           );
-          
+
           if (previousDaySequences.length > 0) {
-            const lastSequence = previousDaySequences[previousDaySequences.length - 1];
+            const lastSequence =
+              previousDaySequences[previousDaySequences.length - 1];
             hplcFreeTime = new Date(lastSequence.endTime);
           } else {
             // If no sequence on previous day, start at day boundary
@@ -2180,16 +2426,17 @@ export default function EnhancedSchedulingAlgorithm() {
           Math.max(hplcFreeTime.getTime(), dayStartTime.getTime())
         );
 
-        const instrumentLetter = instrumentLetters[index] || "x";
-        const sequenceName = `F-${day}-${instrumentLetter}`;
+        const sequenceName = `F-${day}`;
 
         console.log(
-          `\n${sequenceName} (${schedule.hplcName}): Free at ${effectiveStartTime.toLocaleTimeString()}`
+          `\n${sequenceName} (${
+            schedule.hplcName
+          }): Free at ${effectiveStartTime.toLocaleTimeString()}`
         );
 
-        // ✅ Determine detector compatibility
+        // Determine detector compatibility
         let compatibleDetectorIds: string[] = [];
-        
+
         if (day === 1 && schedule.tests.length > 0) {
           // Busy HPLC on Day 1 - lock to current detector
           compatibleDetectorIds = [schedule.tests[0].detectorTypeId];
@@ -2199,22 +2446,83 @@ export default function EnhancedSchedulingAlgorithm() {
         }
 
         console.log(
-          `Compatible detectors: ${compatibleDetectorIds.map((d) => getDetectorName(d)).join(", ")}`
+          `Compatible detectors: ${compatibleDetectorIds
+            .map((d) => getDetectorName(d))
+            .join(", ")}`
         );
 
-        // ✅ Filter available tests that match detector compatibility
-        const availableTests = remainingTests.filter((test) =>
-          compatibleDetectorIds.includes(test.detectorTypeId)
-        );
+        // SMART TIME-AWARE TEST SELECTION
+        const currentHour = effectiveStartTime.getHours();
+        const timeRemainingToday =
+          getTimeRemainingInWorkDay(effectiveStartTime);
+        const isEvening = isEveningSlot(effectiveStartTime);
 
-        console.log(`Available tests for ${sequenceName}: ${availableTests.length}`);
+        let availableTests: ScheduledTest[] = [];
+
+        if (isEvening && timeRemainingToday < 120) {
+          // Evening slot (after 4 PM) with <2 hours left
+          // Prioritize LONG sequences that can run overnight
+          console.log(
+            `${sequenceName}: Evening slot detected - prioritizing long sequences for overnight runs`
+          );
+
+          availableTests = testsByCategory.LONG.filter((t) =>
+            compatibleDetectorIds.includes(t.detectorTypeId)
+          )
+            .concat(
+              testsByCategory.MEDIUM.filter((t) =>
+                compatibleDetectorIds.includes(t.detectorTypeId)
+              )
+            )
+            .concat(
+              testsByCategory.SHORT.filter((t) =>
+                compatibleDetectorIds.includes(t.detectorTypeId)
+              )
+            );
+        } else if (
+          currentHour >= WORK_HOURS.START &&
+          currentHour < WORK_HOURS.EVENING_THRESHOLD
+        ) {
+          // Morning/Day slot (9 AM - 4 PM)
+          // Prioritize SHORT and MEDIUM sequences
+          console.log(
+            `${sequenceName}: Day slot detected - prioritizing short/medium sequences`
+          );
+
+          availableTests = testsByCategory.SHORT.filter((t) =>
+            compatibleDetectorIds.includes(t.detectorTypeId)
+          )
+            .concat(
+              testsByCategory.MEDIUM.filter((t) =>
+                compatibleDetectorIds.includes(t.detectorTypeId)
+              )
+            )
+            .concat(
+              testsByCategory.LONG.filter((t) =>
+                compatibleDetectorIds.includes(t.detectorTypeId)
+              )
+            );
+        } else {
+          // Night slot or edge cases - accept any compatible test
+          console.log(
+            `${sequenceName}: Night/flexible slot - accepting all compatible tests`
+          );
+
+          availableTests = remainingTests.filter((test) =>
+            compatibleDetectorIds.includes(test.detectorTypeId)
+          );
+        }
+
+        console.log(
+          `Available tests for ${sequenceName}: ${availableTests.length}`
+        );
 
         if (availableTests.length === 0) {
           console.log(`No compatible tests for ${sequenceName}`);
           return;
         }
 
-        // ✅ Build the sequence for this day
+        // Build the sequence for this day
         const dayTests: ScheduledTest[] = [];
         let dayTotalTime = 0;
         const dayMobilePhases = new Set<string>();
@@ -2234,6 +2542,18 @@ export default function EnhancedSchedulingAlgorithm() {
           if (dayTests.length === 0) {
             currentColumn = test.columnCode;
             currentDetector = test.detectorTypeId;
+
+            // Evening preference check - skip SHORT tests in evening to save for overnight
+            if (
+              isEvening &&
+              categorizeSequenceByRuntime(test.executionTime) === "SHORT" &&
+              testsByCategory.LONG.length > 0
+            ) {
+              console.log(
+                `  ⏭️ Skipping SHORT test in evening slot: ${test.testName}`
+              );
+              continue; // Skip short tests in evening if we have long tests available
+            }
           }
 
           // Check if test matches current configuration
@@ -2259,13 +2579,28 @@ export default function EnhancedSchedulingAlgorithm() {
               remainingTests.splice(testIndex, 1);
             }
 
+            // Also remove from category arrays
+            ["SHORT", "MEDIUM", "LONG"].forEach((category) => {
+              const catIndex = testsByCategory[
+                category as keyof typeof testsByCategory
+              ].findIndex((t) => t.id === test.id);
+              if (catIndex >= 0) {
+                testsByCategory[
+                  category as keyof typeof testsByCategory
+                ].splice(catIndex, 1);
+              }
+            });
+
+            const testCategory = categorizeSequenceByRuntime(
+              test.executionTime
+            );
             console.log(
-              `  ✓ Added ${test.testName} (${test.priority}) - Total time: ${dayTotalTime}m`
+              `  ✓ Added ${test.testName} (${test.priority}, ${testCategory}) - Total time: ${dayTotalTime}m`
             );
           }
         }
 
-        // ✅ Apply grouping optimization
+        // Apply grouping optimization
         let finalTests: ScheduledTest[] = dayTests.map((test, idx) => ({
           ...test,
           sortOrder: idx,
@@ -2283,7 +2618,7 @@ export default function EnhancedSchedulingAlgorithm() {
           );
         }
 
-        // ✅ Create the sequence (even if empty, for tracking)
+        // Create the sequence
         const sequenceEndTime = new Date(
           effectiveStartTime.getTime() + dayTotalTime * 60000
         );
@@ -2296,12 +2631,17 @@ export default function EnhancedSchedulingAlgorithm() {
           ? columnMaster[currentColumn] || currentColumn
           : "NA";
 
+        // Determine if this is a night run
+        const isNightRun =
+          effectiveStartTime.getHours() >= WORK_HOURS.EVENING_THRESHOLD;
+        const sequenceCategory = categorizeSequenceByRuntime(dayTotalTime);
+
         const futureSequence: FutureSequence = {
+          id: uuidv4(),
           sequenceName,
           hplcId: schedule.hplcId,
           hplcName: schedule.hplcName,
           day,
-          instrumentLetter,
           startTime: new Date(effectiveStartTime),
           endTime: sequenceEndTime,
           tests: finalTests,
@@ -2310,29 +2650,55 @@ export default function EnhancedSchedulingAlgorithm() {
           detector: detectorName,
           column: columnName,
           mobilePhaseCodes: Array.from(dayMobilePhases),
+          isNightRun, // NEW: Mark night runs
+          sequenceCategory, // NEW: Categorize sequence
         };
 
         futurePlan[schedule.hplcId].push(futureSequence);
 
         console.log(
-          `Created ${sequenceName}: ${finalTests.length} tests, ${dayTotalTime}m, ends ${sequenceEndTime.toLocaleTimeString()}`
+          `Created ${sequenceName}: ${
+            finalTests.length
+          } tests, ${dayTotalTime}m (${sequenceCategory}), ${
+            isNightRun ? "🌙 NIGHT RUN" : "☀️ DAY RUN"
+          }, ends ${sequenceEndTime.toLocaleTimeString()}`
         );
       });
 
-      // ✅ Check if we've scheduled all tests
+      // Refresh test categories after assignments
+      testsByCategory.SHORT = remainingTests.filter(
+        (t) => categorizeSequenceByRuntime(t.executionTime) === "SHORT"
+      );
+      testsByCategory.MEDIUM = remainingTests.filter(
+        (t) => categorizeSequenceByRuntime(t.executionTime) === "MEDIUM"
+      );
+      testsByCategory.LONG = remainingTests.filter(
+        (t) => categorizeSequenceByRuntime(t.executionTime) === "LONG"
+      );
+
+      // Check if we've scheduled all tests
       if (remainingTests.length === 0) {
         console.log(`\n✅ All tests scheduled by Day ${day}`);
         break;
       } else {
-        console.log(`\n${remainingTests.length} tests remaining for future days`);
+        console.log(
+          `\n${remainingTests.length} tests remaining for future days (${testsByCategory.SHORT.length} SHORT, ${testsByCategory.MEDIUM.length} MEDIUM, ${testsByCategory.LONG.length} LONG)`
+        );
       }
     }
 
     console.log("\n=== Future Planning Summary ===");
     Object.entries(futurePlan).forEach(([hplcId, sequences]) => {
       const schedule = currentSchedules.find((s) => s.hplcId === hplcId);
-      const totalTests = sequences.reduce((sum, seq) => sum + seq.tests.length, 0);
-      console.log(`${schedule?.hplcName}: ${sequences.length} sequences, ${totalTests} tests`);
+      const totalTests = sequences.reduce(
+        (sum, seq) => sum + seq.tests.length,
+        0
+      );
+      const nightRuns = sequences.filter((seq) => seq.isNightRun).length;
+      const dayRuns = sequences.length - nightRuns;
+      console.log(
+        `${schedule?.hplcName}: ${sequences.length} sequences (${dayRuns} day, ${nightRuns} night), ${totalTests} tests`
+      );
     });
 
     return futurePlan;
@@ -2693,7 +3059,14 @@ export default function EnhancedSchedulingAlgorithm() {
       standard: boolean;
       sample: boolean;
       bracketing: boolean;
+      systemSuitability?: boolean;
+      sensitivity?: boolean;
+      placebo?: boolean;
+      reference1?: boolean;
+      reference2?: boolean;
+      wash?: boolean; // ✅ added this
     };
+
     batchData: BatchItem[];
     apiMaster: { [key: string]: string };
     columnMaster: { [key: string]: string };
@@ -2990,20 +3363,89 @@ export default function EnhancedSchedulingAlgorithm() {
         </td>
 
         {/* Remaining injections */}
-        <td className="px-1 py-1 text-center text-gray-700 text-10px border-r border-gray-200">
-          {test.originalTest?.systemSuitability || 0}
+        {/* System Suitability */}
+        <td className="px-1 py-1 text-center text-10px border-r border-gray-200">
+          {(() => {
+            const val = Number(test.originalTest?.systemSuitability || 0);
+            const isActive = injectionDisplay.systemSuitability && val > 0;
+            return (
+              <span
+                className={
+                  isActive ? "text-green-600 font-semibold" : "text-gray-400"
+                }
+              >
+                {val}
+              </span>
+            );
+          })()}
         </td>
-        <td className="px-1 py-1 text-center text-gray-700 text-10px border-r border-gray-200">
-          {test.originalTest?.sensitivity || 0}
+
+        {/* Sensitivity */}
+        <td className="px-1 py-1 text-center text-10px border-r border-gray-200">
+          {(() => {
+            const val = Number(test.originalTest?.sensitivity || 0);
+            const isActive = injectionDisplay.sensitivity && val > 0;
+            return (
+              <span
+                className={
+                  isActive ? "text-green-600 font-semibold" : "text-gray-400"
+                }
+              >
+                {val}
+              </span>
+            );
+          })()}
         </td>
-        <td className="px-1 py-1 text-center text-gray-700 text-10px border-r border-gray-200">
-          {test.originalTest?.placebo || 0}
+
+        {/* Placebo */}
+        <td className="px-1 py-1 text-center text-10px border-r border-gray-200">
+          {(() => {
+            const val = Number(test.originalTest?.placebo || 0);
+            const isActive = injectionDisplay.placebo && val > 0;
+            return (
+              <span
+                className={
+                  isActive ? "text-green-600 font-semibold" : "text-gray-400"
+                }
+              >
+                {val}
+              </span>
+            );
+          })()}
         </td>
-        <td className="px-1 py-1 text-center text-gray-700 text-10px border-r border-gray-200">
-          {test.originalTest?.reference1 || 0}
+
+        {/* Reference 1 */}
+        <td className="px-1 py-1 text-center text-10px border-r border-gray-200">
+          {(() => {
+            const val = Number(test.originalTest?.reference1 || 0);
+            const isActive = injectionDisplay.reference1 && val > 0;
+            return (
+              <span
+                className={
+                  isActive ? "text-green-600 font-semibold" : "text-gray-400"
+                }
+              >
+                {val}
+              </span>
+            );
+          })()}
         </td>
-        <td className="px-1 py-1 text-center text-gray-700 text-10px border-r border-gray-200">
-          {test.originalTest?.reference2 || 0}
+
+        {/* Reference 2 */}
+        <td className="px-1 py-1 text-center text-10px border-r border-gray-200">
+          {(() => {
+            const val = Number(test.originalTest?.reference2 || 0);
+            const isActive = injectionDisplay.reference2 && val > 0;
+            return (
+              <span
+                className={
+                  isActive ? "text-green-600 font-semibold" : "text-gray-400"
+                }
+              >
+                {val}
+              </span>
+            );
+          })()}
         </td>
 
         {/* All runtime columns */}
@@ -3034,16 +3476,37 @@ export default function EnhancedSchedulingAlgorithm() {
         <td className="px-1 py-1 text-center text-gray-700 text-10px border-r border-gray-200">
           {test.originalTest?.reference2RunTime || 0}m
         </td>
-        <td className="px-1 py-1 text-center text-gray-700 text-10px border-r border-gray-200">
-          {test.washTime || 0}m
+        {/* Wash Time */}
+        <td className="px-1 py-1 text-center text-10px border-r border-gray-200">
+          {(() => {
+            const val = Number(test.originalTest?.washTime || 0);
+            const isActive = injectionDisplay.wash && val > 0;
+            return (
+              <span
+                className={
+                  isActive ? "text-green-600 font-semibold" : "text-gray-400"
+                }
+              >
+                {val}
+              </span>
+            );
+          })()}
         </td>
 
         {/* Time column */}
+        {/* Time column (GREEN-only) */}
         <td className="px-1 py-1 text-center text-gray-700 border-r border-gray-200">
-          <div className="text-10px">{test.executionTime.toFixed(0)}m</div>
+          {(() => {
+            const minutes = minutesForGreenInjections(
+              test,
+              testIndexInGroup,
+              totalTestsInGroup
+            );
+            return <div className="text-10px">{Math.round(minutes)}m</div>;
+          })()}
           {test.isGrouped && test.timeSaved && (
             <div className="text-10px text-green-600">
-              -{test.timeSaved.toFixed(0)}m
+              -{Math.round(test.timeSaved)}m
             </div>
           )}
         </td>
@@ -3092,27 +3555,57 @@ export default function EnhancedSchedulingAlgorithm() {
       setFutureDragActive(null);
     };
 
+    const optimizedTime = futureSequence.groups.reduce((sum, group) => {
+      return sum + calculateOptimizedRuntimeForGroup(group);
+    }, 0);
+
+    const totalTime = futureSequence.groups.reduce((sum, group) => {
+      // old logic (counting everything)
+      const fullGroupTime = group.tests.reduce((s, t) => {
+        const rt = Number(t.originalTest?.runTime || 0);
+        const blankRT = Number(t.originalTest?.blankRunTime || rt);
+        const stdRT = Number(t.originalTest?.standardRunTime || rt);
+        const smpRT = Number(t.originalTest?.sampleRunTime || rt);
+        const washRT = Number(t.originalTest?.washTime || 0);
+
+        return s + blankRT + stdRT + smpRT + washRT;
+      }, 0);
+      return sum + fullGroupTime;
+    }, 0);
+
+    const savedTime = totalTime - optimizedTime;
+
     return (
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm flex flex-col">
         {/* Header - exactly like HPLC cards */}
         <div className="p-2 border-b border-gray-200 bg-purple-50">
           <div className="flex justify-between items-center">
-            <div>
+            <div className="flex-1">
               <div className="text-gray-800 text-xs font-medium">
-                🔮 {futureSequence.sequenceName} - {futureSequence.hplcName}
+                {futureSequence.sequenceName} - {futureSequence.hplcName}
               </div>
-              <div className="text-xs text-gray-500">
+
+              <div className="text-xs text-gray-500 mt-1">
                 {futureSequence.tests.length} tests •{" "}
-                {formatTime(futureSequence.totalTime)}
+                <span className="font-semibold text-gray-700">
+                  {formatTime(futureSequence.totalTime)}
+                </span>
               </div>
+
+              {/* Mobile phases section */}
+              {futureSequence.mobilePhaseCodes.length > 0 && (
+                <div className="text-xs text-gray-600 mt-1">
+                  <span className="font-medium">
+                    Mobile Phases ({futureSequence.mobilePhaseCodes.length}):
+                  </span>{" "}
+                  {futureSequence.mobilePhaseCodes.join(", ")}
+                </div>
+              )}
             </div>
 
             <div className="text-right">
               <div className="text-xs text-gray-500">Column</div>
-              <div
-                className="text-[10px] text-gray-600 truncate max-w-[200px]"
-                title={futureSequence.column}
-              >
+              <div className="text-[10px] text-gray-600 truncate max-w-200px title={futureSequence.column}">
                 {futureSequence.column}
               </div>
             </div>
@@ -3392,11 +3885,7 @@ export default function EnhancedSchedulingAlgorithm() {
           <div className="border-t border-gray-200 bg-green-50 p-2">
             <div className="text-[10px] text-green-600">
               {futureSequence.groups.length} optimization group(s) • Total
-              saved:{" "}
-              {futureSequence.groups
-                .reduce((sum, g) => sum + g.timeSaved, 0)
-                .toFixed(1)}
-              m
+              saved: {savedTime.toFixed(1)}m
             </div>
           </div>
         )}
@@ -3808,7 +4297,7 @@ export default function EnhancedSchedulingAlgorithm() {
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <div className="grid grid-cols-2 gap-3 h-[calc(100vh-120px)] overflow-auto">
+            <div className="grid grid-cols-2 gap-3 h-full">
               {hplcSchedules.map((schedule) => (
                 <div
                   key={schedule.hplcId}
@@ -3825,10 +4314,46 @@ export default function EnhancedSchedulingAlgorithm() {
                         <div className="text-gray-800 text-xs font-medium">
                           {schedule.hplcName}
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {schedule.tests.length} tests •{" "}
-                          {formatTime(schedule.totalTime)}
-                        </div>
+
+                        {/* Get unique mobile phases from all tests */}
+                        {schedule.tests.length > 0 &&
+                          (() => {
+                            const allMobilePhases = new Set<string>();
+                            schedule.tests.forEach((test) => {
+                              test.mobilePhaseCodes.forEach((code) => {
+                                if (code.trim() !== "") {
+                                  allMobilePhases.add(code);
+                                }
+                              });
+                            });
+                            const mobilePhaseArray =
+                              Array.from(allMobilePhases);
+                            return (
+                              <>
+                                <div className="text-xs text-gray-500 mt-1">
+                                  {schedule.tests.length} tests •{" "}
+                                  <span className="font-semibold text-gray-700">
+                                    {formatTime(schedule.totalTime)}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  <span className="font-medium">
+                                    Mobile Phases ({mobilePhaseArray.length}):
+                                  </span>{" "}
+                                  {mobilePhaseArray.join(", ")}
+                                </div>
+                              </>
+                            );
+                          })()}
+
+                        {!schedule.tests.length && (
+                          <div className="text-xs text-gray-500">
+                            {schedule.tests.length} tests •{" "}
+                            <span className="font-semibold text-gray-700">
+                              {formatTime(schedule.totalTime)}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       <div className="text-right">
@@ -3836,7 +4361,7 @@ export default function EnhancedSchedulingAlgorithm() {
                         {schedule.tests.length > 0 &&
                           columnMaster[schedule.tests[0]?.columnCode] && (
                             <div
-                              className="text-[10px] text-gray-600 truncate max-w-[200px]"
+                              className="text-[10px] text-gray-600"
                               title={
                                 columnMaster[schedule.tests[0]?.columnCode]
                               }
@@ -3857,6 +4382,7 @@ export default function EnhancedSchedulingAlgorithm() {
                         </span>
                       </div>
                     </div>
+
                     {schedule.tests.length > 0 && (
                       <div className="mt-2 pt-2 border-t border-gray-200">
                         <div className="flex items-center justify-between bg-blue-50 rounded px-2 py-1">
@@ -3943,7 +4469,7 @@ export default function EnhancedSchedulingAlgorithm() {
                               <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
                                 Std Inj
                               </th>
-                              <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
+                              <th className="px-1 py-1 text-centerf text-gray-600 font-medium border-r border-gray-200">
                                 Sample Inj
                               </th>
                               <th className="px-1 py-1 text-center text-gray-600 font-medium border-r border-gray-200">
@@ -4289,7 +4815,7 @@ export default function EnhancedSchedulingAlgorithm() {
 
                               return (
                                 <FutureSequenceCard
-                                  key={sequence.sequenceName}
+                                  key={sequence.id}
                                   futureSequence={sequence}
                                   visualGroups={sequenceVisualGroups}
                                   onReorder={handleFutureSequenceReorder}
@@ -4311,20 +4837,47 @@ export default function EnhancedSchedulingAlgorithm() {
                 {/* Hold Table Header */}
                 <div className="p-2 border-b border-yellow-200 bg-yellow-50">
                   <div className="flex justify-between items-center">
-                    <div>
+                    <div className="flex-1">
                       <div className="text-gray-800 text-xs font-medium">
                         🕐 Hold Table - Tests Awaiting Resources
                       </div>
-                      <div className="text-xs text-yellow-700">
-                        {unscheduledTests.length} tests • Total Time:{" "}
-                        {formatTime(
-                          unscheduledTests.reduce(
-                            (sum, test) => sum + test.executionTime,
-                            0
-                          )
-                        )}
+
+                      <div className="text-xs text-yellow-700 mt-1">
+                        {unscheduledTests.length} tests •{" "}
+                        <span className="font-semibold text-yellow-800">
+                          {formatTime(
+                            unscheduledTests.reduce(
+                              (sum, test) => sum + test.executionTime,
+                              0
+                            )
+                          )}
+                        </span>
                       </div>
+
+                      {/* Mobile phases section */}
+                      {unscheduledTests.length > 0 &&
+                        (() => {
+                          const allMobilePhases = new Set<string>();
+                          unscheduledTests.forEach((test) => {
+                            test.mobilePhaseCodes?.forEach((code) => {
+                              if (code?.trim() !== "") {
+                                allMobilePhases.add(code);
+                              }
+                            });
+                          });
+                          const mobilePhaseArray = Array.from(allMobilePhases);
+
+                          return mobilePhaseArray.length > 0 ? (
+                            <div className="text-xs text-yellow-700 mt-1">
+                              <span className="font-medium">
+                                Mobile Phases ({mobilePhaseArray.length}):
+                              </span>{" "}
+                              {mobilePhaseArray.join(", ")}
+                            </div>
+                          ) : null;
+                        })()}
                     </div>
+
                     <div className="text-xs text-yellow-600 bg-yellow-100 px-2 py-1 rounded">
                       These tests will be auto-scheduled when resources become
                       available
